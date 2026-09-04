@@ -232,6 +232,7 @@ class BleCounterReceiver:
                 self._reconnect_count,
             ):
                 client: Optional[BleakClient] = None
+                subscribed = False
                 inbox = NotificationInbox(self._queue_size)
                 reconnect_started_at = self._pending_reconnect_started_at
                 self._disconnect_event.clear()
@@ -268,6 +269,7 @@ class BleCounterReceiver:
                         criteria,
                         started_at,
                     )
+                    subscribed = True
                     self._observe_timing("subscription_seconds", subscribe_started)
                     reconnected_at = await self._consume_connection(
                         inbox, criteria, started_at, reconnect_started_at is not None
@@ -288,7 +290,7 @@ class BleCounterReceiver:
                     if self._active_connection_generation == connection_generation:
                         self._active_connection_generation = None
                     if client is not None and client.is_connected:
-                        await self._quiesce_drain_and_disconnect(client, inbox)
+                        await self._quiesce_drain_and_disconnect(client, inbox, subscribed)
                     else:
                         self._drain_inbox(inbox)
 
@@ -450,22 +452,23 @@ class BleCounterReceiver:
         await asyncio.sleep(min(self._reconnect_delay_seconds, remaining_duration))
 
     async def _quiesce_drain_and_disconnect(
-        self, client: BleakClient, inbox: NotificationInbox
+        self, client: BleakClient, inbox: NotificationInbox, subscribed: bool
     ) -> None:
         cleanup_deadline = time.monotonic() + TOTAL_CLEANUP_GRACE_SECONDS
-        stop_budget = max(
-            0.0,
-            cleanup_deadline
-            - time.monotonic()
-            - MINIMUM_DISCONNECT_ATTEMPT_SECONDS,
-        )
-        stop_succeeded = await self._cleanup_operation(
-            "stop-notify",
-            client.stop_notify(NOTIFY_CHARACTERISTIC_UUID),
-            stop_budget,
-        )
-        if not stop_succeeded:
-            await asyncio.sleep(0)
+        if subscribed:
+            stop_budget = max(
+                0.0,
+                cleanup_deadline
+                - time.monotonic()
+                - MINIMUM_DISCONNECT_ATTEMPT_SECONDS,
+            )
+            stop_succeeded = await self._cleanup_operation(
+                "stop-notify",
+                client.stop_notify(NOTIFY_CHARACTERISTIC_UUID),
+                stop_budget,
+            )
+            if not stop_succeeded:
+                await asyncio.sleep(0)
         disconnect_budget = max(0.0, cleanup_deadline - time.monotonic())
         await self._cleanup_operation("disconnect", client.disconnect(), disconnect_budget)
         await asyncio.sleep(0)

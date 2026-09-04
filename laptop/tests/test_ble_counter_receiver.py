@@ -236,6 +236,40 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary.cleanup_error_count, 0)
         self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 0)
 
+    async def test_missing_gatt_skips_unsubscribed_stop_notify_but_disconnects(self) -> None:
+        client_factory = _MissingGattCleanupClientFactory()
+        receiver = BleCounterReceiver(
+            reconnect_delay_seconds=0.0,
+            scanner=_FakeScanner([object()]),
+            client_factory=client_factory,
+        )
+
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        client = client_factory.client
+        self.assertEqual(client.start_notify_calls, 0)
+        self.assertEqual(client.stop_notify_calls, 0)
+        self.assertEqual(client.disconnect_calls, 1)
+        self.assertEqual(summary.cleanup_error_count, 0)
+
+    async def test_start_notify_failure_skips_unsubscribed_stop_notify_but_disconnects(self) -> None:
+        client_factory = _StartNotifyFailureClientFactory()
+        receiver = BleCounterReceiver(
+            reconnect_delay_seconds=0.0,
+            scanner=_FakeScanner([object()]),
+            client_factory=client_factory,
+        )
+
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        client = client_factory.client
+        self.assertEqual(client.start_notify_calls, 1)
+        self.assertEqual(client.stop_notify_calls, 0)
+        self.assertEqual(client.disconnect_calls, 1)
+        self.assertEqual(summary.cleanup_error_count, 0)
+
     async def test_duration_allows_only_one_total_cleanup_grace(self) -> None:
         receiver = BleCounterReceiver(
             scanner=_FakeScanner([object()]),
@@ -536,6 +570,62 @@ class _WindowsCleanupLatencyClientFactory:
     ) -> _WindowsCleanupLatencyClient:
         del disconnected_callback
         return _WindowsCleanupLatencyClient(delay_seconds=0)
+
+
+class _MissingGattCleanupClient:
+    def __init__(self) -> None:
+        self.is_connected = False
+        self.services = _MissingGattServices()
+        self.start_notify_calls = 0
+        self.stop_notify_calls = 0
+        self.disconnect_calls = 0
+
+    async def connect(self) -> None:
+        self.is_connected = True
+
+    async def start_notify(self, _uuid: str, _callback: object) -> None:
+        self.start_notify_calls += 1
+
+    async def stop_notify(self, _uuid: str) -> None:
+        self.stop_notify_calls += 1
+        raise RuntimeError("stop_notify called without a subscription")
+
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        self.is_connected = False
+
+
+class _MissingGattCleanupClientFactory:
+    def __init__(self) -> None:
+        self.client = _MissingGattCleanupClient()
+
+    def __call__(self, _device: object, disconnected_callback: object) -> _MissingGattCleanupClient:
+        del disconnected_callback
+        return self.client
+
+
+class _MissingGattServices:
+    def get_service(self, _uuid: str) -> None:
+        return None
+
+
+class _StartNotifyFailureClient(_MissingGattCleanupClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.services = _FakeServices()
+
+    async def start_notify(self, _uuid: str, _callback: object) -> None:
+        self.start_notify_calls += 1
+        raise RuntimeError("simulated start-notify failure")
+
+
+class _StartNotifyFailureClientFactory:
+    def __init__(self) -> None:
+        self.client = _StartNotifyFailureClient()
+
+    def __call__(self, _device: object, disconnected_callback: object) -> _StartNotifyFailureClient:
+        del disconnected_callback
+        return self.client
 
 
 class _StopInjectingClient:
