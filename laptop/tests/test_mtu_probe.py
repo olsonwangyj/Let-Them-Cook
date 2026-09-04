@@ -13,8 +13,10 @@ import unittest
 
 from laptop.mtu_probe import (
     CONTROL_CHARACTERISTIC_UUID,
+    DISCONNECT_ATTEMPT_RESERVE_SECONDS,
     EXPECTED_SERVICE_UUID,
     PROBE_CHARACTERISTIC_UUID,
+    TOTAL_CLEANUP_GRACE_SECONDS,
     MtuProbe,
 )
 
@@ -236,7 +238,10 @@ class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary.trials[1].requested_length, 514)
         self.assertEqual(summary.trials[1].payload, exact_514_byte_payload)
         self.assertEqual(len(exact_514_byte_payload), 514)
+        self.assertEqual(summary.trials[1].outcome, "exact")
+        self.assertTrue(summary.trials[1].payload_exact)
         self.assertEqual(summary.trials[2].outcome, "laptop_absence")
+        self.assertEqual(summary.exit_code(), 0)
 
     async def test_cancellation_resistant_stop_is_supervised_before_reserved_disconnect(self) -> None:
         """Catches cleanup waiting for a cancellation-resistant stop-notify task."""
@@ -262,7 +267,10 @@ class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.disconnect_calls, 1)
         self.assertIsNotNone(client.stop_started_at)
         self.assertIsNotNone(client.disconnect_started_at)
-        self.assertLess(client.disconnect_started_at - client.stop_started_at, 0.9)
+        self.assertLess(
+            client.disconnect_started_at - client.stop_started_at,
+            TOTAL_CLEANUP_GRACE_SECONDS - DISCONNECT_ATTEMPT_RESERVE_SECONDS + 0.05,
+        )
         self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 1)
         await asyncio.sleep(0.35)
         self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 0)
