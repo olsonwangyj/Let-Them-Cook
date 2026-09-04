@@ -81,6 +81,7 @@ class MtuProbeSummary:
     queue_drop_count: int
     unexpected_notification_count: int
     cleanup_error_count: int
+    error: Optional[str] = None
 
     def exit_code(self) -> int:
         expected = ("exact", "exact", "laptop_absence")
@@ -92,6 +93,7 @@ class MtuProbeSummary:
                 self.queue_drop_count,
                 self.unexpected_notification_count,
                 self.cleanup_error_count,
+                self.error is not None,
             )
         )
         return 0 if trials_ok and not anomalies else 1
@@ -100,6 +102,7 @@ class MtuProbeSummary:
         return json.dumps(
             {
                 "cleanup_error_count": self.cleanup_error_count,
+                "error": self.error,
                 "queue_drop_count": self.queue_drop_count,
                 "trials": [trial.to_public_json() for trial in self.trials],
                 "unexpected_notification_count": self.unexpected_notification_count,
@@ -160,6 +163,7 @@ class MtuProbe:
         windows_att_mtu = 0
         value_boundary = 0
         subscribed = False
+        operation_error: Optional[str] = None
         try:
             await client.connect()
             self._verify_required_gatt(client)
@@ -183,6 +187,8 @@ class MtuProbe:
                 )
                 trials.append(trial)
                 unexpected_notification_count += unexpected_count
+        except Exception as exc:
+            operation_error = str(exc)
         finally:
             if subscribed:
                 try:
@@ -194,6 +200,8 @@ class MtuProbe:
                     await client.disconnect()
                 except Exception:
                     cleanup_error_count += 1
+            await asyncio.sleep(0)
+            unexpected_notification_count += len(inbox.drain())
 
         return MtuProbeSummary(
             windows_att_mtu=windows_att_mtu,
@@ -202,6 +210,7 @@ class MtuProbe:
             queue_drop_count=inbox.drop_count,
             unexpected_notification_count=unexpected_notification_count,
             cleanup_error_count=cleanup_error_count,
+            error=operation_error,
         )
 
     def _verify_required_gatt(self, client: BleakClient) -> None:

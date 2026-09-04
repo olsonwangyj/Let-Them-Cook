@@ -15,7 +15,6 @@ from laptop.mtu_probe import (
     EXPECTED_SERVICE_UUID,
     PROBE_CHARACTERISTIC_UUID,
     MtuProbe,
-    RequiredGattMissing,
 )
 
 
@@ -66,6 +65,7 @@ class _Client:
         probe_properties: list[str] | None = None,
         oversize_notification: bool = False,
         disconnect_error: Exception | None = None,
+        late_notification_on_stop: bool = False,
     ) -> None:
         self.device = device
         self.mtu_size = mtu_size
@@ -75,6 +75,7 @@ class _Client:
         )
         self.oversize_notification = oversize_notification
         self.disconnect_error = disconnect_error
+        self.late_notification_on_stop = late_notification_on_stop
         self.callback = None
         self.write_lengths: list[int] = []
         self.started_before_write = True
@@ -96,6 +97,11 @@ class _Client:
             asyncio.get_running_loop().call_soon(self.callback, None, bytearray(payload))
 
     async def stop_notify(self, _uuid: str) -> None:
+        if self.late_notification_on_stop:
+            assert self.callback is not None
+            asyncio.get_running_loop().call_soon(
+                self.callback, None, bytearray(b"\x00\x01\x02\x03")
+            )
         return None
 
     async def disconnect(self) -> None:
@@ -134,12 +140,21 @@ class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary.trials[2].outcome, "laptop_absence")
         self.assertEqual(summary.exit_code(), 0)
 
-    async def test_missing_control_write_property_is_rejected_before_trial(self) -> None:
-        """Catches accepting a connected peripheral without Gate D's writable control API."""
-        factory = _ClientFactory(control_properties=["read"])
+    async def test_primary_gatt_error_keeps_disconnect_failure_in_machine_summary(self) -> None:
+        """Catches dropping cleanup evidence whenever GATT validation also fails."""
+        factory = _ClientFactory(
+            control_properties=["read"],
+            disconnect_error=RuntimeError("disconnect failed"),
+        )
 
-        with self.assertRaises(RequiredGattMissing):
-            await MtuProbe(scanner=_Scanner(object()), client_factory=factory).run()
+        summary = await MtuProbe(scanner=_Scanner(object()), client_factory=factory).run()
+
+        self.assertEqual(
+            summary.error,
+            "required Gate D write control characteristic is missing",
+        )
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(), 1)
 
     async def test_oversize_notification_is_an_anomaly_not_evidence_of_rejection(self) -> None:
         """Catches treating a boundary-plus-one notification as a successful rejection."""
@@ -148,6 +163,16 @@ class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
         summary = await MtuProbe(scanner=_Scanner(object()), client_factory=factory).run()
 
         self.assertEqual(summary.trials[2].outcome, "unexpected_notification")
+        self.assertEqual(summary.exit_code(), 1)
+
+    async def test_late_oversize_notification_during_cleanup_is_an_anomaly(self) -> None:
+        """Catches accepting a timed-out oversize trial when cleanup receives a late notification."""
+        factory = _ClientFactory(mtu_size=25, late_notification_on_stop=True)
+
+        summary = await MtuProbe(scanner=_Scanner(object()), client_factory=factory).run()
+
+        self.assertEqual(summary.trials[2].outcome, "laptop_absence")
+        self.assertEqual(summary.unexpected_notification_count, 1)
         self.assertEqual(summary.exit_code(), 1)
 
     async def test_cleanup_failure_is_exposed_in_summary_and_exit_status(self) -> None:
