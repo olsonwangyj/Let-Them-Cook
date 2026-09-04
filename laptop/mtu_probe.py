@@ -19,6 +19,8 @@ SAFE_LENGTH = 20
 DEFAULT_SCAN_TIMEOUT_SECONDS = 5.0
 DEFAULT_NOTIFICATION_TIMEOUT_SECONDS = 2.0
 DEFAULT_QUEUE_SIZE = 8
+TOTAL_CLEANUP_GRACE_SECONDS = 1.0
+DISCONNECT_ATTEMPT_RESERVE_SECONDS = 0.25
 
 
 class RequiredGattMissing(RuntimeError):
@@ -143,6 +145,7 @@ class MtuProbe:
         self._queue_size = queue_size
         self._scanner = scanner
         self._client_factory = client_factory
+        self._detached_cleanup_tasks: set[asyncio.Task[Any]] = set()
 
     async def run(self) -> MtuProbeSummary:
         """Run safe, negotiated-boundary, and boundary-plus-one trials in order."""
@@ -190,15 +193,27 @@ class MtuProbe:
         except Exception as exc:
             operation_error = str(exc)
         finally:
+            cleanup_deadline = (
+                asyncio.get_running_loop().time() + TOTAL_CLEANUP_GRACE_SECONDS
+            )
             if subscribed:
-                try:
-                    await client.stop_notify(PROBE_CHARACTERISTIC_UUID)
-                except Exception:
+                stop_timeout = max(
+                    0.0,
+                    cleanup_deadline
+                    - asyncio.get_running_loop().time()
+                    - DISCONNECT_ATTEMPT_RESERVE_SECONDS,
+                )
+                if not await self._supervise_cleanup_operation(
+                    client.stop_notify(PROBE_CHARACTERISTIC_UUID), stop_timeout
+                ):
                     cleanup_error_count += 1
             if client.is_connected:
-                try:
-                    await client.disconnect()
-                except Exception:
+                disconnect_timeout = max(
+                    0.0, cleanup_deadline - asyncio.get_running_loop().time()
+                )
+                if not await self._supervise_cleanup_operation(
+                    client.disconnect(), disconnect_timeout
+                ):
                     cleanup_error_count += 1
             await asyncio.sleep(0)
             unexpected_notification_count += len(inbox.drain())
@@ -212,6 +227,36 @@ class MtuProbe:
             cleanup_error_count=cleanup_error_count,
             error=operation_error,
         )
+
+    async def _supervise_cleanup_operation(self, awaitable: Any, timeout: float) -> bool:
+        """Bound one cleanup action without waiting for cancellation-resistant BLE work."""
+        task = asyncio.create_task(awaitable)
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+        except asyncio.TimeoutError:
+            self._detach_cleanup_task(task)
+            return False
+        except asyncio.CancelledError:
+            self._detach_cleanup_task(task)
+            raise
+        except Exception:
+            return False
+        return True
+
+    def _detach_cleanup_task(self, task: asyncio.Task[Any]) -> None:
+        """Retain and consume a cancelled cleanup task until it finishes."""
+        self._detached_cleanup_tasks.add(task)
+        task.cancel()
+        task.add_done_callback(self._consume_detached_cleanup_result)
+
+    def _consume_detached_cleanup_result(self, task: asyncio.Task[Any]) -> None:
+        self._detached_cleanup_tasks.discard(task)
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
 
     def _verify_required_gatt(self, client: BleakClient) -> None:
         service = client.services.get_service(EXPECTED_SERVICE_UUID)

@@ -8,6 +8,7 @@ literal byte sequences.
 from __future__ import annotations
 
 import asyncio
+import time
 import unittest
 
 from laptop.mtu_probe import (
@@ -55,6 +56,23 @@ class _Scanner:
         return self.device
 
 
+class _Advertisement:
+    def __init__(self, service_uuids: list[str] | None) -> None:
+        self.service_uuids = service_uuids
+
+
+class _PredicateExecutingScanner:
+    """A scanner double that evaluates the production advertisement predicate."""
+
+    def __init__(self, service_uuids: list[str] | None) -> None:
+        self._advertisement = _Advertisement(service_uuids)
+        self.device = object()
+
+    async def find_device_by_filter(self, predicate: object, timeout: float) -> object | None:
+        del timeout
+        return self.device if predicate(self.device, self._advertisement) else None
+
+
 class _Client:
     def __init__(
         self,
@@ -93,7 +111,7 @@ class _Client:
         self.write_lengths.append(requested_length)
         if requested_length <= self.mtu_size - 3 or self.oversize_notification:
             assert self.callback is not None
-            payload = bytes(range(requested_length))
+            payload = bytes(index & 0xFF for index in range(requested_length))
             asyncio.get_running_loop().call_soon(self.callback, None, bytearray(payload))
 
     async def stop_notify(self, _uuid: str) -> None:
@@ -120,7 +138,173 @@ class _ClientFactory:
         return self.client
 
 
+class _SlowCleanupClient(_Client):
+    def __init__(self, device: object, *, delay_seconds: float) -> None:
+        super().__init__(device, mtu_size=25)
+        self.delay_seconds = delay_seconds
+        self.stop_started_at: float | None = None
+        self.disconnect_started_at: float | None = None
+        self.stop_started = asyncio.Event()
+        self.disconnect_calls = 0
+
+    async def stop_notify(self, _uuid: str) -> None:
+        self.stop_started_at = time.monotonic()
+        self.stop_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            await asyncio.sleep(self.delay_seconds)
+
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        self.disconnect_started_at = time.monotonic()
+        self.is_connected = False
+
+
+class _SlowCleanupClientFactory:
+    def __init__(self, delay_seconds: float) -> None:
+        self.delay_seconds = delay_seconds
+        self.client: _SlowCleanupClient | None = None
+
+    def __call__(self, device: object) -> _SlowCleanupClient:
+        self.client = _SlowCleanupClient(device, delay_seconds=self.delay_seconds)
+        return self.client
+
+
+class _DualSlowCleanupClient(_Client):
+    def __init__(self, device: object, *, delay_seconds: float) -> None:
+        super().__init__(device, mtu_size=25)
+        self.delay_seconds = delay_seconds
+        self.stop_started_at: float | None = None
+        self.disconnect_started_at: float | None = None
+
+    async def stop_notify(self, _uuid: str) -> None:
+        self.stop_started_at = time.monotonic()
+        await asyncio.sleep(self.delay_seconds)
+
+    async def disconnect(self) -> None:
+        self.disconnect_started_at = time.monotonic()
+        try:
+            await asyncio.sleep(self.delay_seconds)
+        except asyncio.CancelledError:
+            self.is_connected = False
+            raise
+        self.is_connected = False
+
+
+class _DualSlowCleanupClientFactory:
+    def __init__(self, delay_seconds: float) -> None:
+        self.delay_seconds = delay_seconds
+        self.client: _DualSlowCleanupClient | None = None
+
+    def __call__(self, device: object) -> _DualSlowCleanupClient:
+        self.client = _DualSlowCleanupClient(device, delay_seconds=self.delay_seconds)
+        return self.client
+
+
 class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_scanner_fake_applies_exact_gate_d_advertisement_matching(self) -> None:
+        """Catches accepting UUID near misses or rejecting exact UUID case variants."""
+        for advertised_uuids, should_find_device in (
+            ([EXPECTED_SERVICE_UUID], True),
+            ([EXPECTED_SERVICE_UUID.upper()], True),
+            ([EXPECTED_SERVICE_UUID[:-1] + "2"], False),
+            (None, False),
+        ):
+            with self.subTest(advertised_uuids=advertised_uuids):
+                scanner = _PredicateExecutingScanner(advertised_uuids)
+                probe = MtuProbe(scanner=scanner, client_factory=_ClientFactory())
+                if should_find_device:
+                    summary = await probe.run()
+                    self.assertEqual(summary.exit_code(), 0)
+                else:
+                    with self.assertRaisesRegex(
+                        TimeoutError, "no peripheral advertising the Gate D test service"
+                    ):
+                        await probe.run()
+
+    async def test_att_mtu_517_observes_modulo_256_boundary_payload(self) -> None:
+        """Catches payload construction that fails to wrap at byte 256."""
+        factory = _ClientFactory(mtu_size=517)
+
+        summary = await MtuProbe(
+            scanner=_Scanner(object()), client_factory=factory
+        ).run()
+
+        exact_514_byte_payload = bytes(range(256)) * 2 + b"\x00\x01"
+        self.assertEqual(factory.client.write_lengths, [20, 514, 515])
+        self.assertEqual(summary.trials[1].requested_length, 514)
+        self.assertEqual(summary.trials[1].payload, exact_514_byte_payload)
+        self.assertEqual(len(exact_514_byte_payload), 514)
+        self.assertEqual(summary.trials[2].outcome, "laptop_absence")
+
+    async def test_cancellation_resistant_stop_is_supervised_before_reserved_disconnect(self) -> None:
+        """Catches cleanup waiting for a cancellation-resistant stop-notify task."""
+        factory = _SlowCleanupClientFactory(delay_seconds=0.3)
+        probe = MtuProbe(
+            notification_timeout_seconds=0.01,
+            scanner=_Scanner(object()),
+            client_factory=factory,
+        )
+
+        started_at = time.monotonic()
+        run_task = asyncio.create_task(probe.run())
+        try:
+            summary = await asyncio.wait_for(asyncio.shield(run_task), timeout=1.15)
+        except asyncio.TimeoutError:
+            run_task.cancel()
+            await run_task
+            self.fail("cleanup supervision did not return within the shared grace")
+
+        client = factory.client
+        self.assertLess(time.monotonic() - started_at, 1.15)
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(client.disconnect_calls, 1)
+        self.assertIsNotNone(client.stop_started_at)
+        self.assertIsNotNone(client.disconnect_started_at)
+        self.assertLess(client.disconnect_started_at - client.stop_started_at, 0.9)
+        self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 1)
+        await asyncio.sleep(0.35)
+        self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 0)
+
+    async def test_two_slow_cleanup_operations_share_one_grace_window(self) -> None:
+        """Catches granting each cleanup operation its own one-second deadline."""
+        factory = _DualSlowCleanupClientFactory(delay_seconds=0.7)
+        probe = MtuProbe(
+            notification_timeout_seconds=0.01,
+            scanner=_Scanner(object()),
+            client_factory=factory,
+        )
+
+        started_at = time.monotonic()
+        summary = await probe.run()
+
+        self.assertLess(time.monotonic() - started_at, 1.15)
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertIsNotNone(factory.client.stop_started_at)
+        self.assertIsNotNone(factory.client.disconnect_started_at)
+
+    async def test_outer_cleanup_cancellation_retains_child_until_it_finishes(self) -> None:
+        """Catches losing a cancellation-resistant cleanup child on outer cancellation."""
+        factory = _SlowCleanupClientFactory(delay_seconds=0.3)
+        probe = MtuProbe(
+            notification_timeout_seconds=0.01,
+            scanner=_Scanner(object()),
+            client_factory=factory,
+        )
+        run_task = asyncio.create_task(probe.run())
+        while factory.client is None:
+            await asyncio.sleep(0)
+        await factory.client.stop_started.wait()
+
+        run_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await run_task
+
+        self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 1)
+        await asyncio.sleep(0.35)
+        self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 0)
+
     async def test_run_uses_scanned_device_and_delivers_exact_safe_and_boundary_payloads(self) -> None:
         """Catches changing the scan/device handoff or accepting truncated/corrupt payloads."""
         device = object()
