@@ -19,6 +19,7 @@ COUNTER_BYTES = 4
 UINT32_MASK = 0xFFFFFFFF
 HALF_UINT32_RANGE = 0x80000000
 MAX_RECONNECT_DELAY_SECONDS = 10.0
+CLEANUP_TIMEOUT_SECONDS = 0.25
 
 LOGGER = logging.getLogger(__name__)
 
@@ -218,79 +219,89 @@ class BleCounterReceiver:
         """Run until the requested counter or elapsed-time criterion is met."""
         self._loop = asyncio.get_running_loop()
         started_at = time.monotonic()
-        while not criteria.should_stop(
-            self._tracker.received_count,
-            time.monotonic() - started_at,
-            self._reconnect_count,
-        ):
-            client: Optional[BleakClient] = None
-            inbox = NotificationInbox(self._queue_size)
-            reconnect_started_at = self._pending_reconnect_started_at
-            self._disconnect_event.clear()
-            self._disconnect_callback_at = None
-            connection_generation: Optional[int] = None
-            try:
-                device = await self._scan_for_device()
-                self._connection_generation += 1
-                connection_generation = self._connection_generation
-                self._active_connection_generation = connection_generation
-                client = self._client_factory(
-                    device,
-                    disconnected_callback=self._make_disconnect_callback(
-                        connection_generation
-                    ),
-                )
-                connect_started = time.monotonic()
-                await client.connect()
-                self._observe_timing("connection_seconds", connect_started)
-                await self._verify_required_gatt(client)
-                self._tracker.start_connection()
-                subscribe_started = time.monotonic()
-                await client.start_notify(
-                    NOTIFY_CHARACTERISTIC_UUID,
-                    self._make_notification_callback(inbox),
-                )
-                self._observe_timing("subscription_seconds", subscribe_started)
-                reconnected_at = await self._consume_connection(
-                    inbox, criteria, started_at, reconnect_started_at is not None
-                )
-                self._drain_inbox(inbox)
-                if reconnected_at is not None and reconnect_started_at is not None:
-                    self._reconnect_count += 1
-                    self._observations.setdefault(
-                        "disconnect_callback_to_resubscribe_seconds", []
-                    ).append(round(reconnected_at - reconnect_started_at, 6))
-                    self._pending_reconnect_started_at = None
-            except RequiredGattMissing:
-                LOGGER.error("connected device is missing the required diagnostic GATT service")
-            except Exception as exc:  # hardware and adapter errors are retried after a bounded delay
-                LOGGER.warning("BLE connection attempt failed: %s", exc)
-            finally:
-                if self._active_connection_generation == connection_generation:
-                    self._active_connection_generation = None
-                if client is not None and client.is_connected:
-                    try:
-                        await client.stop_notify(NOTIFY_CHARACTERISTIC_UUID)
-                    except Exception:
-                        pass
-                    try:
-                        await client.disconnect()
-                    except Exception as exc:
-                        LOGGER.warning("BLE disconnect cleanup failed: %s", exc)
-
-            if criteria.should_stop(
+        try:
+            while not criteria.should_stop(
                 self._tracker.received_count,
                 time.monotonic() - started_at,
                 self._reconnect_count,
             ):
-                break
-            if self._disconnect_event.is_set():
-                self._pending_reconnect_started_at = (
-                    self._disconnect_callback_at or time.monotonic()
-                )
-            await asyncio.sleep(self._reconnect_delay_seconds)
+                client: Optional[BleakClient] = None
+                inbox = NotificationInbox(self._queue_size)
+                reconnect_started_at = self._pending_reconnect_started_at
+                self._disconnect_event.clear()
+                self._disconnect_callback_at = None
+                connection_generation: Optional[int] = None
+                try:
+                    device = await self._scan_for_device(
+                        self._remaining_duration(criteria, started_at)
+                    )
+                    self._connection_generation += 1
+                    connection_generation = self._connection_generation
+                    self._active_connection_generation = connection_generation
+                    client = self._client_factory(
+                        device,
+                        disconnected_callback=self._make_disconnect_callback(
+                            connection_generation
+                        ),
+                    )
+                    connect_started = time.monotonic()
+                    await self._await_with_duration(
+                        client.connect(), criteria, started_at
+                    )
+                    self._observe_timing("connection_seconds", connect_started)
+                    await self._await_with_duration(
+                        self._verify_required_gatt(client), criteria, started_at
+                    )
+                    self._tracker.start_connection()
+                    subscribe_started = time.monotonic()
+                    await self._await_with_duration(
+                        client.start_notify(
+                            NOTIFY_CHARACTERISTIC_UUID,
+                            self._make_notification_callback(inbox),
+                        ),
+                        criteria,
+                        started_at,
+                    )
+                    self._observe_timing("subscription_seconds", subscribe_started)
+                    reconnected_at = await self._consume_connection(
+                        inbox, criteria, started_at, reconnect_started_at is not None
+                    )
+                    if reconnected_at is not None and reconnect_started_at is not None:
+                        self._reconnect_count += 1
+                        self._observations.setdefault(
+                            "disconnect_callback_to_resubscribe_seconds", []
+                        ).append(round(reconnected_at - reconnect_started_at, 6))
+                        self._pending_reconnect_started_at = None
+                except RequiredGattMissing:
+                    LOGGER.error("connected device is missing the required diagnostic GATT service")
+                except asyncio.TimeoutError:
+                    pass
+                except Exception as exc:  # hardware and adapter errors are retried after a bounded delay
+                    LOGGER.warning("BLE connection attempt failed: %s", exc)
+                finally:
+                    if self._active_connection_generation == connection_generation:
+                        self._active_connection_generation = None
+                    if client is not None and client.is_connected:
+                        await self._quiesce_drain_and_disconnect(client, inbox)
+                    else:
+                        self._drain_inbox(inbox)
 
-        return self.summary(time.monotonic() - started_at)
+                if criteria.should_stop(
+                    self._tracker.received_count,
+                    time.monotonic() - started_at,
+                    self._reconnect_count,
+                ):
+                    break
+                if self._disconnect_event.is_set():
+                    self._pending_reconnect_started_at = (
+                        self._disconnect_callback_at or time.monotonic()
+                    )
+                await self._sleep_with_duration(criteria, started_at)
+
+            return self.summary(time.monotonic() - started_at)
+        finally:
+            self._active_connection_generation = None
+            self._loop = None
 
     def summary(self, elapsed_seconds: float) -> RunSummary:
         return RunSummary(
@@ -305,13 +316,19 @@ class BleCounterReceiver:
             observations=self._observations,
         )
 
-    async def _scan_for_device(self) -> Any:
+    async def _scan_for_device(self, remaining_duration: Optional[float]) -> Any:
         scan_started = time.monotonic()
-        device = await self._scanner.find_device_by_filter(
-            lambda _device, advertisement: advertises_expected_service(
-                advertisement.service_uuids
+        scan_timeout = self._scan_timeout_seconds
+        if remaining_duration is not None:
+            scan_timeout = min(scan_timeout, remaining_duration)
+        device = await asyncio.wait_for(
+            self._scanner.find_device_by_filter(
+                lambda _device, advertisement: advertises_expected_service(
+                    advertisement.service_uuids
+                ),
+                timeout=scan_timeout,
             ),
-            timeout=self._scan_timeout_seconds,
+            timeout=scan_timeout,
         )
         self._observe_timing("scan_seconds", scan_started)
         if device is None:
@@ -343,14 +360,18 @@ class BleCounterReceiver:
         self, connection_generation: int
     ) -> Callable[[BleakClient], None]:
         def on_disconnect(_client: BleakClient) -> None:
-            if self._loop is None:
+            loop = self._loop
+            if loop is None or loop.is_closed():
                 return
             callback_at = time.monotonic()
-            self._loop.call_soon_threadsafe(
-                self._mark_unexpected_disconnect,
-                connection_generation,
-                callback_at,
-            )
+            try:
+                loop.call_soon_threadsafe(
+                    self._mark_unexpected_disconnect,
+                    connection_generation,
+                    callback_at,
+                )
+            except RuntimeError:
+                return
 
         return on_disconnect
 
@@ -405,6 +426,41 @@ class BleCounterReceiver:
         if criteria.duration_seconds is None:
             return None
         return max(0.0, criteria.duration_seconds - (time.monotonic() - started_at))
+
+    async def _await_with_duration(
+        self, awaitable: Any, criteria: StopCriteria, started_at: float
+    ) -> Any:
+        remaining_duration = self._remaining_duration(criteria, started_at)
+        if remaining_duration is None:
+            return await awaitable
+        return await asyncio.wait_for(awaitable, timeout=remaining_duration)
+
+    async def _sleep_with_duration(self, criteria: StopCriteria, started_at: float) -> None:
+        remaining_duration = self._remaining_duration(criteria, started_at)
+        if remaining_duration is None:
+            await asyncio.sleep(self._reconnect_delay_seconds)
+            return
+        await asyncio.sleep(min(self._reconnect_delay_seconds, remaining_duration))
+
+    async def _quiesce_drain_and_disconnect(
+        self, client: BleakClient, inbox: NotificationInbox
+    ) -> None:
+        try:
+            await asyncio.wait_for(
+                client.stop_notify(NOTIFY_CHARACTERISTIC_UUID),
+                timeout=CLEANUP_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            LOGGER.warning("BLE stop-notify cleanup timed out")
+        except Exception:
+            pass
+        self._drain_inbox(inbox)
+        try:
+            await asyncio.wait_for(client.disconnect(), timeout=CLEANUP_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            LOGGER.warning("BLE disconnect cleanup timed out")
+        except Exception as exc:
+            LOGGER.warning("BLE disconnect cleanup failed: %s", exc)
 
     def _drain_inbox(self, inbox: NotificationInbox) -> None:
         self._collect_queue_drops(inbox)

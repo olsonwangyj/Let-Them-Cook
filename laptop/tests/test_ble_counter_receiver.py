@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import unittest
 
 from laptop.ble_counter_receiver import (
@@ -173,6 +174,79 @@ class GattVerificationTests(unittest.IsolatedAsyncioTestCase):
         await receiver._verify_required_gatt(_GattClient(properties=["notify", "read"]))
 
 
+class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
+    async def test_duration_bounds_slow_scan(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_SlowScanner(delay_seconds=0.3),
+            reconnect_delay_seconds=0.3,
+        )
+
+        started_at = time.monotonic()
+        await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        self.assertLess(time.monotonic() - started_at, 0.2)
+
+    async def test_duration_bounds_slow_connect(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_SlowConnectClientFactory(delay_seconds=0.3),
+        )
+
+        started_at = time.monotonic()
+        await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        self.assertLess(time.monotonic() - started_at, 0.2)
+
+    async def test_duration_bounds_retry_delay_after_scan_failure(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_NoDeviceScanner(),
+            reconnect_delay_seconds=0.3,
+        )
+
+        started_at = time.monotonic()
+        await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        self.assertLess(time.monotonic() - started_at, 0.2)
+
+    async def test_cleanup_timeout_bounds_slow_stop_notify(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_SlowCleanupClientFactory(delay_seconds=0.5),
+        )
+
+        started_at = time.monotonic()
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(target_received=1))
+
+        self.assertEqual(summary.received_count, 1)
+        self.assertLess(time.monotonic() - started_at, 0.4)
+
+    async def test_stop_notify_quiesces_before_final_inbox_drain(self) -> None:
+        receiver = BleCounterReceiver(
+            queue_size=2,
+            scanner=_FakeScanner([object()]),
+            client_factory=_StopInjectingClientFactory(),
+        )
+
+        summary = await receiver.run(StopCriteria(target_received=1))
+
+        self.assertEqual(summary.received_count, 2)
+        self.assertEqual(summary.queue_drop_count, 0)
+
+    async def test_run_detaches_loop_and_closed_loop_callback_is_ignored(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_CleanupFailureClientFactory(),
+        )
+
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            await receiver.run(StopCriteria(target_received=1))
+        self.assertIsNone(receiver._loop)
+
+        receiver._loop = _ClosedLoop()
+        receiver._make_disconnect_callback(1)(object())
+
+
 class _FakeScanner:
     def __init__(self, devices: list[object]) -> None:
         self._devices = iter(devices)
@@ -290,6 +364,113 @@ class _CleanupFailureClient:
 class _CleanupFailureClientFactory:
     def __call__(self, _device: object, disconnected_callback: object) -> _CleanupFailureClient:
         return _CleanupFailureClient(disconnected_callback)
+
+
+class _SlowScanner:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+
+    async def find_device_by_filter(self, _filter: object, timeout: float) -> object:
+        del timeout
+        await asyncio.sleep(self._delay_seconds)
+        return object()
+
+
+class _NoDeviceScanner:
+    async def find_device_by_filter(self, _filter: object, timeout: float) -> None:
+        del timeout
+        return None
+
+
+class _SlowConnectClient:
+    def __init__(self, delay_seconds: float) -> None:
+        self.is_connected = False
+        self.services = _FakeServices()
+        self._delay_seconds = delay_seconds
+
+    async def connect(self) -> None:
+        await asyncio.sleep(self._delay_seconds)
+        self.is_connected = True
+
+    async def stop_notify(self, _uuid: str) -> None:
+        return None
+
+    async def disconnect(self) -> None:
+        self.is_connected = False
+
+
+class _SlowConnectClientFactory:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+
+    def __call__(self, _device: object, disconnected_callback: object) -> _SlowConnectClient:
+        del disconnected_callback
+        return _SlowConnectClient(self._delay_seconds)
+
+
+class _SlowCleanupClient:
+    def __init__(self, delay_seconds: float) -> None:
+        self.is_connected = False
+        self.services = _FakeServices()
+        self._delay_seconds = delay_seconds
+        self._callback: object | None = None
+
+    async def connect(self) -> None:
+        self.is_connected = True
+
+    async def start_notify(self, _uuid: str, callback: object) -> None:
+        self._callback = callback
+        callback(None, bytearray(b"\x01\x00\x00\x00"))
+
+    async def stop_notify(self, _uuid: str) -> None:
+        await asyncio.sleep(self._delay_seconds)
+
+    async def disconnect(self) -> None:
+        self.is_connected = False
+
+
+class _SlowCleanupClientFactory:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+
+    def __call__(self, _device: object, disconnected_callback: object) -> _SlowCleanupClient:
+        del disconnected_callback
+        return _SlowCleanupClient(self._delay_seconds)
+
+
+class _StopInjectingClient:
+    def __init__(self) -> None:
+        self.is_connected = False
+        self.services = _FakeServices()
+        self._callback: object | None = None
+
+    async def connect(self) -> None:
+        self.is_connected = True
+
+    async def start_notify(self, _uuid: str, callback: object) -> None:
+        self._callback = callback
+        callback(None, bytearray(b"\x01\x00\x00\x00"))
+
+    async def stop_notify(self, _uuid: str) -> None:
+        assert self._callback is not None
+        self._callback(None, bytearray(b"\x02\x00\x00\x00"))
+
+    async def disconnect(self) -> None:
+        self.is_connected = False
+
+
+class _StopInjectingClientFactory:
+    def __call__(self, _device: object, disconnected_callback: object) -> _StopInjectingClient:
+        del disconnected_callback
+        return _StopInjectingClient()
+
+
+class _ClosedLoop:
+    def is_closed(self) -> bool:
+        return True
+
+    def call_soon_threadsafe(self, *args: object) -> None:
+        raise AssertionError("closed loop must not receive callbacks")
 
 
 class StopAndSummaryTests(unittest.TestCase):
