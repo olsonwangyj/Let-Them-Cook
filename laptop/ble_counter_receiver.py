@@ -21,8 +21,8 @@ HALF_UINT32_RANGE = 0x80000000
 MAX_RECONNECT_DELAY_SECONDS = 10.0
 # A duration-bound run may spend at most this shared grace after its deadline
 # quiescing a subscribed link and attempting disconnect cleanup.
-TOTAL_CLEANUP_GRACE_SECONDS = 0.25
-MINIMUM_DISCONNECT_ATTEMPT_SECONDS = 0.05
+TOTAL_CLEANUP_GRACE_SECONDS = 1.0
+MINIMUM_DISCONNECT_ATTEMPT_SECONDS = 0.25
 
 LOGGER = logging.getLogger(__name__)
 

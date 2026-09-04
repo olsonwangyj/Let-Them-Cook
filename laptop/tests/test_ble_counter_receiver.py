@@ -213,7 +213,7 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
     async def test_cleanup_timeout_bounds_slow_stop_notify(self) -> None:
         receiver = BleCounterReceiver(
             scanner=_FakeScanner([object()]),
-            client_factory=_SlowCleanupClientFactory(delay_seconds=0.5),
+            client_factory=_SlowCleanupClientFactory(delay_seconds=1.5),
         )
 
         started_at = time.monotonic()
@@ -221,9 +221,20 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
             summary = await receiver.run(StopCriteria(target_received=1))
 
         self.assertEqual(summary.received_count, 1)
-        self.assertLess(time.monotonic() - started_at, 0.4)
+        self.assertLess(time.monotonic() - started_at, 1.15)
         self.assertEqual(summary.cleanup_error_count, 1)
         self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 1)
+
+    async def test_windows_cleanup_latencies_fit_within_one_shared_deadline(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_WindowsCleanupLatencyClientFactory(),
+        )
+
+        summary = await receiver.run(StopCriteria(target_received=1))
+
+        self.assertEqual(summary.cleanup_error_count, 0)
+        self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 0)
 
     async def test_duration_allows_only_one_total_cleanup_grace(self) -> None:
         receiver = BleCounterReceiver(
@@ -235,8 +246,9 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
             summary = await receiver.run(StopCriteria(duration_seconds=0.05))
 
-        self.assertLess(time.monotonic() - started_at, 0.42)
+        self.assertLess(time.monotonic() - started_at, 1.15)
         self.assertGreaterEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(StopCriteria(duration_seconds=0.05)), 1)
 
     async def test_stop_notify_quiesces_before_final_inbox_drain(self) -> None:
         receiver = BleCounterReceiver(
@@ -509,6 +521,23 @@ class _DualSlowCleanupClientFactory:
         return _DualSlowCleanupClient(self._delay_seconds)
 
 
+class _WindowsCleanupLatencyClient(_SlowCleanupClient):
+    async def stop_notify(self, _uuid: str) -> None:
+        await asyncio.sleep(0.25)
+
+    async def disconnect(self) -> None:
+        await asyncio.sleep(0.1)
+        self.is_connected = False
+
+
+class _WindowsCleanupLatencyClientFactory:
+    def __call__(
+        self, _device: object, disconnected_callback: object
+    ) -> _WindowsCleanupLatencyClient:
+        del disconnected_callback
+        return _WindowsCleanupLatencyClient(delay_seconds=0)
+
+
 class _StopInjectingClient:
     def __init__(self) -> None:
         self.is_connected = False
@@ -542,7 +571,7 @@ class _StopTimeoutInjectingClient(_StopInjectingClient):
         asyncio.get_running_loop().call_soon(
             self._callback, None, bytearray(b"\x02\x00\x00\x00")
         )
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1.5)
 
 
 class _StopTimeoutInjectingClientFactory:
@@ -567,7 +596,7 @@ class _DisconnectTimeoutClient(_StopInjectingClient):
         return None
 
     async def disconnect(self) -> None:
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1.5)
         self.is_connected = False
 
 
