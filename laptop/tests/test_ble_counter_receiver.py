@@ -159,6 +159,8 @@ class ReconnectAcceptanceTests(unittest.IsolatedAsyncioTestCase):
             summary = await receiver.run(StopCriteria(target_received=1))
 
         self.assertEqual(summary.received_count, 1)
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 1)
 
 
 class GattVerificationTests(unittest.IsolatedAsyncioTestCase):
@@ -220,6 +222,21 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(summary.received_count, 1)
         self.assertLess(time.monotonic() - started_at, 0.4)
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 1)
+
+    async def test_duration_allows_only_one_total_cleanup_grace(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_DualSlowCleanupClientFactory(delay_seconds=0.5),
+        )
+
+        started_at = time.monotonic()
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        self.assertLess(time.monotonic() - started_at, 0.42)
+        self.assertGreaterEqual(summary.cleanup_error_count, 1)
 
     async def test_stop_notify_quiesces_before_final_inbox_drain(self) -> None:
         receiver = BleCounterReceiver(
@@ -232,6 +249,45 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(summary.received_count, 2)
         self.assertEqual(summary.queue_drop_count, 0)
+        self.assertEqual(summary.cleanup_error_count, 0)
+
+    async def test_stop_timeout_injected_notification_is_final_accounted(self) -> None:
+        receiver = BleCounterReceiver(
+            queue_size=2,
+            scanner=_FakeScanner([object()]),
+            client_factory=_StopTimeoutInjectingClientFactory(),
+        )
+
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(target_received=1))
+
+        self.assertEqual(summary.received_count, 2)
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 1)
+
+    async def test_stop_exception_is_reported_as_cleanup_failure(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_StopExceptionClientFactory(),
+        )
+
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(target_received=1))
+
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 1)
+
+    async def test_disconnect_timeout_is_reported_as_cleanup_failure(self) -> None:
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=_DisconnectTimeoutClientFactory(),
+        )
+
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(target_received=1))
+
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 1)
 
     async def test_run_detaches_loop_and_closed_loop_callback_is_ignored(self) -> None:
         receiver = BleCounterReceiver(
@@ -438,6 +494,21 @@ class _SlowCleanupClientFactory:
         return _SlowCleanupClient(self._delay_seconds)
 
 
+class _DualSlowCleanupClient(_SlowCleanupClient):
+    async def disconnect(self) -> None:
+        await asyncio.sleep(self._delay_seconds)
+        self.is_connected = False
+
+
+class _DualSlowCleanupClientFactory:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+
+    def __call__(self, _device: object, disconnected_callback: object) -> _DualSlowCleanupClient:
+        del disconnected_callback
+        return _DualSlowCleanupClient(self._delay_seconds)
+
+
 class _StopInjectingClient:
     def __init__(self) -> None:
         self.is_connected = False
@@ -463,6 +534,47 @@ class _StopInjectingClientFactory:
     def __call__(self, _device: object, disconnected_callback: object) -> _StopInjectingClient:
         del disconnected_callback
         return _StopInjectingClient()
+
+
+class _StopTimeoutInjectingClient(_StopInjectingClient):
+    async def stop_notify(self, _uuid: str) -> None:
+        assert self._callback is not None
+        asyncio.get_running_loop().call_soon(
+            self._callback, None, bytearray(b"\x02\x00\x00\x00")
+        )
+        await asyncio.sleep(0.5)
+
+
+class _StopTimeoutInjectingClientFactory:
+    def __call__(self, _device: object, disconnected_callback: object) -> _StopTimeoutInjectingClient:
+        del disconnected_callback
+        return _StopTimeoutInjectingClient()
+
+
+class _StopExceptionClient(_StopInjectingClient):
+    async def stop_notify(self, _uuid: str) -> None:
+        raise RuntimeError("simulated stop failure")
+
+
+class _StopExceptionClientFactory:
+    def __call__(self, _device: object, disconnected_callback: object) -> _StopExceptionClient:
+        del disconnected_callback
+        return _StopExceptionClient()
+
+
+class _DisconnectTimeoutClient(_StopInjectingClient):
+    async def stop_notify(self, _uuid: str) -> None:
+        return None
+
+    async def disconnect(self) -> None:
+        await asyncio.sleep(0.5)
+        self.is_connected = False
+
+
+class _DisconnectTimeoutClientFactory:
+    def __call__(self, _device: object, disconnected_callback: object) -> _DisconnectTimeoutClient:
+        del disconnected_callback
+        return _DisconnectTimeoutClient()
 
 
 class _ClosedLoop:
@@ -506,6 +618,7 @@ class StopAndSummaryTests(unittest.TestCase):
         self.assertEqual(rendered["received_count"], 2)
         self.assertEqual(rendered["gap_count"], 1)
         self.assertEqual(rendered["reconnect_count"], 1)
+        self.assertEqual(rendered["cleanup_error_count"], 0)
 
 
 if __name__ == "__main__":

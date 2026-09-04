@@ -19,7 +19,10 @@ COUNTER_BYTES = 4
 UINT32_MASK = 0xFFFFFFFF
 HALF_UINT32_RANGE = 0x80000000
 MAX_RECONNECT_DELAY_SECONDS = 10.0
-CLEANUP_TIMEOUT_SECONDS = 0.25
+# A duration-bound run may spend at most this shared grace after its deadline
+# quiescing a subscribed link and attempting disconnect cleanup.
+TOTAL_CLEANUP_GRACE_SECONDS = 0.25
+MINIMUM_DISCONNECT_ATTEMPT_SECONDS = 0.05
 
 LOGGER = logging.getLogger(__name__)
 
@@ -161,6 +164,7 @@ class RunSummary:
     reconnect_count: int
     elapsed_seconds: float
     observations: dict[str, list[float]] = field(default_factory=dict)
+    cleanup_error_count: int = 0
 
     def exit_code(self, criteria: StopCriteria) -> int:
         criteria_failed = not criteria.reached(self.received_count, self.elapsed_seconds)
@@ -172,6 +176,7 @@ class RunSummary:
                 self.out_of_order_count,
                 self.malformed_count,
                 self.queue_drop_count,
+                self.cleanup_error_count,
             )
         )
         return 1 if criteria_failed or reconnect_missing or anomalies else 0
@@ -213,6 +218,7 @@ class BleCounterReceiver:
         self._connection_generation = 0
         self._active_connection_generation: Optional[int] = None
         self._reconnect_count = 0
+        self._cleanup_error_count = 0
         self._observations: dict[str, list[float]] = {}
 
     async def run(self, criteria: StopCriteria) -> RunSummary:
@@ -314,6 +320,7 @@ class BleCounterReceiver:
             reconnect_count=self._reconnect_count,
             elapsed_seconds=round(elapsed_seconds, 3),
             observations=self._observations,
+            cleanup_error_count=self._cleanup_error_count,
         )
 
     async def _scan_for_device(self, remaining_duration: Optional[float]) -> Any:
@@ -445,22 +452,39 @@ class BleCounterReceiver:
     async def _quiesce_drain_and_disconnect(
         self, client: BleakClient, inbox: NotificationInbox
     ) -> None:
-        try:
-            await asyncio.wait_for(
-                client.stop_notify(NOTIFY_CHARACTERISTIC_UUID),
-                timeout=CLEANUP_TIMEOUT_SECONDS,
-            )
-        except asyncio.TimeoutError:
-            LOGGER.warning("BLE stop-notify cleanup timed out")
-        except Exception:
-            pass
+        cleanup_deadline = time.monotonic() + TOTAL_CLEANUP_GRACE_SECONDS
+        stop_budget = max(
+            0.0,
+            cleanup_deadline
+            - time.monotonic()
+            - MINIMUM_DISCONNECT_ATTEMPT_SECONDS,
+        )
+        stop_succeeded = await self._cleanup_operation(
+            "stop-notify",
+            client.stop_notify(NOTIFY_CHARACTERISTIC_UUID),
+            stop_budget,
+        )
+        if not stop_succeeded:
+            await asyncio.sleep(0)
+        disconnect_budget = max(0.0, cleanup_deadline - time.monotonic())
+        await self._cleanup_operation("disconnect", client.disconnect(), disconnect_budget)
+        await asyncio.sleep(0)
         self._drain_inbox(inbox)
+
+    async def _cleanup_operation(
+        self, operation_name: str, awaitable: Any, timeout: float
+    ) -> bool:
         try:
-            await asyncio.wait_for(client.disconnect(), timeout=CLEANUP_TIMEOUT_SECONDS)
+            await asyncio.wait_for(awaitable, timeout=timeout)
         except asyncio.TimeoutError:
-            LOGGER.warning("BLE disconnect cleanup timed out")
+            self._cleanup_error_count += 1
+            LOGGER.warning("BLE %s cleanup timed out", operation_name)
+            return False
         except Exception as exc:
-            LOGGER.warning("BLE disconnect cleanup failed: %s", exc)
+            self._cleanup_error_count += 1
+            LOGGER.warning("BLE %s cleanup failed: %s", operation_name, exc)
+            return False
+        return True
 
     def _drain_inbox(self, inbox: NotificationInbox) -> None:
         self._collect_queue_drops(inbox)
