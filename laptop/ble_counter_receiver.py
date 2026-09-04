@@ -219,6 +219,7 @@ class BleCounterReceiver:
         self._active_connection_generation: Optional[int] = None
         self._reconnect_count = 0
         self._cleanup_error_count = 0
+        self._detached_cleanup_tasks: set[asyncio.Task[Any]] = set()
         self._observations: dict[str, list[float]] = {}
 
     async def run(self, criteria: StopCriteria) -> RunSummary:
@@ -477,17 +478,36 @@ class BleCounterReceiver:
     async def _cleanup_operation(
         self, operation_name: str, awaitable: Any, timeout: float
     ) -> bool:
+        task = asyncio.create_task(awaitable)
         try:
-            await asyncio.wait_for(awaitable, timeout=timeout)
+            await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
         except asyncio.TimeoutError:
             self._cleanup_error_count += 1
             LOGGER.warning("BLE %s cleanup timed out", operation_name)
+            self._cancel_detached_cleanup_task(task)
             return False
+        except asyncio.CancelledError:
+            self._cancel_detached_cleanup_task(task)
+            raise
         except Exception as exc:
             self._cleanup_error_count += 1
             LOGGER.warning("BLE %s cleanup failed: %s", operation_name, exc)
             return False
         return True
+
+    def _cancel_detached_cleanup_task(self, task: asyncio.Task[Any]) -> None:
+        self._detached_cleanup_tasks.add(task)
+        task.cancel()
+        task.add_done_callback(self._consume_detached_cleanup_result)
+
+    def _consume_detached_cleanup_result(self, task: asyncio.Task[Any]) -> None:
+        self._detached_cleanup_tasks.discard(task)
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
 
     def _drain_inbox(self, inbox: NotificationInbox) -> None:
         self._collect_queue_drops(inbox)

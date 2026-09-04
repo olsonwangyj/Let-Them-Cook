@@ -236,6 +236,63 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary.cleanup_error_count, 0)
         self.assertEqual(summary.exit_code(StopCriteria(target_received=1)), 0)
 
+    async def test_stop_timeout_does_not_delay_reserved_disconnect_attempt(self) -> None:
+        client_factory = _CancellationDelayingCleanupClientFactory()
+        receiver = BleCounterReceiver(
+            scanner=_FakeScanner([object()]),
+            client_factory=client_factory,
+        )
+
+        started_at = time.monotonic()
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING") as logs:
+            summary = await receiver.run(StopCriteria(target_received=1))
+
+        client = client_factory.client
+        self.assertLess(time.monotonic() - started_at, 1.15)
+        self.assertEqual(summary.cleanup_error_count, 1)
+        self.assertIn("BLE stop-notify cleanup timed out", logs.output[0])
+        self.assertEqual(client.disconnect_calls, 1)
+        self.assertIsNotNone(client.stop_started_at)
+        self.assertIsNotNone(client.disconnect_started_at)
+        self.assertLess(client.disconnect_started_at - client.stop_started_at, 0.9)
+        self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 1)
+        await asyncio.sleep(0.55)
+        self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 0)
+
+    async def test_outer_cleanup_cancellation_detaches_child_then_reraises(self) -> None:
+        receiver = BleCounterReceiver()
+        client = _CancellationDelayingCleanupClient()
+        operation_task = asyncio.create_task(
+            receiver._cleanup_operation("stop-notify", client.stop_notify("unused"), 10.0)
+        )
+        await asyncio.sleep(0)
+
+        operation_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await operation_task
+
+        self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 1)
+        await asyncio.sleep(0.55)
+        self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 0)
+
+    async def test_unsubscribed_slow_disconnect_stays_within_cleanup_grace(self) -> None:
+        client_factory = _SlowUnsubscribedDisconnectClientFactory()
+        receiver = BleCounterReceiver(
+            reconnect_delay_seconds=0.0,
+            scanner=_FakeScanner([object()]),
+            client_factory=client_factory,
+        )
+
+        started_at = time.monotonic()
+        with self.assertLogs("laptop.ble_counter_receiver", level="WARNING"):
+            summary = await receiver.run(StopCriteria(duration_seconds=0.05))
+
+        client = client_factory.client
+        self.assertLess(time.monotonic() - started_at, 1.15)
+        self.assertEqual(client.stop_notify_calls, 0)
+        self.assertEqual(client.disconnect_calls, 1)
+        self.assertEqual(summary.cleanup_error_count, 1)
+
     async def test_missing_gatt_skips_unsubscribed_stop_notify_but_disconnects(self) -> None:
         client_factory = _MissingGattCleanupClientFactory()
         receiver = BleCounterReceiver(
@@ -572,6 +629,37 @@ class _WindowsCleanupLatencyClientFactory:
         return _WindowsCleanupLatencyClient(delay_seconds=0)
 
 
+class _CancellationDelayingCleanupClient(_SlowCleanupClient):
+    def __init__(self) -> None:
+        super().__init__(delay_seconds=0)
+        self.stop_started_at: float | None = None
+        self.disconnect_started_at: float | None = None
+        self.disconnect_calls = 0
+
+    async def stop_notify(self, _uuid: str) -> None:
+        self.stop_started_at = time.monotonic()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.5)
+
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        self.disconnect_started_at = time.monotonic()
+        self.is_connected = False
+
+
+class _CancellationDelayingCleanupClientFactory:
+    def __init__(self) -> None:
+        self.client = _CancellationDelayingCleanupClient()
+
+    def __call__(
+        self, _device: object, disconnected_callback: object
+    ) -> _CancellationDelayingCleanupClient:
+        del disconnected_callback
+        return self.client
+
+
 class _MissingGattCleanupClient:
     def __init__(self) -> None:
         self.is_connected = False
@@ -624,6 +712,24 @@ class _StartNotifyFailureClientFactory:
         self.client = _StartNotifyFailureClient()
 
     def __call__(self, _device: object, disconnected_callback: object) -> _StartNotifyFailureClient:
+        del disconnected_callback
+        return self.client
+
+
+class _SlowUnsubscribedDisconnectClient(_MissingGattCleanupClient):
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        await asyncio.sleep(1.5)
+        self.is_connected = False
+
+
+class _SlowUnsubscribedDisconnectClientFactory:
+    def __init__(self) -> None:
+        self.client = _SlowUnsubscribedDisconnectClient()
+
+    def __call__(
+        self, _device: object, disconnected_callback: object
+    ) -> _SlowUnsubscribedDisconnectClient:
         del disconnected_callback
         return self.client
 
