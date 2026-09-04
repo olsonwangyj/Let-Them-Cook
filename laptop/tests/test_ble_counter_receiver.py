@@ -9,7 +9,9 @@ import unittest
 
 from laptop.ble_counter_receiver import (
     EXPECTED_SERVICE_UUID,
+    MINIMUM_DISCONNECT_ATTEMPT_SECONDS,
     NOTIFY_CHARACTERISTIC_UUID,
+    TOTAL_CLEANUP_GRACE_SECONDS,
     BleCounterReceiver,
     CounterTracker,
     NotificationInbox,
@@ -254,9 +256,14 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.disconnect_calls, 1)
         self.assertIsNotNone(client.stop_started_at)
         self.assertIsNotNone(client.disconnect_started_at)
-        self.assertLess(client.disconnect_started_at - client.stop_started_at, 0.9)
+        self.assertLess(
+            client.disconnect_started_at - client.stop_started_at,
+            TOTAL_CLEANUP_GRACE_SECONDS - MINIMUM_DISCONNECT_ATTEMPT_SECONDS + 0.05,
+        )
         self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 1)
-        await asyncio.sleep(0.55)
+        await asyncio.wait_for(
+            client.stop_finished.wait(), timeout=TOTAL_CLEANUP_GRACE_SECONDS
+        )
         self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 0)
 
     async def test_outer_cleanup_cancellation_detaches_child_then_reraises(self) -> None:
@@ -272,7 +279,9 @@ class LifecycleBoundTests(unittest.IsolatedAsyncioTestCase):
             await operation_task
 
         self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 1)
-        await asyncio.sleep(0.55)
+        await asyncio.wait_for(
+            client.stop_finished.wait(), timeout=TOTAL_CLEANUP_GRACE_SECONDS
+        )
         self.assertEqual(len(getattr(receiver, "_detached_cleanup_tasks", ())), 0)
 
     async def test_unsubscribed_slow_disconnect_stays_within_cleanup_grace(self) -> None:
@@ -635,6 +644,7 @@ class _CancellationDelayingCleanupClient(_SlowCleanupClient):
         self.stop_started_at: float | None = None
         self.disconnect_started_at: float | None = None
         self.disconnect_calls = 0
+        self.stop_finished = asyncio.Event()
 
     async def stop_notify(self, _uuid: str) -> None:
         self.stop_started_at = time.monotonic()
@@ -642,6 +652,8 @@ class _CancellationDelayingCleanupClient(_SlowCleanupClient):
             await asyncio.Event().wait()
         except asyncio.CancelledError:
             await asyncio.sleep(0.5)
+        finally:
+            asyncio.get_running_loop().call_soon(self.stop_finished.set)
 
     async def disconnect(self) -> None:
         self.disconnect_calls += 1

@@ -24,7 +24,7 @@ class BoundedTelemetryQueue(Generic[ItemT]):
             raise ValueError("capacity must be a positive integer")
         self._capacity = capacity
         self._items: Deque[ItemT] = deque()
-        self._waiters: Deque[asyncio.Future[ItemT]] = deque()
+        self._item_available = asyncio.Event()
         self._eviction_count = 0
 
     @property
@@ -48,40 +48,29 @@ class BoundedTelemetryQueue(Generic[ItemT]):
 
     def enqueue(self, item: ItemT) -> Optional[ItemT]:
         """Enqueue an item without blocking, returning any evicted item."""
-        while self._waiters:
-            waiter = self._waiters.popleft()
-            if not waiter.done():
-                waiter.set_result(item)
-                return None
-
         evicted: Optional[ItemT] = None
         if len(self._items) >= self._capacity:
             evicted = self._items.popleft()
             self._eviction_count += 1
         self._items.append(item)
+        self._item_available.set()
         return evicted
 
     async def dequeue(self) -> ItemT:
         """Remove and return the oldest item, waiting asynchronously if empty."""
-        if self._items:
-            return self._items.popleft()
-
-        waiter = asyncio.get_running_loop().create_future()
-        self._waiters.append(waiter)
-        try:
-            return await waiter
-        except BaseException:
-            if not waiter.done():
-                waiter.cancel()
-            try:
-                self._waiters.remove(waiter)
-            except ValueError:
-                pass
-            raise
+        while not self._items:
+            await self._item_available.wait()
+        item = self._items.popleft()
+        if not self._items:
+            self._item_available.clear()
+        return item
 
     def dequeue_nowait(self) -> ItemT:
         """Remove and return the oldest item, raising ``queue.Empty`` if empty."""
         try:
-            return self._items.popleft()
+            item = self._items.popleft()
         except IndexError:
             raise Empty from None
+        if not self._items:
+            self._item_available.clear()
+        return item

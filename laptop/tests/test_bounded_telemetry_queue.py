@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from queue import Empty
 
 from laptop.bounded_telemetry_queue import BoundedTelemetryQueue
 
@@ -47,6 +48,13 @@ class BoundedTelemetryQueueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(queue.eviction_count, 2)
         self.assertEqual(queue.dequeue_nowait(), 30)
 
+    def test_empty_dequeue_nowait_raises_queue_empty(self) -> None:
+        """Catches replacing the empty-queue exception with a sentinel value."""
+        queue = BoundedTelemetryQueue[object](capacity=1)
+
+        with self.assertRaises(Empty):
+            queue.dequeue_nowait()
+
     async def test_waiting_consumer_receives_item_enqueued_later(self) -> None:
         queue = BoundedTelemetryQueue[str](capacity=1)
         consumer = asyncio.create_task(queue.dequeue())
@@ -57,6 +65,21 @@ class BoundedTelemetryQueueTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(await consumer, "later")
         self.assertEqual(queue.size, 0)
+
+    async def test_cancelling_woken_consumer_retains_enqueued_item(self) -> None:
+        """Catches handing an item only to a waiter that can be cancelled."""
+        queue = BoundedTelemetryQueue[str](capacity=1)
+        consumer = asyncio.create_task(queue.dequeue())
+        await asyncio.sleep(0)
+
+        self.assertFalse(consumer.done())
+        self.assertIsNone(queue.enqueue("retained"))
+        consumer.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await consumer
+
+        self.assertEqual(queue.dequeue_nowait(), "retained")
+        self.assertEqual(queue.eviction_count, 0)
 
 
 if __name__ == "__main__":

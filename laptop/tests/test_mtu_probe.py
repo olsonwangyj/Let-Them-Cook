@@ -147,6 +147,7 @@ class _SlowCleanupClient(_Client):
         self.stop_started_at: float | None = None
         self.disconnect_started_at: float | None = None
         self.stop_started = asyncio.Event()
+        self.stop_finished = asyncio.Event()
         self.disconnect_calls = 0
 
     async def stop_notify(self, _uuid: str) -> None:
@@ -156,6 +157,8 @@ class _SlowCleanupClient(_Client):
             await asyncio.Event().wait()
         except asyncio.CancelledError:
             await asyncio.sleep(self.delay_seconds)
+        finally:
+            asyncio.get_running_loop().call_soon(self.stop_finished.set)
 
     async def disconnect(self) -> None:
         self.disconnect_calls += 1
@@ -272,7 +275,9 @@ class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
             TOTAL_CLEANUP_GRACE_SECONDS - DISCONNECT_ATTEMPT_RESERVE_SECONDS + 0.05,
         )
         self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 1)
-        await asyncio.sleep(0.35)
+        await asyncio.wait_for(
+            client.stop_finished.wait(), timeout=TOTAL_CLEANUP_GRACE_SECONDS
+        )
         self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 0)
 
     async def test_two_slow_cleanup_operations_share_one_grace_window(self) -> None:
@@ -310,7 +315,9 @@ class MtuProbeTests(unittest.IsolatedAsyncioTestCase):
             await run_task
 
         self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 1)
-        await asyncio.sleep(0.35)
+        await asyncio.wait_for(
+            factory.client.stop_finished.wait(), timeout=TOTAL_CLEANUP_GRACE_SECONDS
+        )
         self.assertEqual(len(getattr(probe, "_detached_cleanup_tasks", ())), 0)
 
     async def test_run_uses_scanned_device_and_delivers_exact_safe_and_boundary_payloads(self) -> None:
