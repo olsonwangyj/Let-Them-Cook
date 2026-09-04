@@ -5,7 +5,7 @@
 This is a supplement to `docs/week7-overnight-report-2026-09-05.md`; that
 historical overnight report is unchanged.  It covers continuation work after
 `796a31baee8f81d6203d4fb98a606268035e2ce4` through the evidence code HEAD
-`c737dc5545696103587a0cbb9c90da9e9bf0c99f`.
+`4186fc18294a955299fc0c2affbdd676fdca97f9`.
 
 All work was performed in the isolated linked worktree
 `D:\LetThemCook-worktrees\week7-stage-d-onward` on
@@ -13,7 +13,8 @@ All work was performed in the isolated linked worktree
 `origin/main` both remained
 `f6bc999cd25d5092f18edb176bd14305ab534e60`; no push or merge occurred.
 The continuation code commits are `021b07d` (Gate D teardown hardening),
-`8f26f29` (its review-test fix), and `c737dc5` (the generic queue primitive).
+`8f26f29` (its review-test fix), `c737dc5` (the generic queue primitive), and
+`4186fc1` (the cancellation-safe queue and final test-evidence fixes).
 
 ## Task 2 — Gate D cleanup hardening
 
@@ -89,6 +90,11 @@ branch: that branch is fake/unit-tested only, and the supervisor is not a hard
 process-level bound because `asyncio.run()` shutdown may still await a
 non-cooperative native operation.
 
+A separate per-command elapsed duration was not captured for that Gate D run.
+The surrounding parallel tool orchestration returned in 5.9 seconds, but it
+also included `platformio device list`; it is therefore not a valid Gate
+D-only duration and is not presented as one.
+
 ## Task 3 — bounded telemetry queue groundwork
 
 `c737dc5` adds `BoundedTelemetryQueue`: an in-memory FIFO for opaque items
@@ -119,15 +125,70 @@ $env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests
 passed 51/51 in 22.64 seconds.  Fresh-venv controller verification passed
 51/51 in 23.054 seconds; `git diff --check 8f26f29..c737dc5` exited zero and
 the commit scope was exactly the two new queue files.  Task review found the
-design spec-compliant and quality-approved.  The remaining minor is that the
-documented empty-queue `dequeue_nowait()`/`queue.Empty` behavior lacks a direct
-regression test.
+design spec-compliant and quality-approved.
+
+### Final review correction — `4186fc1`
+
+Final review found that `enqueue()` removed a waiting consumer and stored the
+new item only in that consumer's future.  Cancellation after `set_result()`
+but before the consumer task resumed therefore discarded the only reference
+to the item; it was neither delivered nor retained, and no capacity eviction
+was recorded.  The deterministic RED command was:
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests/test_bounded_telemetry_queue.py -k cancelling_woken_consumer -vv
+```
+
+It failed 1 test with 5 deselected in 0.14 seconds when the post-cancellation
+`dequeue_nowait()` raised `_queue.Empty`.  `4186fc1` now appends every item to
+the bounded deque before setting an availability event.  A consumer removes
+the item only after its wait resumes, so cancellation at the wake-up boundary
+leaves the item available.  The same focused case then passed with 5
+deselected in 0.06 seconds, with the retained item returned and
+`eviction_count` still zero.
+
+The new direct empty-queue contract test initially passed against the restored
+implementation.  A temporary mutation that returned `None` instead of raising
+`queue.Empty` was then checked with:
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests/test_bounded_telemetry_queue.py -k empty_dequeue_nowait -vv
+```
+
+It failed 1 test with 6 deselected in 0.15 seconds with `AssertionError: Empty
+not raised`.  The mutation was restored before GREEN.
+
+The same commit replaces the narrow fixed completion sleeps in the Gate D and
+analogous Gate C retained-cleanup tests with explicit fake-client completion
+events awaited through `asyncio.wait_for()` under the production one-second
+cleanup-grace constants.  The delayed-cancellation faults and supervisor
+timing assertions remain.  Gate C's disconnect-start limit is now derived as
+the production cleanup grace minus its disconnect reserve, plus a 0.05-second
+scheduling tolerance, instead of the arbitrary `0.9` threshold.  No Gate C or
+Gate D BLE production module changed.
+
+Final focused and full GREEN commands and observations were:
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests/test_bounded_telemetry_queue.py
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests/test_mtu_probe.py
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests/test_ble_counter_receiver.py::LifecycleBoundTests
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest laptop/tests
+```
+
+They passed 7/7 in 0.17 seconds, 10/10 in 14.81 seconds, 16/16 in 7.60
+seconds, and 53/53 in 22.57 seconds, respectively.  The cancellation-loss
+defect, fragile retained-cleanup completion sleeps, and missing immediate-empty
+exception coverage are resolved.
 
 ## Fresh continuation controller evidence
 
-The following evidence is recorded for the current code HEAD `c737dc5`:
+The final unit evidence above is recorded for continuation code HEAD `4186fc1`.
+The following hardware/controller evidence was collected at `c737dc5` and
+remains applicable because `4186fc1` changed only the generic queue module and
+unit/fake tests; it did not change either BLE production module or firmware:
 
-- The full fresh-venv Laptop suite passed 51/51 in 23.054 seconds.
+- The earlier full fresh-venv Laptop suite passed 51/51 in 23.054 seconds.
 - A fresh external PlatformIO build used
   `C:\Users\Yanjie Wang\AppData\Local\Temp\cg4002-week7-final-c737dc5-20260905-01`
   with `platformio run --project-dir firmware\esp32`.  It succeeded in 14.59
@@ -155,14 +216,20 @@ end-to-end operation occurred during this continuation.  In particular, this
 record does not claim any SSH/TLS, Ultra96, Phone, security, real sensor/AI,
 Gate H, or end-to-end result.
 
+The constrained topology remains ESP32-to-Laptop BLE/GATT with no ESP Wi-Fi;
+Laptop-to-Ultra96 framed TLS/TCP, when its blocked requirements are resolved,
+must traverse a Laptop-owned SSH `-L`; and Phone results remain direct
+Ultra96-to-Phone, with the Laptop not acting as a result relay.  SSH `-R` and
+`0.0.0.0` are outside the approved topology.
+
 ## Evidence-status matrix
 
 | Deliverable or behavior | Implemented | Unit-tested | Hardware-tested | End-to-end-tested |
 | --- | --- | --- | --- | --- |
-| Gate D bounded diagnostic cleanup and strengthened boundary assertions | Yes | Yes: RED/GREEN, mutations, focused/full suites | Yes: current-code regression; delayed-cancellation fault itself is fake-only | No |
+| Gate D bounded diagnostic cleanup and strengthened boundary assertions | Yes | Yes: RED/GREEN, mutations, focused/full suites, event-based completion waits | Yes: unchanged-production regression; delayed-cancellation fault itself is fake-only | No |
 | Current Gate D MTU/boundary diagnostic | Yes | Yes | Yes: MTU 517, exact 20/514, 515 absent | No |
-| Gate C short counter path | Existing | Existing tests and cleanup coverage | Yes: 21 counters, exit zero; no power-loss proof | No |
-| BoundedTelemetryQueue local primitive | Yes | Yes: focused 5/5 and included in 51/51 | No | No |
+| Gate C short counter path | Existing | Existing tests and cleanup coverage; retained cleanup now uses event-based completion waits | Yes: 21 counters, exit zero; no power-loss proof | No |
+| BoundedTelemetryQueue local primitive | Yes | Yes: cancellation RED/GREEN, empty mutation, focused 7/7 and included in 53/53 | No | No |
 | Gate E codecs; F/G transport; H/I/J bridge/result/Gateway; K/L/M | No | No | No | No |
 
 Gate D is therefore current-code hardware-tested, with the stated fake-only
@@ -184,10 +251,8 @@ exists.
   protocol.
 
 Remaining risks are: (1) `asyncio.run()` shutdown may outlive the cleanup
-supervisor; (2) the two fixed-sleep Gate D tests have limited timing margin;
-(3) empty `dequeue_nowait()` has no direct regression coverage; (4) firmware
-flash remains 86.0%; and (5) measured MTU 517/514 is link-specific rather than
-a packet contract.
+supervisor; (2) firmware flash remains 86.0%; and (3) measured MTU 517/514 is
+link-specific rather than a packet contract.
 
 ## Ledger rulings, in chronological order
 
@@ -205,10 +270,8 @@ a packet contract.
 
 Report-source checks covered the Week 7 plan, architecture draft, unchanged
 overnight report, SDD ledger, both task reports, and commits `021b07d`,
-`8f26f29`, and `c737dc5`.  Before committing this report, run:
-
-```text
-git diff --check
-```
+`8f26f29`, `c737dc5`, and `4186fc1`.  `git diff --check` exited zero for the
+final code/test tree before `4186fc1` was committed and again after this report
+update.  The report-only staged check also exited zero before its commit.
 
 No source evidence or command line in this report contains credentials.
