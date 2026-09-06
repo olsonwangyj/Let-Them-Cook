@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 from collections import OrderedDict
+import errno
 import json
 import logging
 import os
@@ -70,9 +71,12 @@ class Week7Server:
         self._subscriber = None
         self._recent = OrderedDict()
         self._closing = False
+        self._accept_failure = None
+        self._failed = asyncio.Event()
         self.metrics = {"accepted": 0, "duplicates": 0, "rejected": 0,
                         "subscribers": 0, "replaced": 0, "disconnected_results": 0,
-                        "result_drops": 0, "result_stale": 0, "client_limit": 0}
+                        "result_drops": 0, "result_stale": 0, "client_limit": 0,
+                        "accept_retries": 0, "accept_failures": 0}
 
     async def start(self):
         if self._listeners or self._closing:
@@ -91,6 +95,7 @@ class Week7Server:
                 listener.listen(8)
                 task = asyncio.create_task(self._accept(listener, gateway))
                 self._accept_tasks.add(task)
+                task.add_done_callback(self._accept_done)
             self.ingest_port = self._listeners[0].getsockname()[1]
             self.gateway_port = self._listeners[1].getsockname()[1]
         except BaseException:
@@ -99,8 +104,24 @@ class Week7Server:
 
     async def _accept(self, listener, gateway):
         loop = asyncio.get_running_loop()
+        retry_delay = 0.1
         while not self._closing:
-            connection, _ = await loop.sock_accept(listener)
+            try:
+                connection, _ = await loop.sock_accept(listener)
+            except OSError as error:
+                # sock_accept propagates aborted queued peers and temporary
+                # resource exhaustion; unlike asyncio.start_server it supplies
+                # no automatic accept retry. Avoid spinning on a readable socket.
+                if (not isinstance(error, ConnectionAbortedError)
+                        and error.errno not in (errno.ECONNABORTED, errno.EMFILE,
+                            errno.ENFILE, errno.ENOBUFS, errno.ENOMEM)
+                        and getattr(error, "winerror", None) not in (10024, 10053, 10055)):
+                    raise
+                self.metrics["accept_retries"] += 1
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(1.0, retry_delay * 2)
+                continue
+            retry_delay = 0.1
             connection.setblocking(False)
             if self._closing or len(self._sockets) >= 8:
                 self.metrics["client_limit"] += 1
@@ -111,6 +132,24 @@ class Week7Server:
             task = asyncio.create_task(self._client(connection, gateway))
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
+
+    def _accept_done(self, task):
+        if task.cancelled():
+            error = RuntimeError("listener task cancelled unexpectedly")
+        else:
+            error = task.exception() or RuntimeError("listener task returned unexpectedly")
+        if self._closing:
+            return
+        self.metrics["accept_failures"] += 1
+        if self._accept_failure is None:
+            self._accept_failure = error
+        self._failed.set()
+        LOG.error("listener task failed: %s", type(error).__name__)
+
+    async def wait_failure(self):
+        """Service hosts await this so a dead listener cannot look healthy."""
+        await self._failed.wait()
+        raise RuntimeError("Week 7 listener failed") from self._accept_failure
 
     async def _client(self, connection, gateway):
         writer = None
@@ -239,7 +278,7 @@ async def _run(args):
     print(json.dumps({"event": "listening", "host": "127.0.0.1", "tls": True,
                       "ingest_port": service.ingest_port, "gateway_port": service.gateway_port}), flush=True)
     try:
-        await asyncio.Event().wait()
+        await service.wait_failure()
     finally:
         await service.close()
         print(json.dumps({"event": "stopped", "metrics": service.metrics}), flush=True)
