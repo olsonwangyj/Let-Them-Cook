@@ -14,6 +14,7 @@ def tunnel_command(jump, target, local_port, remote_port, identity=None, batch=F
 
     Batch mode is required for supervision. Interactive printed commands may
     prompt normally while retaining strict known-host verification on both hops.
+    Their target banner deadline also covers time spent entering a proxy password.
     """
     for host in (jump, target):
         if not isinstance(host, str) or not re.fullmatch(r"[A-Za-z0-9_.]+@[A-Za-z0-9][A-Za-z0-9.-]*", host):
@@ -21,12 +22,15 @@ def tunnel_command(jump, target, local_port, remote_port, identity=None, batch=F
     for port in (local_port, remote_port):
         if type(port) is not int or not 1 <= port <= 65535:
             raise ValueError("port must be 1..65535")
-    trust_options = ["-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=10",
+    trust_options = ["-o", "StrictHostKeyChecking=yes",
                      "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
                      "-o", "BatchMode=" + ("yes" if batch else "no")]
-    proxy = ["ssh"] + trust_options + ["-W", "[%h]:%p", jump]
+    proxy = ["ssh"] + trust_options + [
+        "-o", "ConnectTimeout=" + ("10" if batch else "20"),
+        "-W", "[%h]:%p", jump]
     quote_command = subprocess.list2cmdline if os.name == "nt" else shlex.join
     cmd = ["ssh", "-N", "-T"] + trust_options + [
+           "-o", "ConnectTimeout=" + ("10" if batch else "60"),
            "-o", "ProxyCommand=" + quote_command(proxy),
            "-o", "ExitOnForwardFailure=yes",
            "-L", "127.0.0.1:%d:127.0.0.1:%d" % (local_port, remote_port)]

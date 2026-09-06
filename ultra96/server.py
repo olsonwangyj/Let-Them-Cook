@@ -6,6 +6,7 @@ import errno
 import json
 import logging
 import os
+import signal
 import socket
 import ssl
 import time
@@ -275,13 +276,36 @@ async def _run(args):
     service = Week7Server(server_context(args.cert, args.key), session_id=args.session_id,
                           ingest_port=args.ingest_port, gateway_port=args.gateway_port)
     await service.start()
-    print(json.dumps({"event": "listening", "host": "127.0.0.1", "tls": True,
-                      "ingest_port": service.ingest_port, "gateway_port": service.gateway_port}), flush=True)
+    loop = asyncio.get_running_loop()
+    stopped = asyncio.Event()
+    handles_sigterm = False
+    waiters = ()
     try:
-        await service.wait_failure()
+        try:
+            loop.add_signal_handler(signal.SIGTERM, stopped.set)
+            handles_sigterm = True
+        except (NotImplementedError, RuntimeError):
+            # Windows event loops and non-main-thread hosts do not support this
+            # API. asyncio.run retains the existing Ctrl+C cancellation path.
+            pass
+        print(json.dumps({"event": "listening", "host": "127.0.0.1", "tls": True,
+                          "ingest_port": service.ingest_port, "gateway_port": service.gateway_port}), flush=True)
+        failure = asyncio.create_task(service.wait_failure())
+        termination = asyncio.create_task(stopped.wait())
+        waiters = (failure, termination)
+        finished, _ = await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
+        if failure in finished:
+            await failure  # Preserve a fatal listener's nonzero CLI exit.
     finally:
-        await service.close()
-        print(json.dumps({"event": "stopped", "metrics": service.metrics}), flush=True)
+        for task in waiters:
+            task.cancel()
+        await asyncio.gather(*waiters, return_exceptions=True)
+        try:
+            await service.close()
+            print(json.dumps({"event": "stopped", "metrics": service.metrics}), flush=True)
+        finally:
+            if handles_sigterm:
+                loop.remove_signal_handler(signal.SIGTERM)
 
 
 def main():
