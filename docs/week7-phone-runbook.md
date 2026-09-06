@@ -63,6 +63,9 @@ Host week7-jump
     IdentitiesOnly yes
     StrictHostKeyChecking yes
     UserKnownHostsFile ~/.ssh/known_hosts
+    ConnectTimeout 10
+    ServerAliveInterval 15
+    ServerAliveCountMax 3
 
 Host week7-ultra96
     HostName YOUR_ASSIGNED_ULTRA96_HOST
@@ -72,6 +75,9 @@ Host week7-ultra96
     IdentitiesOnly yes
     StrictHostKeyChecking yes
     UserKnownHostsFile ~/.ssh/known_hosts
+    ConnectTimeout 10
+    ServerAliveInterval 15
+    ServerAliveCountMax 3
 ```
 
 ```sh
@@ -247,3 +253,165 @@ as Phone or Ultra96 deployment evidence.
   teammate Unity receiver or full AR behavior.
 - After evidence collection, stop Python/Unity and the Phone SSH command, release
   the wake lock, and confirm no test forward remains running.
+
+## Optional iOS appendix: foreground iSH JSON experiment — untested
+
+Android remains the selected baseline. This appendix prepares a possible minimal
+iPhone demonstration using **one foreground iSH app**: its OpenSSH process owns
+the local forward and its Python process prints received JSON. It does not add
+an iOS Unity integration or establish any physical Phone acceptance. A Windows
+PnP inventory entry named iPhone does not prove a connected, unlocked, controllable
+device, installed iSH, or a working network path.
+
+The [official iSH site](https://ish.app/) describes a local Linux shell for iOS
+and links its distribution channels. The project documents
+[apk package installation](https://github.com/ish-app/ish/wiki/Using-iSH), and its
+[compatibility list](https://github.com/ish-app/ish/wiki/Compatible-Applications%2C-Programs%2C-Packages)
+records Python 3, the OpenSSH client and shell job control. These are project
+compatibility reports, not a guarantee for the installed iOS/iSH/package versions.
+The project also documents
+[same-device localhost SSH](https://github.com/ish-app/ish/wiki/Running-an-SSH-server).
+
+Local forwarding needs an actual device check. Historical
+[issue 408](https://github.com/ish-app/ish/issues/408) includes an SSH `-L` failure
+and mixed user outcomes; a
+[maintainer reply](https://github.com/ish-app/ish/issues/408#issuecomment-513810489)
+identifies the background-execution limitation. Combining these capabilities
+into the following same-app foreground route is an engineering inference, not
+a reproduced iPhone result. If it fails, record the failure and retain Android
+as the runnable baseline; do not claim that a successful SSH login proves the
+forward or TLS receiver works.
+
+### Human setup on the iPhone
+
+An operator must install/open iSH from a channel linked by the official project,
+provision authorized Phone-owned SSH credentials and independently verified
+host keys, and establish the required network/VPN access. The currently blocked
+institutional SSH authentication remains a prerequisite on iOS too. The commands
+below are instructions for that operator; none were executed on an iPhone here.
+
+Inside iSH, install the packages and inspect the actual runtime:
+
+```sh
+apk update
+apk add openssh python3 openssl
+python3 --version
+ssh -V
+python3 -c 'import sys, ssl; assert sys.version_info >= (3, 8); print(ssl.OPENSSL_VERSION); print(ssl.TLSVersion.TLSv1_2)'
+mkdir -p ~/.ssh ~/week7-private ~/week7-phone
+chmod 700 ~/.ssh ~/week7-private
+```
+
+If packages or the Python SSL import are unavailable, stop this experiment and
+record the installed versions/error. This procedure does not replace package
+repositories or prescribe an unverified iSH filesystem upgrade.
+
+Copy `phone/receiver.py` to `~/week7-phone/receiver.py`, the existing verified
+public CA to `~/week7-private/ca-cert.pem`, the authorized Phone SSH key to
+`~/.ssh/week7-phone`, and verified host entries to `~/.ssh/known_hosts`. iSH's
+[Files-app integration instructions](https://github.com/ish-app/ish/wiki/View-iSH-files-in-Files-App)
+provide an on-device file-access path; an operator must perform and verify the
+transfer. Keep private keys outside source files and evidence. Copy neither
+Week 7 TLS private key to iSH. Compare this public fingerprint with the trusted
+provisioning original:
+
+```sh
+chmod 600 ~/.ssh/week7-phone ~/.ssh/known_hosts
+openssl x509 -in ~/week7-private/ca-cert.pem -noout -fingerprint -sha256 -dates
+python3 ~/week7-phone/receiver.py --help
+```
+
+Create a separate `~/.ssh/week7-ish.conf` inside iSH with the following contents,
+replacing `YOUR_SOC_USERNAME` and the assigned board login/hostname as needed.
+This does not modify any existing general SSH configuration. Both hops require
+verified host keys and usable key/agent authentication; `BatchMode yes` prevents
+a background SSH job from waiting for a password or key passphrase.
+
+```sshconfig
+Host *
+    StrictHostKeyChecking yes
+    UserKnownHostsFile ~/.ssh/known_hosts
+    BatchMode yes
+    ConnectTimeout 10
+    ServerAliveInterval 15
+    ServerAliveCountMax 3
+
+Host week7-jump
+    HostName stujump.comp.nus.edu.sg
+    User YOUR_SOC_USERNAME
+    IdentityFile ~/.ssh/week7-phone
+    IdentitiesOnly yes
+
+Host week7-ultra96
+    HostName makerslab-fpga-35.ddns.comp.nus.edu.sg
+    User xilinx
+    ProxyJump week7-jump
+    IdentityFile ~/.ssh/week7-phone
+    IdentitiesOnly yes
+```
+
+```sh
+chmod 600 ~/.ssh/week7-ish.conf
+ssh -F ~/.ssh/week7-ish.conf -G week7-jump
+ssh -F ~/.ssh/week7-ish.conf -G week7-ultra96
+```
+
+Inspect each expanded configuration for the intended host, user, strict trust
+and batch settings. A separately encrypted key must already be usable through
+the operator's authorized agent setup; these commands do not unlock it. If the
+institution requires interactive MFA or no authorized key is available, this
+background-job recipe cannot proceed as written.
+
+### Keep iSH foreground for the complete experiment
+
+Start the Phone-owned forward as a shell job, then run the standalone receiver
+in that same iSH terminal. Keep the screen awake and iSH visible throughout.
+The `&` below backgrounds only a shell job **inside the foreground app**.
+
+```sh
+ssh -F ~/.ssh/week7-ish.conf -N -T -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:19999:127.0.0.1:9999 week7-ultra96 </dev/null &
+week7_tunnel_pid=$!
+jobs -l
+python3 ~/week7-phone/receiver.py \
+  --ca ~/week7-private/ca-cert.pem --port 19999 \
+  --session week7-demo --count 100 --duration 180
+```
+
+The actual Ultra96 service and Laptop producer must already be running, and the
+desktop simulator must be stopped. Require the receiver's `subscribed` status
+before starting the 100-packet input; live results are not retained for late
+subscribers. A forward process existing or a port accepting TCP is insufficient:
+require verified TLS and 100 correctly correlated `GESTURE_RESULT` records on
+the physical iPhone. After a short pass, a separate foreground soak can use
+`--count 0 --duration 600`; inspect its received/reconnect counts and correlate
+them with the producer/server rather than treating exit zero alone as a pass.
+
+When the receiver exits, inspect `jobs -l` and stop only the still-running SSH
+job matching the saved `week7_tunnel_pid` and this command:
+
+```sh
+kill "$week7_tunnel_pid"
+wait "$week7_tunnel_pid"
+```
+
+If that job already exited, use `wait` only; do not kill another job or an
+unverified reused PID. Starting the same experiment again creates a fresh SSH
+process and subscription. The Python client reconnects, but this shell recipe
+does not supervise/restart an exited SSH process.
+
+### Evidence still required
+
+Record actual iPhone/iOS/iSH/Alpine/Python/OpenSSH versions, successful authorized
+SSH on both hops, local-forward operation, TLS CA/name rejection checks, the
+100-result correlation and a separate 600-second foreground soak. Also check
+cleanup, interruption and foreground recovery on that exact device. No such iOS
+execution, installation, credential provisioning or result delivery was observed
+in this task.
+
+Do not switch to Unity, another app or a locked screen and assume SSH continues.
+iSH's [background guide](https://github.com/ish-app/ish/wiki/Running-in-background)
+describes a separate location-based mechanism; this demonstration does not use
+it, request location access, or claim background reliability. A future iOS Unity
+receiver would need its own app-integrated SSH/lifecycle implementation and
+physical verification. This appendix covers only foreground JSON display.

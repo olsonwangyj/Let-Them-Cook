@@ -1,5 +1,7 @@
 # Week 7 Communications Test-Gated Implementation Plan
 
+> Current execution authority (2026-09-06): the user explicitly authorized autonomous resolution of all design and approval checkpoints. [Selected Week 7 decisions](week7-selected-design-2026-09-06.md), [completion plan](superpowers/plans/2026-09-06-week7-completion.md), and [latest evidence](week7-continuation-report-2026-09-06.md) supersede this historical plan's unresolved/approval/"Gate A only" instructions. Its A–M physical acceptance definitions remain useful; they are not automatically passed by implementation.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Demonstrate a real DFR0478 ESP32 sending deterministic dummy data over BLE/GATT to the Laptop, the Laptop forwarding it over TLS/TCP through its own SSH local forward to Ultra96, and Ultra96 delivering a deterministic result to a real Phone running the teammate-provided minimal Visualizer.

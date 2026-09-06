@@ -1,5 +1,7 @@
 # Architecture and Interface Draft V0.1
 
+> Week 7 update (2026-09-06): [selected decisions](week7-selected-design-2026-09-06.md) resolve every implementation choice below for the Week 7 demonstration under the user's autonomous-development authorization. Earlier TBD/Proposed/approval wording is preserved as design history, not an active blocker. Final real-sensor/AI, two-glove synchronization, multi-user, and production-crypto work is explicitly excluded from this demonstration. Topology constraints remain unchanged; the selected jump endpoint is user-supplied stujump, with actual access failure recorded in the [continuation report](week7-continuation-report-2026-09-06.md).
+
 ## 1. Purpose and authority
 
 This document is the current Communications architecture baseline for the Let Them Cook CG4002 project. It records the approved topology while separating confirmed decisions from proposed implementation mechanisms and unresolved choices.
