@@ -1,0 +1,3 @@
+# Keep the portable export in canonical UTF-8/LF so its provenance hash
+# survives Git checkout/archive on both Windows and Unix.
+recorded-demo100.jsonl text eol=lf

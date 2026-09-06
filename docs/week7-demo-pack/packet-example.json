@@ -1,0 +1,71 @@
+{
+  "kind": "illustrative example; not captured hardware evidence",
+  "ble_bytes": 32,
+  "ble_hex": "57370101070000002a0000006810000042fc4cfc56fc60fc6afc74fc7efc88fc",
+  "sensor_batch": {
+    "v": 1,
+    "type": "SENSOR_BATCH",
+    "session_id": "week7-demo",
+    "device_id": 1,
+    "boot_id": 7,
+    "seq": 42,
+    "uptime_ms": 4200,
+    "values": [
+      -958,
+      -948,
+      -938,
+      -928,
+      -918,
+      -908,
+      -898,
+      -888
+    ]
+  },
+  "ingest_ack": {
+    "v": 1,
+    "type": "INGEST_ACK",
+    "session_id": "week7-demo",
+    "device_id": 1,
+    "boot_id": 7,
+    "seq": 42,
+    "status": "accepted"
+  },
+  "gesture_result": {
+    "v": 1,
+    "type": "GESTURE_RESULT",
+    "session_id": "week7-demo",
+    "device_id": 1,
+    "boot_id": 7,
+    "seq": 42,
+    "result_id": "1:7:42",
+    "gesture": "OPEN",
+    "confidence": 1.0
+  },
+  "frames": {
+    "sensor_batch": {
+      "length_prefix_hex": "0000009e",
+      "body_bytes": 158,
+      "json_utf8": "{\"v\":1,\"type\":\"SENSOR_BATCH\",\"session_id\":\"week7-demo\",\"device_id\":1,\"boot_id\":7,\"seq\":42,\"uptime_ms\":4200,\"values\":[-958,-948,-938,-928,-918,-908,-898,-888]}"
+    },
+    "ingest_ack": {
+      "length_prefix_hex": "0000006c",
+      "body_bytes": 108,
+      "json_utf8": "{\"v\":1,\"type\":\"INGEST_ACK\",\"session_id\":\"week7-demo\",\"device_id\":1,\"boot_id\":7,\"seq\":42,\"status\":\"accepted\"}"
+    },
+    "gesture_result": {
+      "length_prefix_hex": "00000093",
+      "body_bytes": 147,
+      "json_utf8": "{\"v\":1,\"type\":\"GESTURE_RESULT\",\"session_id\":\"week7-demo\",\"device_id\":1,\"boot_id\":7,\"seq\":42,\"result_id\":\"1:7:42\",\"gesture\":\"OPEN\",\"confidence\":1.0}"
+    },
+    "subscribe": {
+      "length_prefix_hex": "00000034",
+      "body_bytes": 52,
+      "json_utf8": "{\"v\":1,\"type\":\"SUBSCRIBE\",\"session_id\":\"week7-demo\"}"
+    },
+    "subscribed": {
+      "length_prefix_hex": "00000035",
+      "body_bytes": 53,
+      "json_utf8": "{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}"
+    }
+  }
+}

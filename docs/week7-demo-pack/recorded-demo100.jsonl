@@ -1,0 +1,202 @@
+{"connection": 1, "elapsed_seconds": 0.141, "event": "subscribed", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 3.969, "event": "result", "gesture": "REST", "result_id": "1:738264655:0", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.031, "event": "ack", "result_id": "1:738264655:0", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.047, "event": "result", "gesture": "FIST", "result_id": "1:738264655:1", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.047, "event": "ack", "result_id": "1:738264655:1", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 4.11, "event": "ack", "result_id": "1:738264655:2", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.11, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:2", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 4.219, "event": "result", "gesture": "POINT", "result_id": "1:738264655:3", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.219, "event": "ack", "result_id": "1:738264655:3", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.344, "event": "result", "gesture": "REST", "result_id": "1:738264655:4", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.344, "event": "ack", "result_id": "1:738264655:4", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.406, "event": "result", "gesture": "FIST", "result_id": "1:738264655:5", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.406, "event": "ack", "result_id": "1:738264655:5", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 4.516, "event": "ack", "result_id": "1:738264655:6", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.531, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:6", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.641, "event": "ack", "result_id": "1:738264655:7", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.641, "event": "result", "gesture": "POINT", "result_id": "1:738264655:7", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.703, "event": "ack", "result_id": "1:738264655:8", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.703, "event": "result", "gesture": "REST", "result_id": "1:738264655:8", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.828, "event": "ack", "result_id": "1:738264655:9", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.828, "event": "result", "gesture": "FIST", "result_id": "1:738264655:9", "session_id": "week7-demo"}
+{"elapsed_seconds": 4.953, "event": "ack", "result_id": "1:738264655:10", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 4.953, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:10", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.0, "event": "ack", "result_id": "1:738264655:11", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.016, "event": "result", "gesture": "POINT", "result_id": "1:738264655:11", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.11, "event": "ack", "result_id": "1:738264655:12", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.125, "event": "result", "gesture": "REST", "result_id": "1:738264655:12", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 5.235, "event": "result", "gesture": "FIST", "result_id": "1:738264655:13", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.235, "event": "ack", "result_id": "1:738264655:13", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 5.297, "event": "ack", "result_id": "1:738264655:14", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.297, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:14", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.422, "event": "ack", "result_id": "1:738264655:15", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.422, "event": "result", "gesture": "POINT", "result_id": "1:738264655:15", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.547, "event": "ack", "result_id": "1:738264655:16", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.547, "event": "result", "gesture": "REST", "result_id": "1:738264655:16", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.61, "event": "ack", "result_id": "1:738264655:17", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.61, "event": "result", "gesture": "FIST", "result_id": "1:738264655:17", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.719, "event": "ack", "result_id": "1:738264655:18", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.719, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:18", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 5.844, "event": "result", "gesture": "POINT", "result_id": "1:738264655:19", "session_id": "week7-demo"}
+{"elapsed_seconds": 5.844, "event": "ack", "result_id": "1:738264655:19", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 5.906, "event": "ack", "result_id": "1:738264655:20", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 5.906, "event": "result", "gesture": "REST", "result_id": "1:738264655:20", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.031, "event": "ack", "result_id": "1:738264655:21", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.031, "event": "result", "gesture": "FIST", "result_id": "1:738264655:21", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.141, "event": "ack", "result_id": "1:738264655:22", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.141, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:22", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.203, "event": "ack", "result_id": "1:738264655:23", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.203, "event": "result", "gesture": "POINT", "result_id": "1:738264655:23", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.313, "event": "ack", "result_id": "1:738264655:24", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.313, "event": "result", "gesture": "REST", "result_id": "1:738264655:24", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 6.453, "event": "result", "gesture": "FIST", "result_id": "1:738264655:25", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.453, "event": "ack", "result_id": "1:738264655:25", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 6.516, "event": "ack", "result_id": "1:738264655:26", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.516, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:26", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.625, "event": "ack", "result_id": "1:738264655:27", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.625, "event": "result", "gesture": "POINT", "result_id": "1:738264655:27", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 6.735, "event": "result", "gesture": "REST", "result_id": "1:738264655:28", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.735, "event": "ack", "result_id": "1:738264655:28", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 6.813, "event": "ack", "result_id": "1:738264655:29", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.828, "event": "result", "gesture": "FIST", "result_id": "1:738264655:29", "session_id": "week7-demo"}
+{"elapsed_seconds": 6.922, "event": "ack", "result_id": "1:738264655:30", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 6.922, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:30", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.047, "event": "ack", "result_id": "1:738264655:31", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.047, "event": "result", "gesture": "POINT", "result_id": "1:738264655:31", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.11, "event": "ack", "result_id": "1:738264655:32", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.11, "event": "result", "gesture": "REST", "result_id": "1:738264655:32", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 7.219, "event": "result", "gesture": "FIST", "result_id": "1:738264655:33", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.219, "event": "ack", "result_id": "1:738264655:33", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 7.344, "event": "ack", "result_id": "1:738264655:34", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.344, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:34", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.406, "event": "ack", "result_id": "1:738264655:35", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.406, "event": "result", "gesture": "POINT", "result_id": "1:738264655:35", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 7.578, "event": "result", "gesture": "REST", "result_id": "1:738264655:36", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.578, "event": "ack", "result_id": "1:738264655:36", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 7.641, "event": "ack", "result_id": "1:738264655:37", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.641, "event": "result", "gesture": "FIST", "result_id": "1:738264655:37", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.703, "event": "ack", "result_id": "1:738264655:38", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.703, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:38", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 7.828, "event": "result", "gesture": "POINT", "result_id": "1:738264655:39", "session_id": "week7-demo"}
+{"elapsed_seconds": 7.828, "event": "ack", "result_id": "1:738264655:39", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 7.969, "event": "ack", "result_id": "1:738264655:40", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 7.969, "event": "result", "gesture": "REST", "result_id": "1:738264655:40", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.016, "event": "ack", "result_id": "1:738264655:41", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.063, "event": "result", "gesture": "FIST", "result_id": "1:738264655:41", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 8.125, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:42", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.125, "event": "ack", "result_id": "1:738264655:42", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 8.266, "event": "ack", "result_id": "1:738264655:43", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.266, "event": "result", "gesture": "POINT", "result_id": "1:738264655:43", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.344, "event": "ack", "result_id": "1:738264655:44", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.344, "event": "result", "gesture": "REST", "result_id": "1:738264655:44", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 8.438, "event": "result", "gesture": "FIST", "result_id": "1:738264655:45", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.438, "event": "ack", "result_id": "1:738264655:45", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.61, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:46", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.61, "event": "ack", "result_id": "1:738264655:46", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 8.625, "event": "ack", "result_id": "1:738264655:47", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.781, "event": "result", "gesture": "POINT", "result_id": "1:738264655:47", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.781, "event": "ack", "result_id": "1:738264655:48", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.922, "event": "result", "gesture": "REST", "result_id": "1:738264655:48", "session_id": "week7-demo"}
+{"elapsed_seconds": 8.922, "event": "ack", "result_id": "1:738264655:49", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 8.938, "event": "ack", "result_id": "1:738264655:50", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 8.985, "event": "result", "gesture": "FIST", "result_id": "1:738264655:49", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 8.985, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:50", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 9.063, "event": "result", "gesture": "POINT", "result_id": "1:738264655:51", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.063, "event": "ack", "result_id": "1:738264655:51", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 9.141, "event": "result", "gesture": "REST", "result_id": "1:738264655:52", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.141, "event": "ack", "result_id": "1:738264655:52", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 9.203, "event": "ack", "result_id": "1:738264655:53", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 9.25, "event": "result", "gesture": "FIST", "result_id": "1:738264655:53", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 9.328, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:54", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.328, "event": "ack", "result_id": "1:738264655:54", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 9.438, "event": "ack", "result_id": "1:738264655:55", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 9.438, "event": "result", "gesture": "POINT", "result_id": "1:738264655:55", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 9.531, "event": "result", "gesture": "REST", "result_id": "1:738264655:56", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.531, "event": "ack", "result_id": "1:738264655:56", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 9.672, "event": "ack", "result_id": "1:738264655:57", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 9.672, "event": "result", "gesture": "FIST", "result_id": "1:738264655:57", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.735, "event": "ack", "result_id": "1:738264655:58", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 9.735, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:58", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 9.813, "event": "result", "gesture": "POINT", "result_id": "1:738264655:59", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.813, "event": "ack", "result_id": "1:738264655:59", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 9.922, "event": "result", "gesture": "REST", "result_id": "1:738264655:60", "session_id": "week7-demo"}
+{"elapsed_seconds": 9.922, "event": "ack", "result_id": "1:738264655:60", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 10.063, "event": "ack", "result_id": "1:738264655:61", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.063, "event": "result", "gesture": "FIST", "result_id": "1:738264655:61", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.125, "event": "ack", "result_id": "1:738264655:62", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.125, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:62", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 10.219, "event": "result", "gesture": "POINT", "result_id": "1:738264655:63", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.219, "event": "ack", "result_id": "1:738264655:63", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.328, "event": "result", "gesture": "REST", "result_id": "1:738264655:64", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.328, "event": "ack", "result_id": "1:738264655:64", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 10.391, "event": "ack", "result_id": "1:738264655:65", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.391, "event": "result", "gesture": "FIST", "result_id": "1:738264655:65", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 10.516, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:66", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.516, "event": "ack", "result_id": "1:738264655:66", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 10.641, "event": "ack", "result_id": "1:738264655:67", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.641, "event": "result", "gesture": "POINT", "result_id": "1:738264655:67", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 10.703, "event": "result", "gesture": "REST", "result_id": "1:738264655:68", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.703, "event": "ack", "result_id": "1:738264655:68", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.813, "event": "result", "gesture": "FIST", "result_id": "1:738264655:69", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.813, "event": "ack", "result_id": "1:738264655:69", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 10.938, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:70", "session_id": "week7-demo"}
+{"elapsed_seconds": 10.938, "event": "ack", "result_id": "1:738264655:70", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.0, "event": "result", "gesture": "POINT", "result_id": "1:738264655:71", "session_id": "week7-demo"}
+{"elapsed_seconds": 11.0, "event": "ack", "result_id": "1:738264655:71", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 11.11, "event": "ack", "result_id": "1:738264655:72", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.11, "event": "result", "gesture": "REST", "result_id": "1:738264655:72", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 11.235, "event": "result", "gesture": "FIST", "result_id": "1:738264655:73", "session_id": "week7-demo"}
+{"elapsed_seconds": 11.235, "event": "ack", "result_id": "1:738264655:73", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 11.297, "event": "ack", "result_id": "1:738264655:74", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.297, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:74", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 11.422, "event": "result", "gesture": "POINT", "result_id": "1:738264655:75", "session_id": "week7-demo"}
+{"elapsed_seconds": 11.422, "event": "ack", "result_id": "1:738264655:75", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 11.531, "event": "ack", "result_id": "1:738264655:76", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.531, "event": "result", "gesture": "REST", "result_id": "1:738264655:76", "session_id": "week7-demo"}
+{"elapsed_seconds": 11.594, "event": "ack", "result_id": "1:738264655:77", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.594, "event": "result", "gesture": "FIST", "result_id": "1:738264655:77", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 11.719, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:78", "session_id": "week7-demo"}
+{"elapsed_seconds": 11.719, "event": "ack", "result_id": "1:738264655:78", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.844, "event": "result", "gesture": "POINT", "result_id": "1:738264655:79", "session_id": "week7-demo"}
+{"elapsed_seconds": 11.844, "event": "ack", "result_id": "1:738264655:79", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 11.891, "event": "ack", "result_id": "1:738264655:80", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 11.906, "event": "result", "gesture": "REST", "result_id": "1:738264655:80", "session_id": "week7-demo"}
+{"confidence": 1.0, "elapsed_seconds": 12.016, "event": "result", "gesture": "FIST", "result_id": "1:738264655:81", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.016, "event": "ack", "result_id": "1:738264655:81", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.141, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:82", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.141, "event": "ack", "result_id": "1:738264655:82", "session_id": "week7-demo", "status": "accepted"}
+{"elapsed_seconds": 12.203, "event": "ack", "result_id": "1:738264655:83", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.203, "event": "result", "gesture": "POINT", "result_id": "1:738264655:83", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.313, "event": "ack", "result_id": "1:738264655:84", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.313, "event": "result", "gesture": "REST", "result_id": "1:738264655:84", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.438, "event": "ack", "result_id": "1:738264655:85", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.438, "event": "result", "gesture": "FIST", "result_id": "1:738264655:85", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.5, "event": "ack", "result_id": "1:738264655:86", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.5, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:86", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.625, "event": "ack", "result_id": "1:738264655:87", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.625, "event": "result", "gesture": "POINT", "result_id": "1:738264655:87", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.735, "event": "ack", "result_id": "1:738264655:88", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.735, "event": "result", "gesture": "REST", "result_id": "1:738264655:88", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.797, "event": "ack", "result_id": "1:738264655:89", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.797, "event": "result", "gesture": "FIST", "result_id": "1:738264655:89", "session_id": "week7-demo"}
+{"elapsed_seconds": 12.922, "event": "ack", "result_id": "1:738264655:90", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 12.922, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:90", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.031, "event": "ack", "result_id": "1:738264655:91", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.031, "event": "result", "gesture": "POINT", "result_id": "1:738264655:91", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.094, "event": "ack", "result_id": "1:738264655:92", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.094, "event": "result", "gesture": "REST", "result_id": "1:738264655:92", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.219, "event": "ack", "result_id": "1:738264655:93", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.219, "event": "result", "gesture": "FIST", "result_id": "1:738264655:93", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.328, "event": "ack", "result_id": "1:738264655:94", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.328, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:94", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.406, "event": "ack", "result_id": "1:738264655:95", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.406, "event": "result", "gesture": "POINT", "result_id": "1:738264655:95", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.516, "event": "ack", "result_id": "1:738264655:96", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.516, "event": "result", "gesture": "REST", "result_id": "1:738264655:96", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.641, "event": "ack", "result_id": "1:738264655:97", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.641, "event": "result", "gesture": "FIST", "result_id": "1:738264655:97", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.688, "event": "ack", "result_id": "1:738264655:98", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.703, "event": "result", "gesture": "OPEN", "result_id": "1:738264655:98", "session_id": "week7-demo"}
+{"elapsed_seconds": 13.813, "event": "ack", "result_id": "1:738264655:99", "session_id": "week7-demo", "status": "accepted"}
+{"confidence": 1.0, "elapsed_seconds": 13.813, "event": "result", "gesture": "POINT", "result_id": "1:738264655:99", "session_id": "week7-demo"}
+{"bridge": {"ack_errors": 0, "acked": 100, "ambiguous_dropped": 0, "ble_connections": 1, "ble_errors": 0, "callback_generation_dropped": 1, "cleanup_errors": 0, "duplicate_acks": 0, "duplicates": 0, "elapsed_seconds": 13.969, "gaps": 0, "generation_dropped": 0, "malformed": 0, "mock_input": false, "new_boots": 0, "out_of_order": 0, "queue_dropped": 0, "queue_size": 0, "received": 100, "sent": 100, "stale_dropped": 0, "transport_connections": 1, "transport_errors": 0}, "clean_connections": true, "correlation": {"accepted_acks": 100, "acks": 100, "capacity_per_side": 65536, "duplicate_acks": 0, "duplicate_results": 0, "exact_match": true, "first_result": "1:738264655:0", "last_result": "1:738264655:99", "matched": 100, "missing_result_sample": [], "missing_results": 0, "overflow": 0, "repeated_accepted_acks": 0, "results": 100, "unexpected_result_sample": [], "unexpected_results": 0, "unique_accepted_acks": 100, "unique_results": 100}, "elapsed_seconds": 14.11, "endpoints": {"gateway_port": 19999, "host": "127.0.0.1", "ingest_port": 18888}, "event": "summary", "passed": true, "protected_policy": true, "remote_provenance_operator_confirmed": true, "session_id": "week7-demo", "source": "real BLE", "subscriber": {"cleanup_errors": 0, "connections": 1, "duplicates": 0, "fatal_error": null, "gaps": 0, "last_transport_error": null, "new_boots": 0, "out_of_order": 0, "transport_errors": 0}, "sustained": {"activity_met": true, "count_met": true, "coverage_met": true, "enabled": false, "expected_rate_hz": 10.0, "maximum_silence_seconds": 5.0, "minimum_count": 100, "minimum_fraction": 0.9}, "synthetic_boot_id": null, "timing": {"ack": {"active_span_seconds": 9.782, "first_activity_seconds": 4.031, "last_activity_seconds": 13.813, "max_gap_seconds": 0.297}, "result": {"active_span_seconds": 9.844, "first_activity_seconds": 3.969, "last_activity_seconds": 13.813, "max_gap_seconds": 0.297}}, "topology": "operator-confirmed SSH forwards to actual Ultra96; independent desktop subscriber"}
