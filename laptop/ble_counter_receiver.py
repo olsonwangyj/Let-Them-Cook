@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Iterable, Optional
 
 from bleak import BleakClient, BleakScanner
+from laptop.ble_connection import make_ble_client
 
 
 EXPECTED_SERVICE_UUID = "6e1c0001-7a45-4dc4-b678-3f2d5a9c1001"
@@ -199,7 +200,7 @@ class BleCounterReceiver:
         reconnect_delay_seconds: float = 1.0,
         queue_size: int = 128,
         scanner: type[BleakScanner] = BleakScanner,
-        client_factory: Callable[..., BleakClient] = BleakClient,
+        client_factory: Callable[..., BleakClient] = make_ble_client,
     ) -> None:
         if queue_size < 1:
             raise ValueError("queue size must be positive")

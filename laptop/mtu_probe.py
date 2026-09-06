@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Optional
 
 from bleak import BleakClient, BleakScanner
+from laptop.ble_connection import make_ble_client
 
 
 EXPECTED_SERVICE_UUID = "6e1c0001-7a45-4dc4-b678-3f2d5a9c1001"
@@ -136,7 +137,7 @@ class MtuProbe:
         notification_timeout_seconds: float = DEFAULT_NOTIFICATION_TIMEOUT_SECONDS,
         queue_size: int = DEFAULT_QUEUE_SIZE,
         scanner: type[BleakScanner] = BleakScanner,
-        client_factory: Callable[..., BleakClient] = BleakClient,
+        client_factory: Callable[..., BleakClient] = make_ble_client,
     ) -> None:
         if scan_timeout_seconds <= 0 or notification_timeout_seconds <= 0:
             raise ValueError("timeouts must be positive")
