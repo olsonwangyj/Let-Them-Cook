@@ -36,4 +36,16 @@ Files docs/week7-runbook.md, docs/week7-continuation-report-2026-09-06.md, phone
 - [x] Supply Android own-forward/Unity integration and optional foreground iOS experiment; commands for every remaining physical fault test, expected metrics and acceptance checklist.
 - [x] Audit every historic unresolved issue against 24 selected decisions; full test/build, independent review, local implementation commits and final documentation/Git verification.
 
-Finished 2026-09-07. Remaining work requires authorized jump-host access, actual Ultra96/Phone execution, or physical USB/button manipulation; no design approval remains pending. Final verification/evidence lives in docs/week7-continuation-report-2026-09-06.md.
+Local phase finished 2026-09-07 with evidence in docs/week7-continuation-report-2026-09-06.md. The following VPN-enabled continuation supersedes the old remote-access blocker; no design approval remains pending.
+
+## VPN-enabled Ultra96 continuation — 2026-09-07
+
+Current evidence: docs/week7-continuation-report-2026-09-07.md. Decisions 25–28 cover observed VPN/password access, interactive deadlines, owned deployment paths, exact remote acceptance and graceful shutdown.
+
+- [x] Authenticate both SSH hops from PowerShell after VPN connection; inspect actual Python/SSL/ports/permissions without changing shared home ownership.
+- [x] Deploy immutable source snapshots and only required server TLS material under a private user-owned /var/tmp directory; verify hashes, imports, key permissions and loopback-only listeners.
+- [x] Implement and review longer interactive SSH deadlines, graceful SIGTERM, and a remote-only exact-correlation runner with meaningful clean-soak criteria; run Windows and Linux checks.
+- [x] Verify 100 synthetic and 100 protected real-ESP results through separate actual SSH forwards; run actual TLS/schema/dedup/subscriber-replacement negatives.
+- [x] Finish a clean 600 s protected real-ESP/Ultra96/independent-desktop-viewer soak and compare remote acceptance logs with exact local ACK/result IDs: 5,965 exact matches in 600.563 s.
+- [x] Separately induce ingestion tunnel loss, viewer tunnel loss, server restart and ESP RTS reset; preserve non-clean metrics and recovery; final protected 100/100 passed on cf03318.
+- [x] Finalize safe evidence, current runbooks, actual process/deployment state and local commits; retain the deployed server while closing test tunnels. Only physical USB/button and real Phone/teammate integration acceptance remains; final Git verification accompanies the documentation commit.

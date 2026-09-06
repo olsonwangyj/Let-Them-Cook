@@ -1,6 +1,6 @@
 # Architecture and Interface Draft V0.1
 
-> Week 7 update (2026-09-06): [selected decisions](week7-selected-design-2026-09-06.md) resolve every implementation choice below for the Week 7 demonstration under the user's autonomous-development authorization. Earlier TBD/Proposed/approval wording is preserved as design history, not an active blocker. Final real-sensor/AI, two-glove synchronization, multi-user, and production-crypto work is explicitly excluded from this demonstration. Topology constraints remain unchanged; the selected jump endpoint is user-supplied stujump, with actual access failure recorded in the [continuation report](week7-continuation-report-2026-09-06.md).
+> Week 7 update (2026-09-07): [selected decisions](week7-selected-design-2026-09-06.md) resolve every implementation choice below for the Week 7 demonstration under the user's autonomous-development authorization. Earlier TBD/Proposed/approval wording is preserved as design history, not an active blocker. Final real-sensor/AI, two-glove synchronization, multi-user, and production-crypto work is explicitly excluded from this demonstration. Topology constraints remain unchanged; the user-supplied stujump route now works with VPN/password authentication, and the [latest continuation](week7-continuation-report-2026-09-07.md) records actual Ultra96 deployment and the 600 s protected path through an independent desktop subscriber. Real Phone acceptance remains separate.
 
 ## 1. Purpose and authority
 

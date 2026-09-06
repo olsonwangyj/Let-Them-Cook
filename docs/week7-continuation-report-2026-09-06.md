@@ -1,5 +1,7 @@
 # Week 7 autonomous continuation report — 2026-09-06 to 2026-09-07
 
+> Historical local-completion and pre-VPN evidence. The [2026-09-07 Ultra96 continuation](week7-continuation-report-2026-09-07.md) supersedes the remote-access blocker and records the subsequent real SSH/Ultra96 deployment and acceptance. The observations below remain preserved as they occurred.
+
 This report continues the 2026-09-05 handover at clean base `67100864c4f6a450feab218a5f004ded1b48a32b`. Work remains in `D:\LetThemCook-worktrees\week7-stage-d-onward`, branch `feature/week7-stage-d-onward`. The user's latest instruction superseded all previous design/approval gates. No push or merge is authorized or performed; the original main checkout is preserved.
 
 ## Decision authority and exhaustive closure

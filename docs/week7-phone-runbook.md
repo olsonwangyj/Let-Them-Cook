@@ -32,6 +32,11 @@ testing an actual Android device remain physical Gate M work.
   describes the API profile; the actual teammate Editor/device combination must
   be compiled and exercised before it is marked supported.
 
+The authorized VPN path and password authentication through both SSH hops have
+now worked from the Laptop. Institutional SSH key enrollment is not a general
+prerequisite for this route. The Phone must still establish its own VPN/network
+access and authenticate both hops; this Laptop result is not Phone evidence.
+
 ## Phone-owned SSH forward
 
 Run the following in Termux. `~/.ssh` and `~/week7-private` are private Phone
@@ -44,10 +49,12 @@ mkdir -p ~/.ssh ~/week7-private ~/week7-phone
 chmod 700 ~/.ssh ~/week7-private
 ```
 
-Provision the authorized Phone private key, verified `known_hosts` entries and
-public CA by the team's approved transfer procedure. SSH host-key fingerprints
-must be verified through an authoritative channel before use. `ssh-keyscan`
-output alone is not proof of authenticity. Do not set `StrictHostKeyChecking=no`.
+Provision verified `known_hosts` entries and the public CA by the team's approved
+transfer procedure. Provision a Phone private key only if choosing key
+authentication; authorized passwords are a valid foreground option. SSH
+host-key fingerprints must be verified through an authoritative channel before
+use. `ssh-keyscan` output alone is not proof of authenticity. Do not set
+`StrictHostKeyChecking=no`.
 
 Create `~/.ssh/config` on the Phone with these entries, replacing the two example
 usernames and Ultra96 hostname with the assigned values. Keep an already working
@@ -59,11 +66,10 @@ login proves the actual path.
 Host week7-jump
     HostName stujump.comp.nus.edu.sg
     User YOUR_SOC_USERNAME
-    IdentityFile ~/.ssh/week7-phone
-    IdentitiesOnly yes
     StrictHostKeyChecking yes
     UserKnownHostsFile ~/.ssh/known_hosts
-    ConnectTimeout 10
+    BatchMode no
+    ConnectTimeout 20
     ServerAliveInterval 15
     ServerAliveCountMax 3
 
@@ -71,22 +77,39 @@ Host week7-ultra96
     HostName YOUR_ASSIGNED_ULTRA96_HOST
     User YOUR_ULTRA96_USERNAME
     ProxyJump week7-jump
-    IdentityFile ~/.ssh/week7-phone
-    IdentitiesOnly yes
     StrictHostKeyChecking yes
     UserKnownHostsFile ~/.ssh/known_hosts
-    ConnectTimeout 10
+    BatchMode no
+    ConnectTimeout 60
     ServerAliveInterval 15
     ServerAliveCountMax 3
 ```
 
+`BatchMode no` allows each hop to prompt in this terminal. The jump connection
+has a 20-second connection timeout and the destination has 60 seconds: the
+destination's banner wait includes time spent authenticating the jump hop. The
+previous 10-second destination setting expired while waiting for the first
+password in the observed Laptop run. These settings still need Phone validation.
+
+If choosing a provisioned key, add `IdentityFile ~/.ssh/week7-phone` and
+`IdentitiesOnly yes` to each applicable host block, then run
+`chmod 600 ~/.ssh/week7-phone`. A key passphrase may be entered interactively or
+provided by an authorized agent; no key file is required for password login.
+
 ```sh
-chmod 600 ~/.ssh/config ~/.ssh/known_hosts ~/.ssh/week7-phone
+chmod 600 ~/.ssh/config ~/.ssh/known_hosts
+ssh -G week7-jump
+ssh -G week7-ultra96
 termux-wake-lock
-ssh -N -T -o ExitOnForwardFailure=yes -o ConnectTimeout=10 \
+ssh -N -T -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
   -L 127.0.0.1:19999:127.0.0.1:9999 week7-ultra96
 ```
+
+Before connecting, inspect the two `ssh -G` expansions for strict host-key
+checking, `batchmode no`, jump/destination timeouts 20/60, and keepalive interval
+15 with count 3. Expansion itself makes no network connection. Enter the
+authorized passwords only at SSH's prompts; do not record them.
 
 Keep this Termux session running. Open another session for Python, or switch to
 Unity. This is a Phone process and Phone-local listener, independently of the
@@ -286,9 +309,12 @@ forward or TLS receiver works.
 
 An operator must install/open iSH from a channel linked by the official project,
 provision authorized Phone-owned SSH credentials and independently verified
-host keys, and establish the required network/VPN access. The currently blocked
-institutional SSH authentication remains a prerequisite on iOS too. The commands
-below are instructions for that operator; none were executed on an iPhone here.
+host keys, and establish the required network/VPN access. VPN/password access
+through both hops has worked from the Laptop; iPhone access remains untested.
+The background shell-job recipe below specifically requires usable key/agent
+authentication because it cannot prompt. That is a constraint of this recipe,
+not an institutional requirement to enroll an SSH key. These commands are
+instructions for that operator; none were executed on an iPhone here.
 
 Inside iSH, install the packages and inspect the actual runtime:
 
@@ -323,9 +349,11 @@ python3 ~/week7-phone/receiver.py --help
 
 Create a separate `~/.ssh/week7-ish.conf` inside iSH with the following contents,
 replacing `YOUR_SOC_USERNAME` and the assigned board login/hostname as needed.
-This does not modify any existing general SSH configuration. Both hops require
-verified host keys and usable key/agent authentication; `BatchMode yes` prevents
-a background SSH job from waiting for a password or key passphrase.
+This does not modify any existing general SSH configuration. This particular
+recipe requires verified host keys and usable key/agent authentication on both
+hops; `BatchMode yes` prevents a background SSH job from waiting for a password
+or key passphrase. Its noninteractive connection timeout remains 10 seconds on
+each hop.
 
 ```sshconfig
 Host *
@@ -358,9 +386,11 @@ ssh -F ~/.ssh/week7-ish.conf -G week7-ultra96
 
 Inspect each expanded configuration for the intended host, user, strict trust
 and batch settings. A separately encrypted key must already be usable through
-the operator's authorized agent setup; these commands do not unlock it. If the
-institution requires interactive MFA or no authorized key is available, this
-background-job recipe cannot proceed as written.
+the operator's authorized agent setup; these commands do not unlock it. If only
+password or interactive MFA credentials are available, this background-job
+recipe cannot proceed as written. The Android foreground procedure above
+supports interactive authentication; no password-capable iSH job-control
+procedure has been validated here.
 
 ### Keep iSH foreground for the complete experiment
 
