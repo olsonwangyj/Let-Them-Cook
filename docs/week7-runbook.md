@@ -270,6 +270,8 @@ Record date, Git commit, profiles, OS/SDK/Bleak versions, hardware IDs, endpoint
 
 Fault tests intentionally create nonzero anomaly counters; keep their expected-recovery evidence distinct from clean soak exit codes. A serial reset is not a USB power-loss test. A desktop simulator is not a Phone. Local TLS does not prove SSH, remote service binding or full K/M.
 
+For physical USB and RESET interruption evidence, start a duration-based remote run (`--target 0 --duration 180`) and wait for live ACKs/results before the operator acts. Record the baseline boot ID, unplug USB for about five seconds, reconnect, and require a new boot plus fresh authenticated results. After recovery has been visible for at least 20 seconds, press RESET once and require another separate boot transition and fresh results. If the board has another power source, removing USB alone does not prove power loss. Preserve operator action times, safe serial status and the full trace log; evaluate recovery separately from the clean-pass flag, then perform a clean 100-packet regression. Actions completed before capture support post-action recovery only and cannot supply missing interruption measurements.
+
 ## Resource and failure semantics
 
 - Raw BLE bytes and wakeups are bounded. Capacity 64 drop-oldest; monotonic local residence freshness 2 s is checked again after TLS connect.
