@@ -334,16 +334,30 @@ class Bridge:
             finally:
                 self.inbox.activate(0)
                 if client is not None:
+                    cleanup_cancellation = None
                     deadline = self.clock() + 1.0
-                    if subscribed:
+                    # WinRT stop_notify writes the remote CCCD and rejects an
+                    # already-disconnected client. disconnect still releases
+                    # local notification handlers and native service objects.
+                    if subscribed and client.is_connected:
                         try:
                             await self._bounded(client.stop_notify(SENSOR_UUID), 0.75)
-                        except (Exception, asyncio.CancelledError):
+                        except (Exception, asyncio.CancelledError) as exc:
+                            if isinstance(exc, asyncio.CancelledError):
+                                cleanup_cancellation = exc
                             self.metrics.cleanup_errors += 1
+                            LOG.warning("BLE cleanup failed operation=stop_notify error_type=%s",
+                                        type(exc).__name__)
                     try:
                         await self._bounded(client.disconnect(), max(0.001, deadline - self.clock()))
-                    except (Exception, asyncio.CancelledError):
+                    except (Exception, asyncio.CancelledError) as exc:
+                        if isinstance(exc, asyncio.CancelledError):
+                            cleanup_cancellation = exc
                         self.metrics.cleanup_errors += 1
+                        LOG.warning("BLE cleanup failed operation=disconnect error_type=%s",
+                                    type(exc).__name__)
+                    if cleanup_cancellation is not None:
+                        raise cleanup_cancellation
             await asyncio.sleep(delay)
             delay = min(delay * 2, 5.0)
 
