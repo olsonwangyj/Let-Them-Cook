@@ -195,10 +195,19 @@ class Bridge:
             writer.close()
             try:
                 await self._bounded(writer.wait_closed(), 1.0)
-            except (Exception, asyncio.CancelledError):
+            except asyncio.CancelledError as exc:
                 self.metrics.cleanup_errors += 1
                 if hasattr(writer, "transport"):
                     writer.transport.abort()
+                LOG.warning("TLS cleanup failed operation=close_transport error_type=%s",
+                            type(exc).__name__)
+                raise
+            except Exception as exc:
+                self.metrics.cleanup_errors += 1
+                if hasattr(writer, "transport"):
+                    writer.transport.abort()
+                LOG.warning("TLS cleanup failed operation=close_transport error_type=%s",
+                            type(exc).__name__)
 
     def _check_ack(self, ack, packet):
         expected = dict(v=1, type="INGEST_ACK", session_id=self.config.session_id,
