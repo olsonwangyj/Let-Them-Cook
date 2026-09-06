@@ -4,6 +4,8 @@ Current design authority: [selected decisions](week7-selected-design-2026-09-06.
 
 ## Setup and local checks
 
+Network constraint: **Ultra96 TCP port 22 is the only externally accessible port, and it serves SSH.** Ingestion `127.0.0.1:8888` and Gateway `127.0.0.1:9999` are internal TLS listeners reached through SSH local forwards. Laptop `18888` and Phone `19999` are loopback ports on their respective clients. Both clients reach Ultra96 SSH port 22 through the selected jump host; no direct network connection to Ultra96 application ports is required. Keep this constraint for all future development and physical acceptance tests.
+
 Run from the feature worktree in PowerShell:
 
 ```powershell
@@ -79,7 +81,7 @@ Use these PowerShell options for interactive login and SCP:
 
 ```powershell
 $week7Proxy = 'ssh -o StrictHostKeyChecking=yes -o BatchMode=no -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -W "[%h]:%p" yanjie@stujump.comp.nus.edu.sg'
-$week7SshOptions = @('-o', 'StrictHostKeyChecking=yes', '-o', 'BatchMode=no', '-o', 'ConnectTimeout=60', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3', '-o', "ProxyCommand=$week7Proxy")
+$week7SshOptions = @('-o', 'Port=22', '-o', 'StrictHostKeyChecking=yes', '-o', 'BatchMode=no', '-o', 'ConnectTimeout=60', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3', '-o', "ProxyCommand=$week7Proxy")
 ssh @week7SshOptions xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg
 ```
 

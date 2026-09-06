@@ -7,6 +7,10 @@ Ultra96 `127.0.0.1:9999`. The Laptop independently forwards ingestion to 8888.
 The Phone never connects to a Laptop address. No `-R` or public application
 listener is needed.
 
+**Ultra96 TCP 22 is its only externally accessible port and serves SSH.**
+The Phone's SSH connection reaches that port through the jump host; remote
+`127.0.0.1:9999` is reached inside the SSH tunnel, not as an exposed Ultra96 port.
+
 This implements the selected test contract in
 [week7-selected-design-2026-09-06.md](week7-selected-design-2026-09-06.md).
 The sample prints dummy results; integrating the teammate's existing scene and
@@ -75,6 +79,7 @@ Host week7-jump
 
 Host week7-ultra96
     HostName YOUR_ASSIGNED_ULTRA96_HOST
+    Port 22
     User YOUR_ULTRA96_USERNAME
     ProxyJump week7-jump
     StrictHostKeyChecking yes
@@ -99,15 +104,15 @@ provided by an authorized agent; no key file is required for password login.
 ```sh
 chmod 600 ~/.ssh/config ~/.ssh/known_hosts
 ssh -G week7-jump
-ssh -G week7-ultra96
+ssh -G -p 22 week7-ultra96
 termux-wake-lock
-ssh -N -T -o ExitOnForwardFailure=yes \
+ssh -p 22 -N -T -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
   -L 127.0.0.1:19999:127.0.0.1:9999 week7-ultra96
 ```
 
 Before connecting, inspect the two `ssh -G` expansions for strict host-key
-checking, `batchmode no`, jump/destination timeouts 20/60, and keepalive interval
+checking, destination `port 22`, `batchmode no`, jump/destination timeouts 20/60, and keepalive interval
 15 with count 3. Expansion itself makes no network connection. Enter the
 authorized passwords only at SSH's prompts; do not record them.
 
@@ -372,6 +377,7 @@ Host week7-jump
 
 Host week7-ultra96
     HostName makerslab-fpga-35.ddns.comp.nus.edu.sg
+    Port 22
     User xilinx
     ProxyJump week7-jump
     IdentityFile ~/.ssh/week7-phone
@@ -381,7 +387,7 @@ Host week7-ultra96
 ```sh
 chmod 600 ~/.ssh/week7-ish.conf
 ssh -F ~/.ssh/week7-ish.conf -G week7-jump
-ssh -F ~/.ssh/week7-ish.conf -G week7-ultra96
+ssh -F ~/.ssh/week7-ish.conf -G -p 22 week7-ultra96
 ```
 
 Inspect each expanded configuration for the intended host, user, strict trust
@@ -399,7 +405,7 @@ in that same iSH terminal. Keep the screen awake and iSH visible throughout.
 The `&` below backgrounds only a shell job **inside the foreground app**.
 
 ```sh
-ssh -F ~/.ssh/week7-ish.conf -N -T -o ExitOnForwardFailure=yes \
+ssh -F ~/.ssh/week7-ish.conf -p 22 -N -T -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:19999:127.0.0.1:9999 week7-ultra96 </dev/null &
 week7_tunnel_pid=$!
 jobs -l

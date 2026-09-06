@@ -4,6 +4,16 @@ This report continues local completion at `03790c1` and the pre-VPN retry at `ec
 
 ## VPN resolved the access blocker
 
+### Port 22 constraint reaffirmed after completion
+
+The user reaffirmed that **Ultra96 TCP port 22 is the only externally accessible port and serves SSH**. This is a fixed network constraint for every continuation. Both application listeners remain on Ultra96 loopback (`127.0.0.1:8888` ingestion, `127.0.0.1:9999` Gateway); Laptop and Phone reach them through their own SSH local forwards over port 22 through the jump host. Client ports 18888/19999 are local loopback endpoints. The local listener inventory below does not imply that any other Ultra96 port is externally reachable.
+
+A follow-up configuration check reproduced that inherited `Host * / Port 2222` could redirect the generated SSH destination. The generator now explicitly selects `Port=22` in interactive and supervised modes; PowerShell SSH/SCP and Phone recipes likewise pin the Ultra96 destination to 22. Decision 12 and entry-point documentation record the reason. This is a client command/documentation change; the verified Ultra96 service and remote test evidence are unchanged.
+
+Verification: both real OpenSSH `ssh -G` regression cases first failed with effective port 2222, then passed with port 22 after the fix. `python -m pytest tests/test_ssh_trust.py tests/test_bridge.py -q` passed **19 tests in 2.10 s**. Independent read-only review confirmed the loopback bindings and tunnel topology; no remote restart or network change was needed.
+
+### Verified VPN login
+
 After the user enabled VPN, the exact PowerShell `ssh -J` route offered a jump-host password prompt. Its original 10 s destination connection timeout expired during interactive login (`Connection timed out during banner exchange`). The hardened route with a 20 s proxy timeout and 60 s destination timeout accepted both supplied passwords and reached hostname `pynq`. Existing host keys were verified. Passwords were entered only into OpenSSH's hidden prompts, never stored in files, command arguments or reports.
 
 The earlier publickey-only advertisement was a real observation before this network-state change. It did not prove the passwords were wrong or that public-key enrollment was always required. No SSH key enrollment, alternate account selection or host-key bypass was needed.

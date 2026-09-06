@@ -29,7 +29,7 @@ class TunnelTrustTests(unittest.TestCase):
             config_file = Path(folder) / "unsafe-defaults.conf"
             config_file.write_text("Host *\n  StrictHostKeyChecking no\n  BatchMode yes\n"
                                    "  ConnectTimeout 777\n  ServerAliveInterval 0\n"
-                                   "  ServerAliveCountMax 99\n")
+                                   "  ServerAliveCountMax 99\n  Port 2222\n")
 
             def effective(args):
                 output = subprocess.check_output(
@@ -38,11 +38,12 @@ class TunnelTrustTests(unittest.TestCase):
                 return dict(line.split(" ", 1) for line in output.splitlines() if " " in line)
 
             outer = effective(command)
-            proxy = [part.replace("%h", "target.invalid").replace("%p", "22")
+            proxy = [part.replace("%h", outer["hostname"]).replace("%p", outer["port"])
                      for part in shlex.split(outer["proxycommand"])]
             inner = effective(proxy)
 
         self.assertEqual(outer["connecttimeout"], "60")
+        self.assertEqual(outer["port"], "22")
         self.assertEqual(inner["connecttimeout"], "20")
         for config in (outer, inner):
             self.assertIn(config["stricthostkeychecking"], ("true", "yes"))
@@ -58,13 +59,13 @@ class TunnelTrustTests(unittest.TestCase):
         # -G only expands configuration; neither invocation opens a network connection.
         with tempfile.TemporaryDirectory(prefix="week7-ssh-config-") as folder:
             config_file = Path(folder) / "unsafe-defaults.conf"
-            config_file.write_text("Host *\n  StrictHostKeyChecking no\n  BatchMode no\n  ConnectTimeout 777\n")
+            config_file.write_text("Host *\n  StrictHostKeyChecking no\n  BatchMode no\n  ConnectTimeout 777\n  Port 2222\n")
             def effective(args):
                 output = subprocess.check_output([args[0], "-G", "-F", str(config_file)] + args[1:],
                                                  text=True, stderr=subprocess.PIPE)
                 return dict(line.split(" ", 1) for line in output.splitlines() if " " in line)
             outer = effective(command)
-            proxy = [part.replace("%h", "target.invalid").replace("%p", "22")
+            proxy = [part.replace("%h", outer["hostname"]).replace("%p", outer["port"])
                      for part in shlex.split(outer["proxycommand"])]
             inner = effective(proxy)
         for config in (outer, inner):
@@ -75,6 +76,7 @@ class TunnelTrustTests(unittest.TestCase):
             self.assertEqual(config["serveralivecountmax"], "3")
         self.assertEqual(inner["hostname"], "jump.invalid")
         self.assertEqual(outer["hostname"], "target.invalid")
+        self.assertEqual(outer["port"], "22")
         self.assertIn("127.0.0.1:18888:127.0.0.1:8888", command)
 
     def test_identity_path_stays_on_destination_only(self):

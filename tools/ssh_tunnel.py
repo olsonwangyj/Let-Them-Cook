@@ -15,6 +15,7 @@ def tunnel_command(jump, target, local_port, remote_port, identity=None, batch=F
     Batch mode is required for supervision. Interactive printed commands may
     prompt normally while retaining strict known-host verification on both hops.
     Their target banner deadline also covers time spent entering a proxy password.
+    Ultra96 exposes only SSH on TCP 22; application ports are tunnel destinations.
     """
     for host in (jump, target):
         if not isinstance(host, str) or not re.fullmatch(r"[A-Za-z0-9_.]+@[A-Za-z0-9][A-Za-z0-9.-]*", host):
@@ -30,6 +31,7 @@ def tunnel_command(jump, target, local_port, remote_port, identity=None, batch=F
         "-W", "[%h]:%p", jump]
     quote_command = subprocess.list2cmdline if os.name == "nt" else shlex.join
     cmd = ["ssh", "-N", "-T"] + trust_options + [
+           "-o", "Port=22",
            "-o", "ConnectTimeout=" + ("10" if batch else "60"),
            "-o", "ProxyCommand=" + quote_command(proxy),
            "-o", "ExitOnForwardFailure=yes",
