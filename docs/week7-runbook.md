@@ -81,6 +81,10 @@ ssh @week7SshOptions xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg
 
 On 2026-09-06 the jump host advertised only publickey authentication and denied access. No private key existed in the usual .ssh directory and no ssh-agent was running. A password cannot satisfy a server that offers only publickey. A valid authorized key/agent or corrected institutional access path is required; do not bypass known_hosts or invent another username. Host keys for both named endpoints already exist locally.
 
+The 2026-09-07 follow-up confirmed the same result for the exact `-J` route and an explicit password/keyboard-interactive diagnostic; neither password could be submitted. The earlier key inventory covered Windows. WSL Ubuntu also has an existing nondefault `/home/yanjie/.ssh/id_ed25519_codex`; offering it explicitly after strict host verification was rejected. Do not assume that a private-key file's existence proves institutional authorization.
+
+For enrollment prerequisites, consult the current SoC-login-protected [NUS Jump Host](https://dochub.comp.nus.edu.sg/cf/services/network/sjump) and [SSH Keys](https://dochub.comp.nus.edu.sg/cf/services/network/skeys) guides. A public [NUS staff example](https://www.comp.nus.edu.sg/~chowcm/sjump.html) describes the `skeys.comp.nus.edu.sg` public-key submission workflow, but names `sjump`; confirm its applicability to the assigned `stujump` account through the current guides or [NUS Computing support](https://dochub.comp.nus.edu.sg/cf/contact). Submit only an authorized public key through that procedure, never its private companion. No enrollment was performed here.
+
 Once authenticated, inspect before deployment:
 
 ```sh
