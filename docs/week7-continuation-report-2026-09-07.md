@@ -393,6 +393,47 @@ block. All 37 local links across the changed entry documents resolved, and
 `git diff --check` passed. This follow-up changes public provisioning and
 documentation only; production firmware/application code is unchanged.
 
+### First Phone-test sender capture — 2026-09-08 local time
+
+The operator ran the prepared Laptop command at 00:12 local time and supplied
+the complete PowerShell output. The saved attempt is
+`D:\LetThemCook-builds\iphone-live-20260907\phone100-20260908-001125`, with
+context recording revision `b174863` and start marker
+`2026-09-07T16:12:02.7295184Z`. The marker records the instruction to press Enter
+after Phone subscription; it does not independently confirm that subscription.
+
+Two independent local checks confirmed exactly 201 matching JSON records in
+the original sender file and pasted output: 100 decoded real BLE packets,
+100 accepted ACKs and one passing summary. All IDs are unique and contiguous,
+`1:1594988637:1408` through `1:1594988637:1507`. Every 32-byte packet matches
+its decoded schema and expected dummy values; firmware uptime increments by
+100 ms. Sender duration is **13.750 s**, first ACK **3.766 s**, last ACK
+**13.516 s**, largest inter-ACK gap **0.157 s** and maximum including the
+shutdown tail **0.234 s**. There was one BLE and one ingestion connection;
+all reported error, drop, duplicate, gap and reboot counters are zero.
+Sender exit is **0** and stderr is empty. The sender SHA-256 is
+`9a0a5c714965e5e75d19802b2451bbb8af6e16581c0c10b95e709a344e9f145c`.
+
+A read-only audit through the existing SSH control session independently found
+the same 100 sequence numbers accepted exactly once on the actual Ultra96,
+from `2026-09-07 16:12:06,823` to `16:12:16,624` UTC. The full board-log snapshot
+had 1,203,345 bytes and SHA-256
+`f363b3376cb5c577971d2308691b84c06fa2a2249a276b96375b3a9b85439e13`.
+Local `sender-audit.json` preserves the sender/attachment hashes and checks;
+`board-acceptance-observation.json` records the remotely observed audit,
+explicitly distinguishing it from a downloaded board log. The first root
+audit invocation used an incorrect helper import and stopped before writing;
+the corrected `common.sensor` invocation passed. Production code is unchanged.
+
+**This completes the ingestion half of this attempt only.** No Phone output
+was included in the pasted attachment, and its board upload directory was
+still empty at 16:13:13 UTC. Next, retain and transfer the existing complete
+Phone capture, including receiver exit and all status/error lines, then compare
+its validated result IDs with these exact 100 ACKs. Do not rerun or discard the
+current attempt merely because the Phone evidence has not yet been supplied.
+Actual 100-message Phone success, the 600-second Phone soak and lifecycle checks
+remain unverified.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
