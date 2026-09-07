@@ -1,5 +1,12 @@
 # Week 7 Android Phone receiver
 
+**Current operator device (2026-09-07): iPhone.** Follow the separate
+[iPhone quickstart](week7-iphone-quickstart.md) for the prepared public setup
+bundle and foreground iSH password-authentication experiment. That recipe is
+not yet verified on the physical iPhone; the Android baseline below remains
+available. The older key-only iSH appendix is an alternative, not a prerequisite
+for the password recipe.
+
 The selected baseline is an Android Phone running its own OpenSSH local forward
 in Termux and either the standalone Python receiver or the Unity sample. The
 application connects to **Phone `127.0.0.1:19999`**, which forwards directly to

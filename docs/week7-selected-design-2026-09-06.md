@@ -36,6 +36,24 @@ This selected Week 7 contract supersedes earlier Proposed/TBD/approval blockers 
 27. Actual remote acceptance uses two verified, independently owned SSH forwards and `tools.rehearse_remote_week7`; it starts no server or tunnel. Require SUBSCRIBED before input, exact bounded ACK/result ID matching, a long initial idle allowance followed by a 5 s deadline once a result frame begins, and explicit remote provenance. A target-zero clean soak must deliver at least ceil(duration * 10 Hz * 0.90) ACKs and unique matching results, have no silence over 5 s between successive messages or after final activity, no unexpected reboot or extra connection, and no recorded stream/transport errors. Initial startup latency is reported separately. Cost: deliberate fault runs retain failure status even when recovery succeeds; one packet during a long observation can never certify a clean soak.
 28. Handle SIGTERM gracefully in the Ultra96 CLI, closing owned sockets/listeners and printing final metrics, while preserving Ctrl+C and fatal-listener failure behavior. Unsupported signal-handler platforms keep their existing cancellation path. Cost: start/stop remains scoped to the verified Week 7 PID, and no automatic service manager is installed.
 
+## Operator-device ruling (2026-09-07)
+
+29. The user selected an iPhone for the current physical test. Choose the
+foreground iSH/OpenSSH/Python JSON receiver experiment, with interactive
+password authentication on both SSH hops. Use OpenSSH `-f` to authenticate
+before it backgrounds itself inside the still-visible iSH app, and a fresh
+private control socket for scoped checks/shutdown. This avoids requiring SSH
+key enrollment for credentials already known to work through VPN. Preserve
+strict host-key verification, dedicated scoped configuration, explicit port 22,
+20/60-second hop timeouts, the existing CA and service identity. The public
+setup bundle contains only receiver source, CA certificate, existing verified
+host entries, configuration and instructions. The iPhone must establish its
+own authorized VPN route; Laptop VPN does not supply it. Actual iSH fork,
+socket, TLS, foreground display and interruption behavior remain physical
+tests. Keep the Android baseline available and do not promote this experiment
+to iOS Unity or background support. See the [iPhone quickstart](week7-iphone-quickstart.md)
+for commands and primary-source references.
+
 ## Interfaces
 
 - common.sensor: SensorPacket(device_id, boot_id, seq, uptime_ms, values), encode_packet(packet)->bytes, decode_packet(data)->SensorPacket, dummy_values(seq)->tuple; packet.to_message(session_id)->dict.

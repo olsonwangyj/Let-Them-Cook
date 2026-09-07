@@ -4,6 +4,11 @@ Use this pack to demonstrate deterministic dummy packets travelling through real
 
 Open [the teacher brief](teacher-brief.html), [printable PDF](teacher-brief.pdf), [talk track](teacher-script.md), and [packet walkthrough](packet-walkthrough.md). [packet-example.json](packet-example.json) is an illustrative fixture, not a captured measurement. Detailed procedures remain in the [communications runbook](../week7-runbook.md) and [Phone runbook](../week7-phone-runbook.md); the [selected design](../week7-selected-design-2026-09-06.md) governs current defaults.
 
+The operator confirmed an **iPhone** for the next physical test. Use the
+[iPhone quickstart](../week7-iphone-quickstart.md) and its public-only setup ZIP
+for the foreground iSH experiment. Successful iPhone SSH, TLS, result display
+and lifecycle recovery still require on-device evidence.
+
 The pack also includes [a recorded 100-packet run](recorded-demo100.jsonl) and [its provenance and hashes](evidence-index.json). From the project root, including a copied checkout, audit this relative path without hardware or network access:
 
 ```powershell
@@ -206,12 +211,12 @@ The Python display can establish the minimal real-Phone connection path once obs
 
 Optional fault demonstration: first save a clean pass, start a separately named duration-based run, then stop only the verified ingestion SSH owner **or** viewer SSH owner. Record the action time; restart that same forward and show fresh IDs. Viewer loss should leave ingestion ACKs flowing; disconnected results are not replayed. A server restart requires the [owned PID/cwd/argv checks](../week7-runbook.md#owned-server-termination-and-restart) and a fresh log. Do not mix these records with a clean soak.
 
-No live true USB power-loss transition was captured in the latest 180-second run. Post-action recovery and an automated RTS reset are separate evidence. If demonstrating physical USB removal or RESET, capture each action during streaming, with its own time, boot transition and authenticated recovery. USB removal establishes power loss only if the ESP has no other supply.
+The [evening 2026-09-07 USB-only test](../week7-continuation-report-2026-09-07.md#live-usb-only-power-loss-test-evening-2026-09-07) captured serial loss, a new boot and protected recovery, with 2,715 exact ACK/result matches across the intentional outage. A separate clean 180-second check followed; neither that check nor the earlier automated RTS reset establishes a physical RESET-button test. Capture each demonstrated physical action during streaming, with its own time, boot transition and authenticated recovery. USB removal establishes power loss only if the ESP has no other supply.
 
 ## 7. Save evidence and tear down
 
 1. Retain date, Laptop revision, actual remote source path/revision, mode/source, both endpoint owners, public trust identity, safe application logs, exit codes, audit output and the matching dedicated Ultra96 log. Save failures with their original labels. Never capture interactive passwords, pairing passkeys or private keys.
-2. Stop the owned producer/viewer or Phone app. Stop each owned foreground SSH command using Ctrl+C in its own terminal. On Phone stop the display `tail`, receiver and SSH processes, then run `termux-wake-unlock`.
+2. Stop the owned producer/viewer or Phone app. Stop each owned foreground SSH command using Ctrl+C in its own terminal. On Android, stop the display `tail`, receiver and SSH processes, then run `termux-wake-unlock`. For the iPhone's self-backgrounded SSH command, use the [quickstart's scoped control-socket shutdown](../week7-iphone-quickstart.md#6-finish-the-experiment-and-retain-its-limits), then verify the owned process exited.
 3. Recheck local listeners and process identities. If a process remains, verify its current owner/command/endpoints before stopping that specific process. Do not kill every Python/SSH process or blindly reuse a historical PID. Close serial monitors after checking that the intended ESP disconnected.
 4. The Ultra96 service may remain running as previously authorized. If stopping it is required, follow the verified owned-server procedure and require its `stopped` event and released listeners. Record the resulting state for the next operator.
 
