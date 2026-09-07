@@ -287,7 +287,7 @@ route still needs its own SSH test. Phone package/runtime, SSH fork/control sock
 screen lock, app switching and recovery remain unverified on-device. The
 existing Unity component still requires teammate compilation/integration.
 
-At the current handoff, the extended RESET and final clean captures have
+At the first Phone handoff, the extended RESET and final clean captures had
 finished and their BLE, TLS subscriber and COM3 handles are closed. The owned
 desktop viewer SSH PID **29472** and proxy **4176** were stopped after the final
 check; their processes and the Laptop's 19999 listener are absent. Ingestion
@@ -332,6 +332,36 @@ no Phone local forward, application TLS, SUBSCRIBED or result has yet been
 observed. The original pending-SCP paragraph above records the pre-download
 handoff and is superseded by this later observation.
 
+The user then confirmed **`files ready`** after the supplied guarded ZIP
+verification, scoped-file installation, receiver `--help` and CA-fingerprint
+commands. This is operator confirmation, not an independently collected Phone
+filesystem audit. Phone tunnel startup/control-socket output is now requested.
+
+At the 14:48 UTC preflight, the former idle Laptop SSH session reported
+`Connection reset` / `Unknown error` and its 18888 listener was absent. The
+Cisco AnyConnect adapter was Up; the cause of that idle-session loss was not
+determined. No physical capture was active, so this is not a new measured
+interruption experiment. Interactive strict SSH authentication restored the
+ingestion forward as **PID 47768**, parent 19508, with explicit port 22 on both
+hops. Fresh inspection confirmed unchanged Ultra96 PID 43932/source-db6769a
+and loopback 8888/9999. An independent Laptop TLS handshake through restored
+18888 passed CA/name validation for `ultra96.week7.internal` with **TLS 1.3**.
+The current Laptop listener is only 127.0.0.1:18888; no desktop subscriber or
+19999 listener was restarted. No passwords were written to files or logs.
+
+For the upcoming 100-message attempt, use local operator coordination: stage
+the Laptop sender before starting the Phone receiver, then press Laptop Enter
+immediately when the Phone prints `subscribed`. Do not wait for a chat reply
+during the Phone's five-second initial idle deadline. Prepared outside Git:
+`D:\LetThemCook-builds\iphone-live-20260907\phone100-laptop-command.txt`, a
+PowerShell block with an Enter prompt, fresh evidence directory, real protected
+BLE sender and preserved stdout/stderr/exit files. Syntax and sender CLI
+arguments were checked; it has not yet run. Existing code cannot guarantee BLE
+startup within that deadline, and `--target 100` is a polled threshold. Preserve
+any timeout, reconnect, overshoot or missing-ID attempt and retry with fresh
+complete logs; do not trim it into a clean pass. This practical procedure adds
+no production protocol change or Phone file replacement.
+
 Local import-guide checks passed: shell and embedded Python syntax, both real
 `ssh -G` expansions, exact public-key comparison and unchanged ZIP hash.
 Independent review checked failure guards and the separated authentication
@@ -345,6 +375,6 @@ documentation only; production firmware/application code is unchanged.
 | F–J TLS, SSH, bridge, inference, independent viewer | Actual board deployment/binding, 100 synthetic and protected messages, 11 negative/routing checks, exact server/client trace correlation, ingestion/viewer/server interruption and recovery | No software or remote-access blocker remains for this desktop-viewer topology |
 | K protected path | Actual ESP -> Laptop -> verified SSH/TLS -> Ultra96 -> separate SSH/TLS desktop subscriber, clean 600 s and 5,965 exact results; tunnel/server/RTS/USB/physical RESET faults and clean regressions | Desktop path complete; actual Phone remains Gate M |
 | L BLE protection | Authenticated SC/MITM/bond, earlier bond-loss negatives/restoration, protected C/D/E/K, separately captured USB-only power loss and physical RESET with automatic approved mode-13 stored-bond recovery | No remaining listed BLE-protection check on this ESP/Laptop pair |
-| M real Phone / teammate integration | Runnable standalone Python receiver, compiled portable C# core; supplied Unity component, not compiled here; Android procedures plus chosen iPhone password quickstart/public setup bundle | Actual iPhone runtime/install/network/VPN/SSH/display, 100/600 s correlation, lifecycle faults and teammate Unity build/integration |
+| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1/SSL import and SSH/SCP download reported; verified-file installation confirmed by operator; Unity component supplied but uncompiled here | Phone forward/control socket, application TLS/subscription/display, 100/600 s correlation, lifecycle faults, device/OS details and teammate Unity build/integration |
 
 The next operator can keep VPN connected, open the two generated independent SSH forwards, and run the current remote runner against the already deployed service. For Gate M, the Phone must own its own forward to Ultra96; stop the desktop subscriber so it does not replace the Phone's subscription. Follow the [current runbook](week7-runbook.md) and [Phone runbook](week7-phone-runbook.md), verify the public CA and host keys, and collect the remaining physical evidence. No protocol, TLS, security, architecture or implementation decision is awaiting approval. Real sensors/AI/FPGA, two-glove synchronization and AR UI retain the explicitly selected scope exclusions.
