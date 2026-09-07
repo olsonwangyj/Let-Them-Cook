@@ -318,6 +318,20 @@ provides a separate bootstrap using the two verified Ed25519 host keys,
 strict scoped SSH configuration, interactive passwords and pre-extraction
 hash verification. Actual Phone SCP, SSH/TLS and result receipt remain pending.
 
+Subsequent operator-pasted iSH output confirms **OpenSSH_8.6p1** and successful
+Python SSL import reporting **OpenSSL 1.1.1l (24 Aug 2021)**. The version inquiry
+first used lowercase `ssh -v` without a destination and printed usage; uppercase
+`ssh -V` returned the version. This was a command-case issue, not an installation
+failure. After the bootstrap printed `SETUP READY`, SCP prompted for both host
+passwords, transferred the public ZIP at **100% / 11 KB**, and returned to the
+iSH shell. This establishes the user-observed Phone SSH/SCP route through port
+22. The existing `/home/xilinx` chdir/.bashrc permission warnings appeared but
+did not stop the transfer; no home repair is needed for this procedure.
+Phone-side ZIP checksum/extraction and installation remain the next step;
+no Phone local forward, application TLS, SUBSCRIBED or result has yet been
+observed. The original pending-SCP paragraph above records the pre-download
+handoff and is superseded by this later observation.
+
 Local import-guide checks passed: shell and embedded Python syntax, both real
 `ssh -G` expansions, exact public-key comparison and unchanged ZIP hash.
 Independent review checked failure guards and the separated authentication

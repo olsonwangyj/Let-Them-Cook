@@ -3,7 +3,11 @@
 This is an alternate import path for the [iPhone quickstart](week7-iphone-quickstart.md).
 It downloads the unchanged public ZIP through the assigned Ultra96's SSH port 22,
 using the existing verified host keys. No Files transfer or new account is needed.
-**Phone download, iSH forwarding/forking and result delivery remain untested.**
+**Current physical progress (2026-09-07):** the operator's iSH output shows
+both SSH password prompts, a completed 100% ZIP transfer and return to the
+shell. The known inaccessible `/home/xilinx` warnings did not prevent that
+transfer. On-Phone ZIP verification/installation, forwarding/forking and
+TLS/result delivery still need confirmation.
 
 Keep the iPhone's authorized VPN connected. The Laptop's VPN does not establish
 the Phone's route. The Laptop operator must first confirm that the exact public
