@@ -192,6 +192,67 @@ test plan; observed events and individually confirmed actions determine which
 physical test actually happened. Production Laptop revision remains `fd9bbf8`
 for these captures; no production source or firmware changed in this follow-up.
 
+### Separately observed physical RESET-button recovery
+
+The user's **"RESET done"** confirmation arrived during the extended capture
+and was recorded at 13:37:40.174 UTC. The collector observed boot **1986177356
+-> 1594988637**, with USB serial remaining open. The last old-boot `alive` was
+at 13:37:14.798 UTC (uptime 870,016 ms); the first new-boot `alive` was at
+13:37:17.576 UTC (uptime 1,016 ms). These are observation bounds rather than
+an exact button-press timestamp. The same continuous serial handle and the
+user's confirmation distinguish this action from the earlier USB removal.
+
+Approved stored-bond authentication resumed at 13:37:26.617 UTC
+(`success=1 auth_mode=13 approved=1 current_peer=1`), followed by MTU 517.
+Fresh new-boot sequence 1 arrived at 13:37:29.518 UTC. Last old-boot ACK/result
+sequence 7870 had arrived at elapsed 456.187 s; first new result/ACK arrived
+at 470.125/470.187 s, giving **13.938/14.000-second delivery gaps**.
+No reset pulse, serial command, firmware upload or bond change was injected
+by the collector. Both true USB-only power loss and the physical RESET button
+now have separately attributed observations and authenticated recovery.
+
+The completed **600.422-second** RESET capture contains **5,832 accepted ACKs
+and 5,832 exact matching results**: 4,526 on the old boot (3345..7870), followed
+by 1,306 on the new boot (1..1306). It correctly retains **`passed=false`**
+because the deliberate interruption exceeded the clean five-second silence
+limit and introduced a new boot/connection. The bridge received 5,833 and
+recorded one ambiguous dropped item and one transport error; sequence 0 of
+the new boot is absent from both observed streams, without an asserted exact
+disposition. There were two BLE/TLS connections, one subscriber connection,
+zero BLE/cleanup errors, no malformed/duplicate/out-of-order/gap/queue/stale
+events, and one late callback discard. All 1,204 safe serial records came
+through one uninterrupted open, with no serial errors. Authenticated status
+retained MTU 517; security-suppression stayed 14 on the old boot and 5 on the
+new boot, with zero MTU suppression or notification submission errors.
+
+The fresh **final-post-reset100** regression then passed **100 ACKs / 100 exact
+matching results in 13.797 seconds**, boot 1594988637 sequences 1308..1407.
+It had one BLE/TLS/subscriber connection, no reboot, every recorded error/drop/
+anomaly zero (including shutdown callbacks), and maximum ACK/result silence
+0.250 seconds. Safe serial retained 32 records and approved mode-13
+authentication/MTU 517; the five reconnect pre-authentication intervals were
+suppressed (cumulative 5 -> 10), then the count stayed stable. Sequence 1307
+is outside both measured capture ranges. The collector's retained generic
+context is clarified by a separate `collector_purpose` operator event for
+this clean run; no fault was requested or observed during it.
+
+`tools.week7_demo audit` independently reproduced 5,832 exact IDs with exit 1
+for the fault and 100 exact IDs with exit 0 for the clean check. A separate
+parser saved `independent-reset-audit.json`; actual Ultra96 acceptance-log
+aggregation independently confirmed every expected ID/count in both RESET
+ranges and the final 100 range, retaining `evidence/live-reset-audit.json`
+on the board. No capture is promoted to real Phone evidence.
+
+`physical-session-manifest.json` hashes 13 completed source/evidence files,
+including both independent audits, the four application/serial capture pairs,
+the collector, operator events and locally recorded remote-aggregation results.
+Operator events are explicitly a point-in-time snapshot. Teacher talk track,
+HTML/PDF and operator README now show observed USB/RESET recovery rather than
+listing those actions as pending. The refreshed PDF remains three A4 landscape
+pages (115,743 bytes); all pages were rendered with Poppler and visually checked.
+The brief retains explicit pending iPhone/Unity acceptance. The runbook and
+current acceptance table agree; documentation review found no actionable issues.
+
 ### iPhone preparation and current operator handoff
 
 Decision 29 chooses foreground iSH/OpenSSH/Python using interactive passwords
@@ -220,27 +281,32 @@ disabled and the jump route offering public-key authentication only. After
 VPN became active, interactive password SSH reached the assigned Ultra96
 again. The iPhone needs its own authorized VPN profile; the Laptop connection
 does not supply a Phone route. No institution VPN endpoint is invented by the
-guide. Phone package/runtime, SSH fork/control socket, actual TLS/result display,
+guide. The user subsequently reported both Laptop and iPhone VPNs connected;
+the Laptop continued receiving real Ultra96 results, while the Phone's actual
+route still needs its own SSH test. Phone package/runtime, SSH fork/control socket, actual TLS/result display,
 screen lock, app switching and recovery remain unverified on-device. The
 existing Unity component still requires teammate compilation/integration.
 
-At the current handoff, owned Laptop ingestion/viewer SSH PIDs **40940/29472**
-retain loopback 18888/19999, both reaching Ultra96 SSH port 22. These are a
-live-session snapshot, not reusable stop commands. A fresh read-only remote
-check confirmed service **43932**, uid 1000, source-db6769a and only loopback
-8888/9999 application listeners. The separate extended RESET capture is
-`reset-button-extended.jsonl`, started around **13:29:39 UTC** for at most
-600 seconds. Its serial/BLE/subscriber handles close automatically at the
-deadline. A requested RESET action is not passed until its actual transition,
-protected recovery and operator confirmation are checked. Stop the desktop
-subscriber/viewer before the Phone subscribes; retain independent ingestion.
+At the current handoff, the extended RESET and final clean captures have
+finished and their BLE, TLS subscriber and COM3 handles are closed. The owned
+desktop viewer SSH PID **29472** and proxy **4176** were stopped after the final
+check; their processes and the Laptop's 19999 listener are absent. Ingestion
+SSH PID **40940** retains only Laptop loopback **18888**, reaching Ultra96 SSH
+port 22. These are live-session snapshots, not reusable stop commands. A fresh
+remote check confirmed service **43932**, uid 1000, source-db6769a and only
+loopback 8888/9999 application listeners. The service was not restarted.
+The Phone can now establish its own independent 19999 forward/subscription
+without a competing desktop subscriber. Start the staged Laptop sender when
+the Phone receiver is ready; never run the desktop rehearsal subscriber
+alongside it. Both devices' VPN connection is user-reported; actual iPhone
+SSH/TLS/result display remains the next human-operated test.
 
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
-| A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; live USB-only power loss, new boot and protected recovery observed | Separately attributed physical RESET-button transition during a live stream |
+| A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
 | F–J TLS, SSH, bridge, inference, independent viewer | Actual board deployment/binding, 100 synthetic and protected messages, 11 negative/routing checks, exact server/client trace correlation, ingestion/viewer/server interruption and recovery | No software or remote-access blocker remains for this desktop-viewer topology |
-| K protected path | Actual ESP -> Laptop -> verified SSH/TLS -> Ultra96 -> separate SSH/TLS desktop subscriber, 600 s and 5,965 exact results; tunnel/server/RTS/USB faults and clean regressions | No real Phone claim; separately attributed RESET-button observation remains |
-| L BLE protection | Authenticated SC/MITM/bond, earlier bond-loss negatives/restoration, protected C/D/E/K, live USB-only power loss and automatic approved mode-13 stored-bond recovery | Physical RESET-button recovery still needs its own attributed observation |
+| K protected path | Actual ESP -> Laptop -> verified SSH/TLS -> Ultra96 -> separate SSH/TLS desktop subscriber, clean 600 s and 5,965 exact results; tunnel/server/RTS/USB/physical RESET faults and clean regressions | Desktop path complete; actual Phone remains Gate M |
+| L BLE protection | Authenticated SC/MITM/bond, earlier bond-loss negatives/restoration, protected C/D/E/K, separately captured USB-only power loss and physical RESET with automatic approved mode-13 stored-bond recovery | No remaining listed BLE-protection check on this ESP/Laptop pair |
 | M real Phone / teammate integration | Runnable standalone Python receiver, compiled portable C# core; supplied Unity component, not compiled here; Android procedures plus chosen iPhone password quickstart/public setup bundle | Actual iPhone runtime/install/network/VPN/SSH/display, 100/600 s correlation, lifecycle faults and teammate Unity build/integration |
 
 The next operator can keep VPN connected, open the two generated independent SSH forwards, and run the current remote runner against the already deployed service. For Gate M, the Phone must own its own forward to Ultra96; stop the desktop subscriber so it does not replace the Phone's subscription. Follow the [current runbook](week7-runbook.md) and [Phone runbook](week7-phone-runbook.md), verify the public CA and host keys, and collect the remaining physical evidence. No protocol, TLS, security, architecture or implementation decision is awaiting approval. Real sensors/AI/FPGA, two-glove synchronization and AR UI retain the explicitly selected scope exclusions.

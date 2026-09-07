@@ -142,7 +142,7 @@ p { margin:0; line-height:1.4; }
 <p class="subtitle">Recorded acceptance covers the protected ESP-to-Ultra96 path and the independent desktop subscriber.</p>
 <div class="metric-grid">
 <div class="metric primary"><div class="label">Actual remote / 600-second soak</div><div class="value">5,965 / 5,965</div><p>Accepted ACKs / exact matching results.<br>Zero stream and transport errors.</p><small>One BLE/TLS/subscriber connection; no reboot.<br>One callback discarded at shutdown.</small></div>
-<div class="metric"><div class="label">Physical action follow-up</div><div class="value">100 + 1,768</div><p>Exact matches after reported USB/RESET actions, then a 180-second stability run.</p><small>The actions preceded capture. No additional physical interruption was observed during the 180 s run.</small></div>
+<div class="metric"><div class="label">Observed USB / RESET faults</div><div class="value">2,715 + 5,832</div><p>Exact ACK/result matches in two separate physical interruption runs.</p><small>USB: 300.422 s; RESET: 600.422 s.<br>New boots; authenticated recovery; auth mode 13, MTU 517. Both remain <span class="mono">passed=false</span>.</small></div>
 <div class="metric"><div class="label">Baseline software checks</div><div class="value">181 + 44</div><p>Baseline: 181 Python tests passed; 44 portable C# tests passed.</p><small>Two Windows skips were Linux-only tests, checked separately. The Unity component was not compiled.</small></div>
 </div>
 <div class="evidence-bottom">
@@ -153,8 +153,9 @@ p { margin:0; line-height:1.4; }
 <li><b>Point to one shared trace.</b> Show device, boot, sequence, accepted ACK and matching result ID in the separate streams.</li>
 <li><b>Finish with counted evidence.</b> Show exact ID-set match, duration and error/drop metrics; close owned clients and forwards.</li>
 </ol><p class="smallprint">Use this pack's README and runbooks for commands. If the board path is unavailable, label an offline walkthrough explicitly.</p></div>
-<div><div class="pending"><h2>Pending: actual Phone + Unity</h2><p><b>Phone:</b> run on the physical device using its own SSH forward, verify TLS and display, then collect 100-message / 600-second correlation and lifecycle recovery evidence.</p><p><b>Unity:</b> build the supplied component and complete teammate integration on the actual target. Portable C# tests do not establish Unity or Phone acceptance.</p><p><b>Physical faults:</b> separately capture true USB removal/reconnection and the physical RESET-button interruption during streaming.</p></div>
-<p class="smallprint"><b>Recovery evidence already recorded:</b> ingestion-tunnel loss, viewer-tunnel loss, Ultra96 service restart and injected ESP RTS reset. These intentionally interrupted runs remain fault tests, with their losses and unmatched observations preserved.</p>
+<div><div class="pending"><h2>Pending: actual Phone + Unity</h2><p><b>Phone:</b> verify its own SSH/TLS path and display, then collect 100-message / 600-second correlation and lifecycle recovery evidence. The iPhone iSH procedure remains unverified on-device.</p><p><b>Unity:</b> build the supplied component and complete teammate integration on the actual target. Portable C# tests do not establish Unity or Phone acceptance.</p></div>
+<p class="smallprint"><b>Observed physical recovery:</b> USB-only power loss caused a 21.431 s serial outage; the separate RESET kept serial open. Maximum ACK/result gaps: USB 25.656/25.594 s; RESET 14.000/13.938 s. Both recovered with new boots and matching board-log traces.</p>
+<p class="smallprint"><b>Final clean check:</b> 100/100 exact matches in 13.797 s; maximum ACK/result gap 0.250 s. All reported errors, drops and callback discards were zero.</p>
 </div>
 </div>
 <footer class="footer"><span>Evidence snapshot: <a href="../week7-continuation-report-2026-09-07.md">2026-09-07 continuation report</a> &middot; Engineering demonstration; no official rubric acceptance claim</span><strong>03 / 03</strong></footer>
