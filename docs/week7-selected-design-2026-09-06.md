@@ -54,6 +54,19 @@ tests. Keep the Android baseline available and do not promote this experiment
 to iOS Unity or background support. See the [iPhone quickstart](week7-iphone-quickstart.md)
 for commands and primary-source references.
 
+30. For the current iPhone commissioning, offer direct SSH/SCP import of the
+existing public setup ZIP from the assigned Ultra96. This removes a dependency
+on a separate Files transfer service while using the already required SSH
+port 22. Bootstrap a fresh Phone-local directory with the two existing
+verified Ed25519 host keys and a dedicated strict configuration; authenticate
+interactively through the same jump host. Stage only the unchanged public ZIP
+in a private owner-only directory on Ultra96, verify its existing SHA-256 both
+after upload and before Phone extraction, then use the original receiver and
+trust files. No additional network listener or private credential is involved.
+The original Files import remains available, and the versioned ZIP is not
+rewritten merely to add this alternative. Physical iSH SCP and application
+TLS remain separate acceptance steps. See [SSH import](week7-iphone-ssh-import.md).
+
 ## Interfaces
 
 - common.sensor: SensorPacket(device_id, boot_id, seq, uptime_ms, values), encode_packet(packet)->bytes, decode_packet(data)->SensorPacket, dummy_values(seq)->tuple; packet.to_message(session_id)->dict.

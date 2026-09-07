@@ -7,6 +7,11 @@ not yet verified on the physical iPhone; the Android baseline below remains
 available. The older key-only iSH appendix is an alternative, not a prerequisite
 for the password recipe.
 
+For the current connected iPhone, the [direct SSH import procedure](week7-iphone-ssh-import.md)
+downloads that same public bundle from Ultra96 over port 22 after bootstrapping
+the two verified host keys. This is an alternative to transferring the ZIP
+through the Files app; physical iPhone execution still needs confirmation.
+
 The selected baseline is an Android Phone running its own OpenSSH local forward
 in Termux and either the standalone Python receiver or the Unity sample. The
 application connects to **Phone `127.0.0.1:19999`**, which forwards directly to

@@ -9,6 +9,9 @@ The operator confirmed an **iPhone** for the next physical test. Use the
 for the foreground iSH experiment. Successful iPhone SSH, TLS, result display
 and lifecycle recovery still require on-device evidence.
 
+The [direct SSH import](../week7-iphone-ssh-import.md) can provision the same
+public iPhone setup bundle from Ultra96 over its existing SSH port 22.
+
 The pack also includes [a recorded 100-packet run](recorded-demo100.jsonl) and [its provenance and hashes](evidence-index.json). From the project root, including a copied checkout, audit this relative path without hardware or network access:
 
 ```powershell

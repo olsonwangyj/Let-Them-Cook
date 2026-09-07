@@ -1,6 +1,6 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
-This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 29 decisions; no protocol or security approval is pending.
+This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 30 decisions; no protocol or security approval is pending.
 
 ## VPN resolved the access blocker
 
@@ -300,6 +300,30 @@ without a competing desktop subscriber. Start the staged Laptop sender when
 the Phone receiver is ready; never run the desktop rehearsal subscriber
 alongside it. Both devices' VPN connection is user-reported; actual iPhone
 SSH/TLS/result display remains the next human-operated test.
+
+The user subsequently confirmed **iSH ready, Python 3.9.16**, satisfying the
+receiver's >=3.8 version requirement. OpenSSH/Python SSL version outputs were
+requested separately; successful install alone does not prove the Phone route.
+Decision 30 adds a [direct SSH import](week7-iphone-ssh-import.md) alternative
+to the Files transfer. The original public-only ZIP was copied through the
+existing verified SSH control session to
+`/var/tmp/cg4002-week7-yanjie-20260907/phone-public-8796b9b94b76/week7-iphone-setup.zip`.
+The board verified its exact 10,755 bytes, five expected archive entries,
+ZIP CRC and unchanged SHA-256
+`8796b9b94b760b33dd7797163762dbbdd5a818a3c84a144db735ec5a0adea153`.
+The directory is uid 1000/mode 700 and file uid 1000/mode 600; no service restart,
+new listener, private-key transfer or credential file was required. Remote
+`scp` is present. The original bundle/README remain immutable; the new guide
+provides a separate bootstrap using the two verified Ed25519 host keys,
+strict scoped SSH configuration, interactive passwords and pre-extraction
+hash verification. Actual Phone SCP, SSH/TLS and result receipt remain pending.
+
+Local import-guide checks passed: shell and embedded Python syntax, both real
+`ssh -G` expansions, exact public-key comparison and unchanged ZIP hash.
+Independent review checked failure guards and the separated authentication
+block. All 37 local links across the changed entry documents resolved, and
+`git diff --check` passed. This follow-up changes public provisioning and
+documentation only; production firmware/application code is unchanged.
 
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
