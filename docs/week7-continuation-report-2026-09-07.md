@@ -507,6 +507,45 @@ then press Laptop Enter immediately when `subscribed` appears on Phone. Retain
 all output and both exit codes; no clean Phone-delivery claim is made until
 the complete new sender and Phone captures have been independently correlated.
 
+### Resumed sender capture — 2026-09-08 18:54 local time
+
+The next pasted attachment included both the earlier 00:12 Laptop run and a
+new complete run. The new saved directory is
+`D:\LetThemCook-builds\iphone-live-20260907\phone100-20260908-185338`, with
+revision `533c7b5` and operator start marker
+`2026-09-08T10:54:28.7324398Z`. Independent checks isolated the two runs and
+confirmed that the attachment's final 201 JSON records exactly match the new
+file: **100 packets, 100 accepted ACKs, one passing summary**. The first 201
+records match the earlier preserved run; they are not new evidence.
+
+New IDs are unique and contiguous, **`1:2375739948:0` through
+`1:2375739948:99`**. All 32-byte records independently unpack to the recorded
+schema and deterministic dummy values, with 100 ms firmware uptime steps.
+The boot differs from the previous day; this does not establish a reboot
+during the capture. Sender duration is **14.078 s**, first/last ACK
+**4.047/13.844 s**, largest inter-ACK gap **0.172 s**, and maximum including
+shutdown tail **0.234 s**. One BLE and one ingestion connection were used;
+exit is **0**, stderr empty. All stream/error/drop/reboot counters are zero
+except **`callback_generation_dropped=1`**. That counter includes raw queued
+items cleared at generation invalidation and callbacks rejected for inactive
+generations. It is consistent with shutdown, but the exact mechanism, payload
+and time are not captured. Do not call it sequence 100, a proven late callback,
+or a missing packet among these 100 accepted IDs. The current sender's pass
+criteria intentionally do not classify this counter as a stream error.
+
+The actual Ultra96 log independently contains these exact 100 IDs accepted
+once, from **10:54:33,122 to 10:54:42,972 UTC**. Its observed full-log snapshot
+has 1,212,235 bytes and SHA-256
+`dd7a67efc96436b69ddf19830aa558362c9634ed0a75f9c645e1279e5541e67c`.
+The new sender file SHA-256 is
+`6084addeb2414015c7d34d7b3b7e6b732d4a30426e9a6ad2d8273d53d77b0793`.
+Local `sender-audit.json` and `board-acceptance-observation.json` retain hashes,
+checks and the distinction between observed board output and downloaded logs.
+The attachment contains no Phone result/status evidence, and the private
+Phone upload directory remained empty at this check. Obtain the current iSH
+output and complete Phone capture before deciding whether this attempt needs
+a retry. Do not count either Laptop-only capture as verified Phone delivery.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
