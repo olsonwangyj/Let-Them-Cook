@@ -494,6 +494,19 @@ commands for this paste path. At 10:40:08 UTC the Laptop 18888 owner remained
 36432 and both actual board-loopback app listeners were still present. Current
 Phone master/TLS and the packet capture remain unverified.
 
+The operator then supplied a successful standalone control check,
+**`Master running (pid=60)`**, and a fresh strict Python probe reporting
+**`PHONE_TLS_OK TLSv1.3`**. This establishes the resumed Phone master and
+CA/hostname-validated forwarded TLS despite the earlier wrapper paste errors.
+The probe did not subscribe or receive gesture results. At 10:43:57 UTC the
+Laptop ingestion listener still belonged to PID 36432 and the actual board
+still exposed its app listeners only on loopback 8888/9999. The next action is
+the previously reviewed coordinated 100-message procedure with fresh evidence:
+stage the Laptop Enter prompt, start the Phone's immediate-tee receiver capture,
+then press Laptop Enter immediately when `subscribed` appears on Phone. Retain
+all output and both exit codes; no clean Phone-delivery claim is made until
+the complete new sender and Phone captures have been independently correlated.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
