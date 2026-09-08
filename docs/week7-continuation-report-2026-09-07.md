@@ -2,6 +2,72 @@
 
 This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 35 decisions; no protocol or security approval is pending.
 
+## Physical testing deferred by operator — 2026-09-09
+
+The operator asked to record the screen-lock attempt, continue that work later,
+and prepare a compact visualizer teammate handoff. No further live tests were
+started on resumption; no PDF was requested or changed. The next collaboration
+step is the [visualizer handoff](week7-visualizer-handoff.md). The existing iPhone
+Python results do not establish Unity integration.
+
+The screen-lock attempt ran on 2026-09-08 after reconnecting the expired Laptop
+SSH tunnels. The Phone's existing scoped daemon/master passed check-only TLS
+1.3, application identity, loopback listener and host-key verification first.
+Local evidence is
+`D:\LetThemCook-builds\iphone-control-20260908\w7-fd3c60de\evidence\screen-lock-agent-20260908-233935`.
+Phone wrapper PID 237 ran detached, with stdin disconnected and output saved
+under `/root/week7-evidence/screen-lock-job.xvmep7mt`; the original capture is
+`/root/week7-evidence/phone-lifecycle.NIIdKC`. A fresh subscription and 46 results
+were observed before the instruction to lock for about 30 seconds, unlock and
+return to iSH while leaving both VPNs connected.
+
+The instruction marker is 15:40:02.6649145 UTC. The last successful management
+snapshot completed at 15:40:25.335328 UTC with 409 received results through
+`1:2375739948:7011`; management resets began at 15:40:29.374488 UTC. Board
+maintenance port 22222 was present at 15:40:28 and absent at 15:41:11, while
+application listeners and Laptop ingestion remained available. The operator's
+`unlocked` reply was recorded at 15:41:44.7971988 UTC; the conservative last
+accepted ID at that reply was `1:2375739948:7808` (sender elapsed 123.64 s).
+These are instruction, remote observation and reply times, not independently
+measured physical lock/unlock times. The management route had not recovered
+automatically at the reply check or the final scheduled check at 15:42:39 UTC.
+
+The sender finished its 180-second bound with exit 0 and **1,768 ordered unique
+Packet/ACK/board acceptance IDs**, `1:2375739948:6603..8370`. A fresh offline
+partial audit verified those three saved sequences match exactly. The sender
+reported one BLE and one ingestion TLS connection, maximum activity gap 0.390 s,
+and **two callback-generation discards**; other reported error/drop/gap counters
+were zero. Its ingestion summary passed, which does not certify Phone delivery.
+The independently retrieved full board snapshot is
+`phone-audits-20260908/screen-lock-NIIdKC.server.log`, **1,963,725 bytes**, SHA-256
+`64cb6e404131fa0eac600651db22ac8126e5f273e6c1487c946e35430f778163`.
+The local copy is `server.log`; `partial-audit-20260909.json` preserves the
+partial result and hashes of original Laptop/board/observation evidence.
+
+**Status: screen-lock recovery pending, not passed.** The original Phone log
+and exits remain uncollected; final Phone count and missing IDs are unknown.
+The requested command `python3 /root/week7-phone/resume-week7-control.py` has
+not yet produced an operator-supplied result. On resumption, recheck current
+Laptop/VPN routes, then use the scoped Phone recovery procedure and collect
+this attempt. Inspect the original bounded receiver's final state before
+starting another subscriber. Management loss alone does not establish receiver
+termination, data loss or a precise iOS suspension interval.
+
+The unchanged count-zero Phone wrapper is bounded to 240 seconds, whereas the
+sender runs for 180 seconds. Its five-second idle timeout can produce expected
+reconnects in the quiet tail. Separate live recovery from that tail using timed
+snapshots and at least 30 new Phone IDs produced after a conservative return
+ACK boundary. Buffered earlier IDs or aggregate reconnect counts do not prove
+recovery. The ordinary strict zero-reconnect auditor remains unchanged.
+
+An interrupted outside-Git lifecycle auditor is retained as work in progress
+at `...\w7-fd3c60de\audit-lifecycle.py` with `check-audit-lifecycle.py`.
+Fresh verification on 2026-09-09 passed 11 synthetic cases but the twelfth,
+uncollected-Phone handling, raised `FileNotFoundError`; it is not ready to audit
+this missing-Phone case. The recorded partial audit above instead checks only
+available originals and leaves Phone metrics unknown. Complete that helper
+or use explicit evidence correlation when physical work resumes.
+
 ## Replacement Phone commissioning — 2026-09-08
 
 The short-command file import succeeded on the replacement iPhone. The Phone

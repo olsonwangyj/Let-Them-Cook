@@ -10,6 +10,14 @@ or security decisions to proceed with these physical observations.
 
 ## Before another timed run
 
+**Paused at the operator's request on 2026-09-09.** The first screen-lock
+attempt lost the maintenance route and awaits manual recovery and collection
+of its Phone originals. The operator reported `unlocked`; automatic route
+recovery was not observed. Read the latest continuation report before resuming.
+Inspect `/root/week7-evidence/phone-lifecycle.NIIdKC` and detached job
+`/root/week7-evidence/screen-lock-job.xvmep7mt` after restoring access. Preserve
+that attempt and verify the receiver's final state before a new subscription.
+
 1. Obtain the operator's whole-run foreground observation for the completed
    6,100-result run. Ask whether this replacement iPhone stayed unlocked with
    iSH visible and its own VPN connected throughout. Remote process/log
@@ -67,6 +75,11 @@ exit and UTC context. After at least 30 live results, record an agent UTC
 milestone and issue the physical action. Record the operator's actual action
 and return times as observations; an instruction timestamp is not the physical
 event's timestamp. The Phone's 240-second capture gives recovery margin.
+The extra minute also produces a quiet tail after the sender ends, where the
+receiver's five-second idle timeout can cause expected reconnects. The final
+aggregate reconnect count cannot identify their cause. Record a conservative
+last-ACK boundary after the operator's return and require at least 30 matching
+Phone IDs produced after it; buffered older results alone are insufficient.
 
 | Separate test | Operator action | Required evidence after return |
 |---|---|---|
