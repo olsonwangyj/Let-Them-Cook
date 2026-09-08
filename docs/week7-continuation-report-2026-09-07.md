@@ -1,6 +1,6 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
-This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 32 decisions; no protocol or security approval is pending.
+This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 33 decisions; no protocol or security approval is pending.
 
 ## VPN resolved the access blocker
 
@@ -870,6 +870,60 @@ manifest are retained. Startup behavior is unchanged. The new
 `replacement-setup-manifest.json` records the exact selected versions and the
 pending actual Phone commissioning. No packet run or Phone login occurred in
 this preparation turn.
+
+### Actual replacement Phone root-lock blocker
+
+The operator pasted the complete bootstrap and received
+**`PHONE_ROOT_LOCKED: stop here and send this message; nothing changed.`**
+This is the original explicit account guard, before any setup file or network
+operation. It establishes a leading `!` in that Phone's root password field;
+the actual field was neither requested nor collected. Python imports, including
+`spwd`, and the preceding root/sshd checks passed, but exact runtime versions
+remain unreported. At 14:03 UTC the board application listeners remained live
+and maintenance port 22222 remained absent. This is not a failed SSH password
+or VPN observation, since authentication had not started.
+
+Decision 33 resolves the observed account prerequisite with the
+[official iSH remedy](https://github.com/ish-app/ish/wiki/Running-an-SSH-server#troubleshooting-passwordless-login):
+an unusable `*` password field permits the selected key authentication on iSH.
+The [new recovery guide](week7-ish-root-lock.md) includes the exact combined
+setup and a complete offline restoration block. Before mutation, the script
+requires no detected known SSH daemon/session processes and preserves the
+original field exclusively, mode 600, in root-owned mode-700
+`~/week7-private/ish-root-before-control.txt`, flushing/fsyncing the backup.
+Account-tool input travels only through stdin, and the resulting field is
+checked. The scoped server still requires public-key authentication and keeps
+password/keyboard-interactive mechanisms disabled. This is a documented,
+observed-need exception to the original no-account-field-change design.
+
+The updated ready-to-copy file is
+`D:\LetThemCook-builds\iphone-control-20260908\w7-fd3c60de\replacement-key-setup-command.txt`,
+**6,133 bytes**, SHA-256
+`902495b5b3ab11b5660de9c2a14c69f1e78e7e7562e11ebd5d426f1b2e6ed5fb`.
+It continues into the original verified SSH/bootstrap after the remedy. It
+also fetches the new public **`restore-ish-root-lock.py`**, **1,780 bytes**,
+SHA-256 `144e550e49f2e0bd818054c5b1b1e38c79ae1475a51268c465072c22497fb81a`,
+published mode 600 in the same board directory with its hash rechecked.
+The original setup and public versions remain unchanged. No original password
+field or private backup is part of the public bundle or evidence manifests.
+
+Seven isolated account workflow checks and five isolated combined-bootstrap
+checks passed; these simulate account/permission/SSH operations and changed no
+real account. They cover existing backups/daemons, unexpected account changes,
+idempotent restoration, and progressing past the newly locked root state.
+Python 3.8 grammar and independent source review passed. The local
+`root-lock-remedy-manifest.json` retains artifact hashes and verification scope.
+
+Actual Phone execution of this updated block, account-state verification,
+key authentication and packet tests are still pending. If later connection
+setup fails after enabling the account, its private backup remains and the
+account is not automatically restored. After maintenance shutdown, use the
+saved helper or complete offline restore block; refuse restoration if the
+account has since changed unexpectedly. Restore and verify the original
+password field, retaining the backup until verified. Password-age metadata
+may change through the account utility; no full shadow-metadata restoration
+claim is made. Close existing maintenance sessions as well as its listener:
+restoring an account lock alone does not terminate authenticated sessions.
 
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|

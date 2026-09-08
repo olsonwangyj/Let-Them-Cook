@@ -92,7 +92,9 @@ daemon so the agent can run Phone commands and collect evidence. This resolves
 the user's request to reduce manual copy/paste with the already installed SSH
 software. The daemon and both new forward listeners use loopback, with a
 dedicated client key, independently pinned Phone host key and separate config;
-no root password, global SSH configuration or application route is changed.
+no global SSH configuration or application route is changed. Initially the
+root password field is preserved; decision 33 handles the subsequently
+observed locked account on the replacement Phone.
 Verify board `GatewayPorts` before creating the reverse forward and inspect its
 actual binding afterward. Empty-config multiplex control commands prevent
 accidental cancellation of the application's forward. This explicitly narrows
@@ -101,6 +103,23 @@ results still use the Phone's independent `-L` to board port 9999. Maintenance
 shares the Phone master initially and may be lost on VPN/master interruption;
 iOS actions and foreground restoration remain manual. Close the scoped access
 after tests. See [maintenance design](week7-iphone-control.md).
+
+33. After the replacement Phone actually reports its `!`-locked root account,
+apply iSH's documented unusable `*` password field to permit key authentication.
+Save the original field first in an exclusive, fsynced, root-only Phone backup;
+check for existing known SSH daemon/session processes before changing account
+eligibility, and pass account-tool input only through stdin. The dedicated
+daemon retains `AuthenticationMethods publickey` and both password mechanisms
+disabled. This is an explicit, observed-need exception to the initial promise
+of no account-field changes, not a guessed password or empty-password login.
+Verify the resulting field and retain the private backup even if later setup
+fails. After maintenance shutdown, restore only if the field still equals the
+selected `*`, and verify equality with the original field. Never upload the
+backup with evidence. Password-age metadata may change through `chpasswd`;
+the restoration claim is limited to the original password field. An offline
+restore block is supplied even if downloading the helper fails. This resolves
+the actual iSH account prerequisite without weakening SSH host pins or TLS.
+See [locked-root procedure](week7-ish-root-lock.md).
 
 ## Interfaces
 
