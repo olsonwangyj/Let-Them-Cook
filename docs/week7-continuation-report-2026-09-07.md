@@ -834,6 +834,43 @@ failures; they do not run BLE or constitute a Phone soak. The existing current
 receiver hash and CLI flags were checked. Install and run these on the selected
 Phone only after its SSH/TLS readiness and short packet run are verified.
 
+### Replacement Phone bootstrap prepared — 2026-09-08
+
+The user reported completion of the replacement iPhone's iSH/package/VPN
+prerequisites. Actual versions and SSH access remain unverified. At 13:48 UTC,
+the existing board app listeners remained present, no maintenance listener
+22222 existed, and no Phone readiness file had arrived. Laptop listeners
+18888/PID 36432 and 12222/PID 18080 were still present.
+
+Prepared the [one-time setup block](week7-replacement-iphone-setup.md) and its
+ready-to-copy local file
+`D:\LetThemCook-builds\iphone-control-20260908\w7-fd3c60de\replacement-setup-command.txt`.
+The block checks the actual runtime/account/terminal and port, installs only
+safe new or identical scoped SSH files, starts a fresh Phone master with its
+own result forward, then downloads two exact files through that master with
+network fallback disabled. Both hashes must match before it invokes the control
+helper. Failure closes only the fresh bootstrap master. Existing conflicting
+files are preserved; account passwords and global SSH files are not changed.
+The user must paste this block and enter credentials at OpenSSH's terminal
+prompts before the agent can operate the replacement Phone.
+
+Five isolated bootstrap control-flow cases passed, with root/permissions and
+SSH subprocesses simulated: success, corrupted download, SSH failure, existing
+configuration conflict and locked root. Python 3.8 grammar and independent
+source review passed. This is preparation evidence, not Phone access evidence.
+The ready-to-copy text is **4,244 bytes**, SHA-256
+`5b14bbc70cefd7354ea3348be8ebf90bce8859ecaacddf24af1393eaa4f937d5`.
+
+The bootstrap uses separately published **`ish_control-v2.py`**, **17,715 bytes**,
+SHA-256 `de224697bd472ecc016c0e72363c7ae7b32e0ae0e5365818fdfcdcbca9ef65ed`,
+alongside unchanged `control-public.json` in the same board directory. Both
+board and local hashes match. V2 aligns the public helper with the final
+committed malformed-state guard in `stop_control`; the earlier public file and
+manifest are retained. Startup behavior is unchanged. The new
+`replacement-setup-manifest.json` records the exact selected versions and the
+pending actual Phone commissioning. No packet run or Phone login occurred in
+this preparation turn.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
