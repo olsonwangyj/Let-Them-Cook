@@ -960,6 +960,25 @@ prepare a fresh scoped import with short commands if missing. Do not repeat
 the large heredoc, overwrite earlier Phone material, or infer whether a
 partially entered prior attempt changed the root account.
 
+The next Phone output explicitly reported both dedicated SSH configuration
+and known-hosts files missing. The [short-command import guide](week7-ish-short-import.md)
+now documents the whole file-delivery path in separate shell lines, using a
+fresh private temporary directory and the same two pinned Ed25519 keys.
+Deliver it to the operator in manageable stages, starting with the directory,
+two key lines and fingerprint output. The temporary configuration keeps both
+SSH hops on port 22; its host-specific connection timeouts remain 20/60 seconds.
+The final hash check gates execution with `&&`. These missing files do not
+establish the Phone's current account state; the existing guarded setup and
+private backup/restore procedure remain authoritative.
+
+The exact preparation lines extracted from that guide passed a disposable
+`/bin/sh -eu` check on the existing board session. Both public fingerprints,
+directory/file permissions, effective `ssh -G` policies for each hop, usernames,
+hostnames, port 22, keepalives, host-specific timeouts and destination ProxyJump
+were asserted. This local preparation/configuration check opened no SSH
+connection or Phone daemon and changed no account; its temporary files were
+removed. Actual iSH entry and import are still operator-dependent.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
