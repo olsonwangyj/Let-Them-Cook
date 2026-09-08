@@ -946,6 +946,20 @@ verification. This changes delivery only; the account backup/restore, host
 pins, application topology and helper checks remain as selected. No new
 Phone account or connection success is established by this report.
 
+The operator then manually typed the short Python probe and reported
+`PHONE_OK`. This confirms that a correctly entered `python3 -c` command runs
+on the replacement Phone; it does not establish SSH configuration, account
+state, management access or packet delivery. At 14:29:48 UTC the existing
+Laptop SSH session still reached the board, whose application listeners
+remained at `127.0.0.1:8888` and `127.0.0.1:9999`; maintenance port 22222 was
+absent. The staged whole setup file's SHA-256 was rechecked as
+`8076ee85e1e10c8d6b497d9743fc7434ef896451f5cf31bcd2ce895d50737864`.
+Next request only a short, read-only check for the Phone's dedicated SSH
+configuration and known-hosts files. Reuse them only after validation, or
+prepare a fresh scoped import with short commands if missing. Do not repeat
+the large heredoc, overwrite earlier Phone material, or infer whether a
+partially entered prior attempt changed the root account.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
