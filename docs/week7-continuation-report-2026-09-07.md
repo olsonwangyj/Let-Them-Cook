@@ -935,6 +935,17 @@ SSH/protocol failure or a code change. The tail alone does not establish
 whether an earlier part changed the account, so no new account or connection
 success is claimed; preserve any backup and rely on the script's state guards.
 
+The user reported the same paste problem again after the complete inline
+block. At 14:21:34 UTC, the board still had neither a maintenance listener
+22222 nor `phone-ready.json`. Stop repeating large heredocs: first confirm a
+short typed Python `-c` command works, then provision the pinned SSH import
+using short commands and download the complete setup as a file for execution.
+The already-tested `replacement-key-setup.py` is now also staged as an exact
+public file in the same owner-only board directory, with board/local hash
+verification. This changes delivery only; the account backup/restore, host
+pins, application topology and helper checks remain as selected. No new
+Phone account or connection success is established by this report.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
