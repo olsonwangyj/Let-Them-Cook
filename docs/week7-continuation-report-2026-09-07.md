@@ -788,9 +788,9 @@ failure, so actual listener removal must be observed. A locked iSH root account
 must be diagnosed without logging or changing its password hash. The existing
 application master/result tunnel is not stopped by maintenance setup/cleanup.
 
-The implemented `phone/ish_control.py` and its 13 focused tests passed together
-with all 22 receiver tests: **35 passed in 6.24 s** in the root verification.
-Independent review also reran all 13 helper tests successfully. Regressions
+The implemented `phone/ish_control.py` and its 14 focused tests passed together
+with all 22 receiver tests: **36 passed in 6.30 s** in the final root verification.
+Independent review also reran the helper tests successfully. Regressions
 cover locked accounts, occupied local/remote ports, missing master, rejected
 configuration, uncertain forward failure, publication rollback, scoped PID
 cleanup and metadata/path validation. Review caught and fixed missing `-e`
@@ -822,6 +822,17 @@ Keep `/root/week7-evidence/phone100.DoakOF` unchanged on the original Phone;
 its full capture is still pending collection and correlation. Label all future
 replacement-Phone evidence separately, including device/iOS/runtime details,
 and do not run competing receivers during either device's packet tests.
+
+The longer-test wrappers are prepared outside Git under
+`D:\LetThemCook-builds\iphone-soak-20260908`: `capture6100.sh`,
+`phone6100-laptop.ps1`, instructions and a manifest. Both request 6,100 results
+with 660-second limits and preserve original logs plus separate process/capture
+exits. The Laptop wrapper offers `-Subscribed` for agent operation only after
+the current Phone subscription has been observed. There is no deliberate
+startup delay. Synthetic failure checks cover receiver/tee and sender/capture
+failures; they do not run BLE or constitute a Phone soak. The existing current
+receiver hash and CLI flags were checked. Install and run these on the selected
+Phone only after its SSH/TLS readiness and short packet run are verified.
 
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
