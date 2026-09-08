@@ -67,6 +67,26 @@ The original Files import remains available, and the versioned ZIP is not
 rewritten merely to add this alternative. Physical iSH SCP and application
 TLS remain separate acceptance steps. See [SSH import](week7-iphone-ssh-import.md).
 
+31. Separate the standalone Python Phone receiver's initial result-idle budget
+from its frame-completion deadline. Actual iPhone evidence showed a successful
+SUBSCRIBE followed by a TimeoutError before the first result, then 100 exact
+results after resubscription. The five-second initial wait left little margin
+for operator coordination and the measured roughly four-second BLE startup.
+Allow 30 seconds for the first result's first byte while no valid result has
+yet been received; once that byte arrives, allow only five seconds total for
+the remaining prefix and body. After the first result, including subsequent
+reconnections, preserve the existing five-second complete-frame/idle deadline.
+Connection, TLS handshake and SUBSCRIBED deadlines remain five seconds, and
+the overall CLI duration still bounds all waits. This follows the separation
+already selected for the desktop remote viewer in decision 27 without changing
+wire frames, TLS identity, replay or result semantics. Publish the updated
+standalone receiver in a separately hashed public directory and retain the
+original iPhone setup ZIP/capture evidence. Cost: an entirely silent initial
+subscription can wait up to 30 seconds before retrying; partial frames and an
+established result stream do not get this grace. The portable C#/Unity client
+is unchanged. A physical zero-reconnect rerun is still required; the earlier
+100-result delivery with its startup retry is not relabelled as uninterrupted.
+
 ## Interfaces
 
 - common.sensor: SensorPacket(device_id, boot_id, seq, uptime_ms, values), encode_packet(packet)->bytes, decode_packet(data)->SensorPacket, dummy_values(seq)->tuple; packet.to_message(session_id)->dict.

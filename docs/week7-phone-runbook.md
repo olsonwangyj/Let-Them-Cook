@@ -165,6 +165,17 @@ protocol/transport failure with 0.5–5 s backoff and subscribes anew. Its bound
 4096-result cache suppresses recent duplicates across those reconnects. It has
 no persisted history or durable exactly-once guarantee across process restart.
 
+The current Python receiver allows 30 seconds for the first result's first byte
+while no validated result has arrived. Once a byte arrives, the rest of that
+frame must complete within five seconds. All later result reads, including
+reads after a reconnect once a result has been received, keep the five-second
+deadline. TLS setup and SUBSCRIBED still have five-second deadlines, and the
+overall `--duration` bounds startup as well. This separate initial-idle budget
+supports operator-controlled BLE startup; it does not permit slow partial frames.
+The original immutable iPhone setup ZIP and portable C# client retain their
+earlier timeout behavior. See selected-design decision 31 and the latest
+continuation report before using a previously installed receiver.
+
 ## Unity sample
 
 1. Copy `phone/unity/Week7PhoneCore.cs` and `Week7PhoneReceiver.cs` into the

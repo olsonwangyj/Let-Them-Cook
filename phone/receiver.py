@@ -61,10 +61,19 @@ def encode_frame(message):
     return len(data).to_bytes(4, "big") + data
 
 
-async def read_frame(reader, timeout=5.0):
+async def read_frame(reader, timeout=5.0, first_byte_timeout=None):
+    # Startup may be quiet while the operator starts BLE. Once a byte arrives,
+    # the remaining prefix and body must still complete within one frame budget.
+    first = b""
+    if first_byte_timeout is not None:
+        try:
+            first = await asyncio.wait_for(reader.readexactly(1), first_byte_timeout)
+        except asyncio.IncompleteReadError as error:
+            raise ProtocolError("malformed or incomplete frame") from error
+
     async def read():
         try:
-            size = int.from_bytes(await reader.readexactly(4), "big")
+            size = int.from_bytes(first + await reader.readexactly(4 - len(first)), "big")
             if not 1 <= size <= MAX_FRAME_BYTES:
                 raise ProtocolError("frame outside 1..16384 bytes")
             message = json.loads((await reader.readexactly(size)).decode("utf-8"),
@@ -139,7 +148,10 @@ async def receive(args, statistics=None):
             validate_subscribed(await read_frame(reader), args.session)
             print("subscribed session=" + args.session, file=sys.stderr, flush=True)
             while args.duration is None or asyncio.get_running_loop().time() - started < args.duration:
-                message = validate_result(await read_frame(reader), args.session)
+                # Only a receiver that has never validated a result gets startup
+                # grace. Reconnects after live results retain the five-second limit.
+                message = validate_result(await read_frame(
+                    reader, first_byte_timeout=30.0 if count == 0 else None), args.session)
                 if message["result_id"] in seen:
                     continue
                 seen[message["result_id"]] = None

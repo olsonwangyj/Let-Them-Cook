@@ -1,16 +1,22 @@
 # Week 7 teacher demo pack
 
-Use this pack to demonstrate deterministic dummy packets travelling through real connections. The verified rehearsal path is **ESP32 → protected BLE → Laptop → its SSH/TLS connection → actual Ultra96 → independent SSH/TLS desktop viewer**. The original plan's final path ends on a **real Phone running the teammate's visualizer**; that physical Phone and Unity integration are still pending.
+Use this pack to demonstrate deterministic dummy packets travelling through real connections. The verified 100-message path is **ESP32 → protected BLE → Laptop → its SSH/TLS connection → actual Ultra96 → the iPhone's independent SSH/TLS connection → Python result display**. All 100 Phone results match the sender ACKs and board acceptance records. One startup read-timeout retry occurred before the first result; this is delivery evidence, not a zero-reconnect run. The teammate's visualizer integration, a 600-second Phone run and lifecycle checks remain pending.
 
 Open [the teacher brief](teacher-brief.html), [printable PDF](teacher-brief.pdf), [talk track](teacher-script.md), and [packet walkthrough](packet-walkthrough.md). [packet-example.json](packet-example.json) is an illustrative fixture, not a captured measurement. Detailed procedures remain in the [communications runbook](../week7-runbook.md) and [Phone runbook](../week7-phone-runbook.md); the [selected design](../week7-selected-design-2026-09-06.md) governs current defaults.
 
-The operator confirmed an **iPhone** for the next physical test. Use the
+The operator used an **iPhone** for the verified 100-message test. Use the
 [iPhone quickstart](../week7-iphone-quickstart.md) and its public-only setup ZIP
-for the foreground iSH experiment. Successful iPhone SSH, TLS, result display
-and lifecycle recovery still require on-device evidence.
+for the foreground iSH procedure. The [startup-grace update](../week7-iphone-startup-update.md)
+still requires an on-Phone rerun; it is not a physically verified fix for the recorded retry.
 
 The [direct SSH import](../week7-iphone-ssh-import.md) can provision the same
 public iPhone setup bundle from Ultra96 over its existing SSH port 22.
+
+### Verified iPhone evidence, 2026-09-08
+
+The [original Phone log](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone100.DDMJjm/phone100.combined.log) contains 104 lines: subscription, `TimeoutError`, a new subscription, 100 ordered results, then `received=100,reconnects=1`. There is no further logged reconnect after results begin; receiver exit is 0. The exact IDs are `1:2375739948:0` through `1:2375739948:99`. The **14.078-second duration belongs to the sender**, not an independently timed Phone observation.
+
+The [full Phone audit](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone-full-audit.json) retains the startup retry and verifies all 100 results against sender ACKs; the board accepted each expected ID once. The original combined log is 16,727 bytes, SHA-256 `72bcbcc14bd542816258dd04625e2438a3a99eac0736de536abdf73e33c4c1a8`. Its [derived result JSONL](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone100.DDMJjm/phone100.results.derived.jsonl) contains only original lines 4–103. Preserve the full combined log and status when showing the derived-file audit: an exact-ID pass does not erase the timeout or prove zero duplicate wire arrivals, Phone timing, a 600-second run, lifecycle reliability or Unity integration.
 
 The pack also includes [a recorded 100-packet run](recorded-demo100.jsonl) and [its provenance and hashes](evidence-index.json). From the project root, including a copied checkout, audit this relative path without hardware or network access:
 
@@ -150,7 +156,7 @@ To review the already recorded soak without starting hardware:
 
 ## 5. Actual Phone mode: complete this on the device
 
-This is a separate physical demonstration, presently pending. Stop the desktop runner and any simulator; close the desktop viewer forward. Keep Laptop ingestion terminal A. Do not start `tools.rehearse_remote_week7` alongside the Phone: it includes a subscriber that will replace the Phone.
+The actual iPhone 100-message delivery is recorded above, with its startup retry. For another run, use the iPhone quickstart; the Termux commands below remain the Android alternative. Stop the desktop runner and any simulator; close the desktop viewer forward. Keep Laptop ingestion terminal A. Do not start `tools.rehearse_remote_week7` alongside the Phone: it includes a subscriber that will replace the Phone.
 
 1. On Android, follow the [Phone runbook](../week7-phone-runbook.md) to install Termux, provision independently verified host keys and the public CA, and verify the Phone's own authorized VPN/network access. Configure `week7-jump` for `stujump.comp.nus.edu.sg` and `week7-ultra96` for `makerslab-fpga-35.ddns.comp.nus.edu.sg`, destination port 22, authorized accounts, strict checking, and the documented 20/60-second timeouts. Laptop VPN/login success does not establish Phone connectivity.
 2. In **Phone Termux terminal 1**, execute the Phone-owned forward. Enter any passwords interactively; do not capture this terminal.
@@ -178,7 +184,7 @@ Use a third Phone terminal to show readiness and the live display:
 tail -f ~/week7-evidence/phone100.status.txt ~/week7-evidence/phone100.jsonl
 ```
 
-4. Prepare the Laptop command first. Immediately after Phone status prints `subscribed session=week7-demo`, run the producer below in the operator's PowerShell terminal. The Phone has a five-second frame/idle deadline, so avoid delaying after readiness.
+4. Prepare the Laptop command first. Immediately after Phone status prints `subscribed session=week7-demo`, run the producer below in the operator's PowerShell terminal. The originally installed receiver used a five-second frame/idle deadline; the audited iPhone run retried once before data arrived. Keep the complete startup status on every rerun and distinguish any newer startup-grace version from this original observation.
 
 ```powershell
 $week7Log = Join-Path $week7Evidence 'phone-sender100.jsonl'
@@ -200,7 +206,7 @@ Also retain the matching accepted traces from the owned Ultra96 server log. Reco
 
 The Phone's raw JSONL contains results **after receiver duplicate suppression** and has **no per-result timestamps**. Exact saved ID matches prove correlation of those retained results; zero duplicate rows cannot prove zero duplicate wire arrivals. The sender's five-second ACK-silence gate measures the ingestion side only. To claim 600-second Phone continuity, retain a separately timed on-device observation of the display and receiver status across the full production interval, with interruption/reconnection times. Neither the count nor this offline audit measures Phone inter-result gaps or synchronized end-to-end latency.
 
-The Python display can establish the minimal real-Phone connection path once observed. The original teammate-visualizer requirement additionally needs its actual build and integration. Only the portable C# core has been compiled here; the supplied Unity component and Android app have not. Do not present a desktop window, saved JSON, or the untested iPhone appendix as completed Phone evidence.
+The observed iPhone Python display establishes the minimal real-Phone dummy-result path for 100 messages, with one startup retry. The original teammate-visualizer requirement additionally needs its actual build and integration. Only the portable C# core has been compiled here; the supplied Unity component and actual app have not. The saved desktop soak does not establish Phone endurance, and the Phone trace does not establish a zero-reconnect or full Gate M pass.
 
 ## 6. Diagnose or demonstrate a fault separately
 
@@ -214,7 +220,7 @@ The Python display can establish the minimal real-Phone connection path once obs
 
 Optional fault demonstration: first save a clean pass, start a separately named duration-based run, then stop only the verified ingestion SSH owner **or** viewer SSH owner. Record the action time; restart that same forward and show fresh IDs. Viewer loss should leave ingestion ACKs flowing; disconnected results are not replayed. A server restart requires the [owned PID/cwd/argv checks](../week7-runbook.md#owned-server-termination-and-restart) and a fresh log. Do not mix these records with a clean soak.
 
-The [evening 2026-09-07 USB-only test](../week7-continuation-report-2026-09-07.md#live-usb-only-power-loss-test-evening-2026-09-07) captured serial loss, a new boot and protected recovery, with 2,715 exact ACK/result matches across the intentional outage. The [separate physical RESET test](../week7-continuation-report-2026-09-07.md#separately-observed-physical-reset-button-recovery) retained USB serial continuity, changed boot and resumed protected delivery, with 5,832 exact matches across its intentional interruption. Both fault runs retain `passed=false`; the final clean 100/100 check passed in 13.797 seconds. Capture each new demonstrated physical action during streaming, with its own time, boot transition and authenticated recovery. USB removal establishes power loss only if the ESP has no other supply. USB powers this board and exposes optional diagnostics; the demo packets reach the Laptop over wireless BLE.
+The [evening 2026-09-07 USB-only test](../week7-continuation-report-2026-09-07.md#live-usb-only-power-loss-test-evening-2026-09-07) captured serial loss, a new boot and protected recovery, with 2,715 exact ACK/result matches across the intentional outage. The [separate physical RESET test](../week7-continuation-report-2026-09-07.md#separately-observed-physical-reset-button-recovery) retained USB serial continuity, changed boot and resumed protected delivery, with 5,832 exact matches across its intentional interruption. Both fault runs retain `passed=false`; the final clean desktop 100/100 check passed in 13.797 seconds. Capture each new demonstrated physical action during streaming, with its own time, boot transition and authenticated recovery. USB removal establishes power loss only if the ESP has no other supply. USB powers this board and exposes optional diagnostics; the demo packets reach the Laptop over wireless BLE.
 
 ## 7. Save evidence and tear down
 

@@ -61,6 +61,46 @@ class ContractTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.TimeoutError):
             await read_frame(stream, timeout=0.02)
 
+    async def test_startup_grace_ends_at_first_byte_of_partial_prefix_or_body(self):
+        for partial in [b'\0', b'\0\0\0\x02{']:
+            stream = asyncio.StreamReader(); stream.feed_data(partial)
+            with self.subTest(partial=partial):
+                started = asyncio.get_running_loop().time()
+                with self.assertRaises(asyncio.TimeoutError):
+                    await read_frame(stream, timeout=0.05, first_byte_timeout=0.5)
+                self.assertLess(asyncio.get_running_loop().time() - started, 0.3)
+
+    async def test_prefix_and_body_share_one_deadline_after_startup_byte(self):
+        stream = asyncio.StreamReader(); stream.feed_data(b'\0')
+        loop = asyncio.get_running_loop()
+        prefix = loop.call_later(0.12, stream.feed_data, b'\0\0\x02')
+        body = loop.call_later(0.28, stream.feed_data, b'{}')
+        try:
+            with self.assertRaises(asyncio.TimeoutError):
+                await read_frame(stream, timeout=0.2, first_byte_timeout=0.5)
+        finally:
+            prefix.cancel(); body.cancel()
+
+    async def test_startup_idle_budget_is_bounded(self):
+        stream = asyncio.StreamReader()
+        with self.assertRaises(asyncio.TimeoutError):
+            await read_frame(stream, timeout=0.5, first_byte_timeout=0.05)
+
+    async def test_startup_eof_remains_a_protocol_error(self):
+        for partial in [b'', b'\0', b'\0\0\0\x02{']:
+            stream = asyncio.StreamReader(); stream.feed_data(partial); stream.feed_eof()
+            with self.subTest(partial=partial), self.assertRaises(ProtocolError):
+                await read_frame(stream, first_byte_timeout=0.5)
+
+    async def test_cancellation_propagates_during_startup_idle_or_partial_frame(self):
+        for partial in [b'', b'\0']:
+            stream = asyncio.StreamReader(); stream.feed_data(partial)
+            task = asyncio.create_task(read_frame(stream, first_byte_timeout=0.5))
+            await asyncio.sleep(0.02)
+            task.cancel()
+            with self.subTest(partial=partial), self.assertRaises(asyncio.CancelledError):
+                await task
+
     async def test_excessive_integer_is_a_protocol_error_on_every_supported_python(self):
         body = b'{"v":' + b'9' * 5000 + b'}'
         stream = asyncio.StreamReader()
@@ -127,6 +167,112 @@ class ClosingWriter:
         self.closing.set()
         if self.stall:
             await asyncio.Event().wait()
+
+
+class ReceiverStartupTests(unittest.IsolatedAsyncioTestCase):
+    @contextlib.asynccontextmanager
+    async def running_receiver(self, streams, count=1):
+        """Keep framing real; scale its budgets and replace only TLS transport."""
+        writers = [ClosingWriter(stall=False) for _ in streams]
+        output, errors = io.StringIO(), io.StringIO()
+        statistics = dict(received=0, reconnects=0)
+        args = SimpleNamespace(ca="unused", port=19999, session="week7-demo", count=count, duration=None)
+
+        async def fast_frame(reader, timeout=5.0, first_byte_timeout=None):
+            options = {} if first_byte_timeout is None else dict(first_byte_timeout=first_byte_timeout * 0.02)
+            return await read_frame(reader, timeout=timeout * 0.02, **options)
+
+        with patch("phone.receiver.tls_context", return_value=object()), \
+             patch("phone.receiver.asyncio.open_connection", AsyncMock(side_effect=list(zip(streams, writers)))), \
+             patch("phone.receiver.read_frame", fast_frame), \
+             contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            task = asyncio.create_task(receive(args, statistics))
+            try:
+                yield task, statistics, output, errors, writers
+            finally:
+                if not task.done():
+                    task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    def subscribed_stream(self):
+        stream = asyncio.StreamReader()
+        stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="week7-demo")))
+        return stream
+
+    async def test_cold_start_waits_beyond_frame_deadline_without_reconnecting(self):
+        stream = self.subscribed_stream()
+        async with self.running_receiver([stream]) as (task, statistics, output, errors, _):
+            # Scaled five-second frame deadline is 0.1 s; BLE is still starting.
+            await asyncio.sleep(0.25)
+            self.assertEqual(statistics["reconnects"], 0, errors.getvalue())
+            stream.feed_data(encode_frame(result()))
+            self.assertEqual(await asyncio.wait_for(task, 0.3), dict(received=1, reconnects=0))
+            self.assertEqual(json.loads(output.getvalue()), result())
+
+    async def test_later_idle_retains_frame_deadline(self):
+        stream = self.subscribed_stream(); stream.feed_data(encode_frame(result()))
+        async with self.running_receiver([stream], count=0) as (_, statistics, output, _, writers):
+            await asyncio.wait_for(writers[0].closing.wait(), 0.4)
+            self.assertEqual(statistics, dict(received=1, reconnects=1))
+            self.assertEqual(json.loads(output.getvalue()), result())
+
+    async def test_first_result_startup_grace_is_finite(self):
+        stream = self.subscribed_stream()
+        async with self.running_receiver([stream]) as (_, statistics, _, _, writers):
+            await asyncio.wait_for(writers[0].closing.wait(), 0.9)
+            self.assertEqual(statistics, dict(received=0, reconnects=1))
+
+    async def test_subscribed_response_retains_frame_deadline(self):
+        stream = asyncio.StreamReader()
+        async with self.running_receiver([stream]) as (_, statistics, _, _, writers):
+            await asyncio.wait_for(writers[0].closing.wait(), 0.4)
+            self.assertEqual(statistics, dict(received=0, reconnects=1))
+
+    async def test_invalid_result_does_not_consume_startup_grace(self):
+        first = self.subscribed_stream()
+        invalid = result(); invalid["gesture"] = "REST"
+        first.feed_data(encode_frame(invalid))
+        second = self.subscribed_stream()
+        async with self.running_receiver([first, second]) as (task, statistics, output, errors, _):
+            # The invalid result forces reconnect. The replacement subscription
+            # is still allowed to wait for its first valid result beyond 0.1 s.
+            await asyncio.sleep(0.8)
+            self.assertEqual(statistics, dict(received=0, reconnects=1), errors.getvalue())
+            second.feed_data(encode_frame(result()))
+            self.assertEqual(await asyncio.wait_for(task, 0.3), dict(received=1, reconnects=1))
+            self.assertEqual(json.loads(output.getvalue()), result())
+
+    async def test_reconnect_after_valid_result_does_not_restore_startup_grace(self):
+        first = self.subscribed_stream(); first.feed_data(encode_frame(result())); first.feed_eof()
+        second = self.subscribed_stream()
+        async with self.running_receiver([first, second], count=0) as (_, statistics, _, _, writers):
+            # First connection ends at EOF, then the normal 0.5 s backoff passes.
+            await asyncio.wait_for(writers[1].closing.wait(), 0.9)
+            self.assertEqual(statistics, dict(received=1, reconnects=2))
+
+
+class ReceiverDurationTests(unittest.TestCase):
+    def test_cli_duration_bounds_first_result_idle_and_closes_connection(self):
+        from phone.receiver import main
+        writers = []
+
+        async def open_stream(*args, **kwargs):
+            stream = asyncio.StreamReader()
+            stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="week7-demo")))
+            writer = ClosingWriter(stall=False)
+            writers.append(writer)
+            return stream, writer
+
+        errors = io.StringIO()
+        with patch("phone.receiver.tls_context", return_value=object()), \
+             patch("phone.receiver.asyncio.open_connection", open_stream), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+            exit_code = main(["--ca", "unused", "--count", "1", "--duration", "0.05"])
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(json.loads(errors.getvalue().splitlines()[-1]), dict(received=0, reconnects=0))
+        self.assertEqual(len(writers), 1)
+        self.assertTrue(writers[0].closed)
 
 
 class TlsReceiverTests(unittest.IsolatedAsyncioTestCase):

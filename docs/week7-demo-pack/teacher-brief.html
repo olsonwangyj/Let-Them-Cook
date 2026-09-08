@@ -76,11 +76,11 @@ p { margin:0; line-height:1.4; }
 <section class="sheet" aria-labelledby="architecture-title">
 <p class="eyebrow">CG4002 / Week 7 / Connection demonstration</p>
 <h1 id="architecture-title">One ESP. A verified connection path.</h1>
-<p class="subtitle">Real ESP and Ultra96 hardware carry predictable test data to an independent desktop receiver.</p>
+<p class="subtitle">Real ESP and Ultra96 hardware deliver 100 matching dummy results to the actual iPhone.</p>
 <div class="banner"><strong>Ultra96 external access: TCP 22 (SSH) only</strong><span>TLS services stay on Ultra96 loopback.</span></div>
 <svg class="architecture" viewBox="0 0 1026 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
-<title id="flow-title">Verified desktop demonstration data flow</title>
-<desc id="flow-desc">ESP sends protected BLE notifications to Laptop. Laptop sends SENSOR_BATCH and receives INGEST_ACK from the actual Ultra96. A separate desktop subscriber sends SUBSCRIBE to Ultra96 Gateway and receives GESTURE_RESULT. Each client owns an independent SSH local forward to Ultra96 TCP port 22.</desc>
+<title id="flow-title">Verified ESP-to-iPhone demonstration data flow</title>
+<desc id="flow-desc">ESP sends protected BLE notifications to Laptop. Laptop sends SENSOR_BATCH and receives INGEST_ACK from the actual Ultra96. The actual iPhone sends SUBSCRIBE to Ultra96 Gateway and receives GESTURE_RESULT. Laptop and Phone each own an independent SSH local forward to Ultra96 TCP port 22.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#087c78"/></marker><marker id="muted-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#718491"/></marker></defs>
 <g font-family="Arial, Helvetica, sans-serif">
 <rect x="0" y="62" width="171" height="126" rx="10" fill="#eef7f6" stroke="#b8d9d4"/>
@@ -90,7 +90,7 @@ p { margin:0; line-height:1.4; }
 <rect x="520" y="62" width="211" height="126" rx="10" fill="#132b40"/>
 <text x="625" y="92" text-anchor="middle" font-weight="700" font-size="23" fill="white">Actual Ultra96</text><text x="625" y="119" text-anchor="middle" font-size="15" fill="#d3e5ed">Ingest :8888</text><text x="625" y="143" text-anchor="middle" font-size="14" fill="#a5ded5">Deterministic result</text><text x="625" y="169" text-anchor="middle" font-size="15" fill="#d3e5ed">Gateway :9999</text>
 <rect x="835" y="62" width="191" height="126" rx="10" fill="#eef7f6" stroke="#b8d9d4"/>
-<text x="930" y="92" text-anchor="middle" font-weight="700" font-size="22" fill="#132b40">Desktop viewer</text><text x="930" y="120" text-anchor="middle" font-size="16" fill="#203547">Separate subscriber</text><text x="930" y="146" text-anchor="middle" font-size="14" fill="#536776">TLS + framed JSON</text><text x="930" y="169" text-anchor="middle" font-size="14" fill="#087c78">Match result trace ID</text>
+<text x="930" y="92" text-anchor="middle" font-weight="700" font-size="22" fill="#132b40">Actual iPhone</text><text x="930" y="120" text-anchor="middle" font-size="16" fill="#203547">iSH Python receiver</text><text x="930" y="146" text-anchor="middle" font-size="14" fill="#536776">TLS + framed JSON</text><text x="930" y="169" text-anchor="middle" font-size="14" fill="#087c78">Match result trace ID</text>
 <path d="M174 119H243" fill="none" stroke="#087c78" stroke-width="3" marker-end="url(#arrow)"/><text x="208" y="98" text-anchor="middle" font-size="12" fill="#087c78">Notify</text><text x="208" y="143" text-anchor="middle" font-size="12" fill="#536776">BLE</text>
 <path d="M432 112H514" fill="none" stroke="#087c78" stroke-width="3" marker-end="url(#arrow)"/><path d="M515 148H437" fill="none" stroke="#718491" stroke-width="2" marker-end="url(#muted-arrow)"/><text x="475" y="32" text-anchor="middle" font-size="12" font-weight="700" fill="#087c78">SENSOR_BATCH</text><path d="M475 42V102" stroke="#a7c9c5" stroke-width="1"/><text x="475" y="171" text-anchor="middle" font-size="12" fill="#536776">ACK</text>
 <path d="M732 112H828" fill="none" stroke="#087c78" stroke-width="3" marker-end="url(#arrow)"/><path d="M830 148H738" fill="none" stroke="#718491" stroke-width="2" marker-end="url(#muted-arrow)"/><text x="781" y="32" text-anchor="middle" font-size="12" font-weight="700" fill="#087c78">GESTURE_RESULT</text><path d="M781 42V102" stroke="#a7c9c5" stroke-width="1"/><text x="782" y="171" text-anchor="middle" font-size="11" fill="#536776">SUBSCRIBE</text>
@@ -98,11 +98,11 @@ p { margin:0; line-height:1.4; }
 </g></svg>
 <div class="cols">
 <div class="card"><h2>Laptop owns the ingestion tunnel</h2><span class="port mono">Laptop 18888 &rarr; Ultra96 8888</span><p>Both ends bind <span class="mono">127.0.0.1</span>. The bridge opens TLS through this SSH local forward; the Ultra96 returns <b>INGEST_ACK</b>.</p></div>
-<div class="card"><h2>Viewer owns a separate tunnel</h2><span class="port mono">Viewer 19999 &rarr; Ultra96 9999</span><p>Both ends bind <span class="mono">127.0.0.1</span>. The subscriber opens TLS, sends <b>SUBSCRIBE</b>, then receives live <b>GESTURE_RESULT</b>.</p></div>
+<div class="card"><h2>Phone owns a separate tunnel</h2><span class="port mono">Phone 19999 &rarr; Ultra96 9999</span><p>Both ends bind <span class="mono">127.0.0.1</span>. The Phone opens TLS, sends <b>SUBSCRIBE</b>, then receives live <b>GESTURE_RESULT</b>.</p></div>
 </div>
 <p class="micro" style="margin-top:11px">Each SSH connection reaches Ultra96 port 22 through the institutional jump host. Host keys are verified; TLS validates the demo CA and <span class="mono">ultra96.week7.internal</span>.</p>
-<div class="note"><b>Phone handoff is pending.</b> The final Phone must own its own SSH forward to Gateway 9999. Stop the desktop subscriber first: the latest subscriber replaces the previous one.</div>
-<footer class="footer"><span>Source: <a href="../week7-selected-design-2026-09-06.md">selected design</a> + <a href="../week7-continuation-report-2026-09-07.md">2026-09-07 evidence report</a> &middot; Recorded evidence, not live status</span><strong>01 / 03</strong></footer>
+<div class="note"><b>100/100 actual Phone delivery.</b> One startup read-timeout retry preceded the first result; no further reconnect was logged. Phone 600-second, lifecycle and Unity checks remain pending.</div>
+<footer class="footer"><span>Source: <a href="../week7-selected-design-2026-09-06.md">selected design</a> + <a href="README.md#verified-iphone-evidence-2026-09-08">2026-09-08 iPhone evidence</a> &middot; Recorded evidence, not live status</span><strong>01 / 03</strong></footer>
 </section>
 
 <section class="sheet" aria-labelledby="packet-title">
@@ -130,7 +130,7 @@ p { margin:0; line-height:1.4; }
 </div>
 </div>
 <div class="reality">
-<div class="card teal"><h3>Real in this demonstration</h3><p>ESP hardware, authenticated BLE, independent SSH/TLS, actual Ultra96 and correlated result delivery.</p></div>
+<div class="card teal"><h3>Real in this demonstration</h3><p>ESP hardware, authenticated BLE, independent SSH/TLS, actual Ultra96 and iPhone result delivery.</p></div>
 <div class="card"><h3>Dummy by design</h3><p>Sensor values and gestures. Calibrated sensing, AI/FPGA, two-glove synchronization and AR are outside Week 7.</p></div>
 </div>
 <footer class="footer"><span>Wire: 4-byte big-endian body length + UTF-8 JSON &middot; Sources: <a href="../../common/sensor.py">common/sensor.py</a>, <a href="../../tests/fixtures/week7-golden.json">golden fixtures</a>, <a href="../week7-selected-design-2026-09-06.md">selected design</a></span><strong>02 / 03</strong></footer>
@@ -139,26 +139,26 @@ p { margin:0; line-height:1.4; }
 <section class="sheet" aria-labelledby="evidence-title">
 <p class="eyebrow">CG4002 / Week 7 / Evidence and live show</p>
 <h1 id="evidence-title">Show the trace. State the boundary.</h1>
-<p class="subtitle">Recorded acceptance covers the protected ESP-to-Ultra96 path and the independent desktop subscriber.</p>
+<p class="subtitle">Actual iPhone: 100 exact results with one startup retry. The clean ten-minute soak used a desktop viewer.</p>
 <div class="metric-grid">
-<div class="metric primary"><div class="label">Actual remote / 600-second soak</div><div class="value">5,965 / 5,965</div><p>Accepted ACKs / exact matching results.<br>Zero stream and transport errors.</p><small>One BLE/TLS/subscriber connection; no reboot.<br>One callback discarded at shutdown.</small></div>
-<div class="metric"><div class="label">Observed USB / RESET faults</div><div class="value">2,715 + 5,832</div><p>Exact ACK/result matches in two separate physical interruption runs.</p><small>USB: 300.422 s; RESET: 600.422 s.<br>New boots; authenticated recovery; auth mode 13, MTU 517. Both remain <span class="mono">passed=false</span>.</small></div>
-<div class="metric"><div class="label">Baseline software checks</div><div class="value">181 + 44</div><p>Baseline: 181 Python tests passed; 44 portable C# tests passed.</p><small>Two Windows skips were Linux-only tests, checked separately. The Unity component was not compiled.</small></div>
+<div class="metric primary"><div class="label">Actual iPhone / 100 messages</div><div class="value">100 / 100</div><p>Phone results / matching sender ACKs.<br>Sender duration: 14.078 s.</p><small>One startup TimeoutError before first result.<br>No further logged reconnect; receiver exit 0.</small></div>
+<div class="metric"><div class="label">Desktop / clean 600-second soak</div><div class="value">5,965 / 5,965</div><p>Accepted ACKs / exact matching results.<br>Zero stream and transport errors.</p><small>600.563 s; one BLE/TLS/subscriber connection; no reboot. One shutdown callback discard.</small></div>
+<div class="metric"><div class="label">Observed USB / RESET faults</div><div class="value">2,715 + 5,832</div><p>Exact ACK/result matches in separate physical interruption runs.</p><small>USB: 300.422 s; RESET: 600.422 s.<br>New boots; auth mode 13, MTU 517.<br>Both remain <span class="mono">passed=false</span>.</small></div>
 </div>
 <div class="evidence-bottom">
 <div><h2>Live show checklist</h2><ol class="checklist">
 <li><b>Establish provenance.</b> VPN connected; verify host trust, actual Ultra96 service and loopback listeners.</li>
-<li><b>Open two independent SSH forwards.</b> Laptop <span class="mono">18888 &rarr; 8888</span>; desktop viewer <span class="mono">19999 &rarr; 9999</span>. Both use Ultra96 SSH port 22.</li>
-<li><b>Subscribe before sending.</b> Confirm <span class="mono">SUBSCRIBED</span>; start the protected BLE bridge and a bounded remote run.</li>
+<li><b>Open independent SSH forwards.</b> Laptop <span class="mono">18888 &rarr; 8888</span>; Phone <span class="mono">19999 &rarr; 9999</span>. Both use Ultra96 SSH port 22. Stop the desktop subscriber.</li>
+<li><b>Subscribe before sending.</b> Capture full Phone output; start the logging BLE sender. Keep any startup retry in the evidence.</li>
 <li><b>Point to one shared trace.</b> Show device, boot, sequence, accepted ACK and matching result ID in the separate streams.</li>
 <li><b>Finish with counted evidence.</b> Show exact ID-set match, duration and error/drop metrics; close owned clients and forwards.</li>
 </ol><p class="smallprint">Use this pack's README and runbooks for commands. If the board path is unavailable, label an offline walkthrough explicitly.</p></div>
-<div><div class="pending"><h2>Pending: actual Phone + Unity</h2><p><b>Phone:</b> verify its own SSH/TLS path and display, then collect 100-message / 600-second correlation and lifecycle recovery evidence. The iPhone iSH procedure remains unverified on-device.</p><p><b>Unity:</b> build the supplied component and complete teammate integration on the actual target. Portable C# tests do not establish Unity or Phone acceptance.</p></div>
+<div><div class="pending"><h2>Pending: Phone soak + Unity</h2><p><b>Phone:</b> 100-message delivery is verified with one startup retry. A zero-reconnect rerun, 600-second test and lifecycle recovery remain pending. New startup-grace behavior is not yet tested on Phone.</p><p><b>Unity:</b> build the supplied component and complete teammate integration. Portable C# tests do not establish Unity acceptance.</p></div>
 <p class="smallprint"><b>Observed physical recovery:</b> USB-only power loss caused a 21.431 s serial outage; the separate RESET kept serial open. Maximum ACK/result gaps: USB 25.656/25.594 s; RESET 14.000/13.938 s. Both recovered with new boots and matching board-log traces.</p>
-<p class="smallprint"><b>Final clean check:</b> 100/100 exact matches in 13.797 s; maximum ACK/result gap 0.250 s. All reported errors, drops and callback discards were zero.</p>
+<p class="smallprint"><b>Final desktop check after USB/RESET:</b> 100/100 exact matches in 13.797 s; maximum ACK/result gap 0.250 s. All reported errors, drops and callback discards were zero.</p>
 </div>
 </div>
-<footer class="footer"><span>Evidence snapshot: <a href="../week7-continuation-report-2026-09-07.md">2026-09-07 continuation report</a> &middot; Engineering demonstration; no official rubric acceptance claim</span><strong>03 / 03</strong></footer>
+<footer class="footer"><span>Sources: <a href="README.md#verified-iphone-evidence-2026-09-08">full iPhone log + audit</a>, <a href="../week7-continuation-report-2026-09-07.md">desktop and physical recovery report</a> &middot; No official rubric acceptance claim</span><strong>03 / 03</strong></footer>
 </section>
 </body>
 </html>

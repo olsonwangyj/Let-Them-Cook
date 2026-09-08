@@ -1,7 +1,9 @@
 # Week 7 iPhone quickstart: foreground iSH experiment
 
 This prepares an actual iPhone to receive the Week 7 dummy results through its
-own SSH/TLS connection to Ultra96. **This route is unverified on an iPhone.**
+own SSH/TLS connection to Ultra96. **Actual iPhone delivery was verified on
+2026-09-08: 100/100 exact result IDs, with one startup timeout before the first
+result.** A clean zero-reconnect run, longer soak and lifecycle checks remain.
 Android remains the selected baseline; this experiment establishes neither an
 iOS Unity build nor background operation. The older iSH appendix's key-only
 shell job is a different recipe. The candidate below lets OpenSSH prompt for
@@ -154,8 +156,9 @@ fi
 ```
 
 Continue only after startup exit 0 and a successful control check. The private
-control socket provides a scoped shutdown command. Its support, the fork and
-forwarding all still require physical iSH validation. If `mktemp` fails, do not
+control socket provides a scoped shutdown command. These worked on the tested
+iPhone (most recently master PID 60), but check each current session rather than
+trusting that historical PID. If `mktemp` fails, do not
 run the subsequent commands. If SSH reports a fork/daemon/control-socket error,
 retain it and inspect the owned process before retrying. For foreground
 diagnosis, use the same forwarding command with `-f` removed; this does not by
@@ -175,8 +178,13 @@ TLS verification, subscription and received results are the application checks.
 Have the Laptop operator stage `tools.week7_demo sender` with protected BLE and
 100 packets before starting the Phone receiver. Do not run
 `tools.rehearse_remote_week7` alongside the Phone: it starts a competing
-subscriber. The Phone has a five-second frame/idle deadline, so the operator
-must start production immediately when the Phone displays `subscribed`.
+subscriber. The original immutable setup ZIP has a five-second initial
+frame/idle deadline, so start production immediately when it displays
+`subscribed`. The updated repository receiver gives the first result byte
+30 seconds while preserving the five-second partial-frame and later-result
+deadlines (decision 31). Previously installed files do not update automatically.
+Use the separately hashed [update/capture procedure](week7-iphone-startup-update.md)
+for the current physical test.
 
 This capture step creates a fresh directory. The `tail` shell job only displays
 safe application output; SSH authentication has already finished.

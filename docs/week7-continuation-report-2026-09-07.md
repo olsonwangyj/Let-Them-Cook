@@ -1,6 +1,6 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
-This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 30 decisions; no protocol or security approval is pending.
+This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 31 decisions; no protocol or security approval is pending.
 
 ## VPN resolved the access blocker
 
@@ -569,12 +569,105 @@ deriving result-only JSONL for correlation. At 11:11:33 UTC the destination
 directory was still available and empty. No software or protocol change is
 justified by this partial observation alone.
 
+### Full actual Phone capture collected and correlated
+
+The Phone uploaded both original files successfully through its own SSH route;
+the known inaccessible-home warnings did not prevent transfer. Root retrieved
+their exact bytes through the existing verified Laptop SSH session, with
+matching board/local SHA-256 checks. The preserved local copy is under the new
+sender directory's `phone100.DDMJjm` subdirectory. The original combined log
+is **16,727 bytes**, SHA-256
+`72bcbcc14bd542816258dd04625e2438a3a99eac0736de536abdf73e33c4c1a8`.
+The exit file is exactly `0\n` (2 bytes), SHA-256
+`9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`.
+
+The complete 104-line log is ordered as follows: line 1 is SUBSCRIBED status,
+line 2 `reconnect reason=TimeoutError`, line 3 a second SUBSCRIBED status,
+lines 4–103 all 100 results, and line 104 the 100-received/one-reconnect summary.
+Two independent audits verified all schemas, deterministic gesture/confidence
+fields and **exact ordered equality of Phone results, Laptop ACKs and the
+independently observed board acceptance IDs 1:2375739948:0..99**. Each gesture
+appears 25 times; there are no missing, unexpected or duplicate output IDs.
+This is the first fully correlated actual iPhone delivery evidence.
+
+`phone100.results.derived.jsonl` preserves exactly the original result lines
+4–103; its SHA-256 is
+`0c3768643884eac9cea4f9a955d40b19beac14d9e8a095c168a388f1758a5618`.
+The existing CLI auditor passed with 100/100 exact matches. That derived-file
+audit checks result identity/schema only: its zero interruption-event count
+does not account for the original Phone status lines. `phone-full-audit.json`
+therefore explicitly reports **delivery correlation passed, uninterrupted
+acceptance failed**, preserving all original statuses and their line numbers.
+
+The timeout occurred after the first successful subscription while awaiting
+the first result frame, before any result was printed. After resubscribing,
+the receiver delivered the entire 100-result sequence without another logged
+reconnect. The file contains no per-result timestamps, so it cannot establish
+the exact upstream cause or independently prove sub-five-second delivery gaps.
+Retain this as a successful actual-Phone delivery run with one startup retry;
+do not relabel it a zero-reconnect run or a VPN-fault experiment.
+
+Decision 31 selects a bounded Python receiver startup grace to remove the
+five-second race with human coordination and measured roughly four-second BLE
+startup: 30 seconds for the first result byte, then the existing five-second
+remaining-frame deadline. Later results, including post-result reconnections,
+keep the existing five-second deadline. TLS, SUBSCRIBED, framing, validation,
+and the overall duration stay bounded as before. Publish separately versioned
+public receiver/capture files, retaining the original setup ZIP and evidence;
+the changed receiver still requires a fresh physical zero-reconnect run.
+
+Implementation and review completed with a regression that failed before the
+change (`TimeoutError`/one reconnect during cold startup) and passed afterward.
+**22 Phone tests passed in 6.57 s**, covering finite startup grace, delayed first
+data, partial-frame and shared prefix/body deadlines, later idle and reconnect
+state, invalid first results, EOF, cancellation, SUBSCRIBED and overall duration.
+The full suite passed **215 tests, 2 skipped in 84.87 s**; the skips remain the
+Windows-only exclusions for Linux signal behavior. Independent code review found
+no material issue. Python 3.8 grammar parsing passed; this is not an actual
+Python 3.8 runtime execution. The portable C#/Unity files were unchanged.
+
+Published only two public files to the verified uid-1000/mode-700 directory
+`/var/tmp/cg4002-week7-yanjie-20260907/phone-startup-b16c746255c9`, each mode 600:
+
+- `receiver.py`: 9,663 bytes, SHA-256
+  `b16c746255c9d91655b4da35cea6d5d240a260f4c289ca7b52c2e4441420e881`.
+- `capture100.sh`: 1,210 bytes, SHA-256
+  `d704700e5e184a0c02e47378577679de0d7b71d31d7b0cae81ce260911d3df39`.
+
+The board rechecked both hashes, source grammar and `/bin/sh -n` syntax. No
+new listener, private-key transfer, service restart, firmware or bond change
+was involved. The original iPhone files and public setup ZIP are retained.
+Local copies and their manifest are in
+`D:\LetThemCook-builds\iphone-startup-update-20260908`. The prepared Laptop
+`phone100-laptop-startup30-command.txt` passed PowerShell parsing and has SHA-256
+`a1b1fa011a03638cfe783c4469f48f9f6bedf5a9142454bcff86bf683517d670`.
+It records and deliberately waits six seconds after the operator's Enter press
+before starting the unchanged BLE sender, so the next physical run exercises
+a startup wait longer than the old five-second limit. The sender's own elapsed
+time excludes that explicitly recorded delay.
+
+Follow the [short update and capture guide](week7-iphone-startup-update.md): SCP
+the versioned directory, verify both hashes on Phone, stage the Laptop Enter
+prompt, and source the verified capture helper when ready. Phone installation
+of this update and its fresh zero-reconnect result are still pending; do not
+promote the local test result to physical acceptance.
+
+The teacher README, talk track, HTML brief and three-page PDF now reflect the
+actual 100/100 iPhone result correlation and explicitly retain its startup
+retry. The clean desktop soak and observed USB/RESET evidence remain separately
+labelled. The updated PDF is 115,418 bytes; all three A4 landscape pages were
+rendered and visually checked, including a second review of the evidence page.
+Its pending list includes the new receiver's physical rerun, Phone soak/lifecycle
+and teammate Unity integration. Local documentation links/anchors and
+`git diff --check` passed. No zero-reconnect or full Gate M completion claim
+was added to the teacher materials.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
 | F–J TLS, SSH, bridge, inference, independent viewer | Actual board deployment/binding, 100 synthetic and protected messages, 11 negative/routing checks, exact server/client trace correlation, ingestion/viewer/server interruption and recovery | No software or remote-access blocker remains for this desktop-viewer topology |
 | K protected path | Actual ESP -> Laptop -> verified SSH/TLS -> Ultra96 -> separate SSH/TLS desktop subscriber, clean 600 s and 5,965 exact results; tunnel/server/RTS/USB/physical RESET faults and clean regressions | Desktop path complete; actual Phone remains Gate M |
 | L BLE protection | Authenticated SC/MITM/bond, earlier bond-loss negatives/restoration, protected C/D/E/K, separately captured USB-only power loss and physical RESET with automatic approved mode-13 stored-bond recovery | No remaining listed BLE-protection check on this ESP/Laptop pair |
-| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1, SSH/SCP install, matching CA, resumed SSH master60/Phone TLS1.3, actual result display and reported 100 received with one reconnect; Unity component supplied but uncompiled here | Full Phone log/100-ID correlation, clean uninterrupted run, 600 s coverage, Phone TLS negative/lifecycle checks, device/OS details and teammate Unity build/integration |
+| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1, SSH/SCP install, matching CA, resumed SSH master60/Phone TLS1.3, original Phone capture with 100/100 exact ordered correlation and one startup timeout before first result; Unity component supplied but uncompiled here | Updated receiver physical acceptance, clean uninterrupted run, 600 s coverage, Phone TLS negative/lifecycle checks, device/OS details and teammate Unity build/integration |
 
 The next operator can keep VPN connected, open the two generated independent SSH forwards, and run the current remote runner against the already deployed service. For Gate M, the Phone must own its own forward to Ultra96; stop the desktop subscriber so it does not replace the Phone's subscription. Follow the [current runbook](week7-runbook.md) and [Phone runbook](week7-phone-runbook.md), verify the public CA and host keys, and collect the remaining physical evidence. No protocol, TLS, security, architecture or implementation decision is awaiting approval. Real sensors/AI/FPGA, two-glove synchronization and AR UI retain the explicitly selected scope exclusions.
