@@ -662,6 +662,18 @@ and teammate Unity integration. Local documentation links/anchors and
 `git diff --check` passed. No zero-reconnect or full Gate M completion claim
 was added to the teacher materials.
 
+The operator subsequently completed the versioned iPhone update download:
+SCP reported **capture100.sh 100% / 1,210 bytes** and **receiver.py 100% /
+9,663 bytes**. An earlier paste began with a shell redirection character and
+failed with `-F: not found`; the corrected single-line SCP performed the actual
+transfer. The known board-home warnings did not prevent it. On-Phone hash
+verification and execution of the updated receiver remain pending. At
+`2026-09-08T12:17:20Z`, Laptop ingestion still belonged to PID 36432 and both
+actual board-loopback app listeners remained present. The next supplied
+sequence verifies both Phone hashes, stages the six-second-delay Laptop helper,
+then sources the short Phone capture helper and starts the sender after
+SUBSCRIBED. No new physical packet run has yet been observed.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
