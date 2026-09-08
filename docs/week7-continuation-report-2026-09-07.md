@@ -979,6 +979,19 @@ were asserted. This local preparation/configuration check opened no SSH
 connection or Phone daemon and changed no account; its temporary files were
 removed. Actual iSH entry and import are still operator-dependent.
 
+The operator successfully created `/root/w7-fetch.MNCNiE` on the replacement
+Phone and showed both expected Ed25519 fingerprints from its temporary `k`
+file: jump `UZRh6MN1S3Q9DI2OEH4POiJQ4fEaxrpI83ZSTTZtMYw` and Ultra96
+`vrFwqkqWIfyDZ1S66aJb1gLy59wx3LakOqhnyQJEOhg`. Although the pasted command
+rendering wraps characters and redirection, the resulting two fingerprint
+records establish successful public-key preparation. Continue with the
+already checked temporary configuration commands and SCP, keeping the same
+foreground shell/`w7f` variable. At 14:38:56 UTC the board source hash still
+matched the recorded whole setup digest, application loopback ports 8888/9999
+were live, and maintenance port 22222 remained absent. Actual Phone download,
+setup execution, account-state checks and authenticated maintenance remain
+pending; no new packet test has started.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
