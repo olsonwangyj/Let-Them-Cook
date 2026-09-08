@@ -546,12 +546,35 @@ Phone upload directory remained empty at this check. Obtain the current iSH
 output and complete Phone capture before deciding whether this attempt needs
 a retry. Do not count either Laptop-only capture as verified Phone delivery.
 
+The operator subsequently supplied actual iSH result output and the saved
+tail from **`/root/week7-evidence/phone100.DDMJjm`**. It reports
+**`received=100`, `reconnects=1`, capture exit 0 and receiver exit 0**.
+The four distinct visible tail records are boot 2375739948 sequences
+96/REST, 97/FIST, 98/OPEN and 99/POINT, each with confidence 1.0. Both Phone and
+server contract validators accepted those four reconstructed observations,
+and their IDs match the new sender ACKs. The repeated tail paste is not a
+second reception or additional packet count. Local `phone-operator-summary.json`
+records this as partial, operator-pasted evidence rather than a downloaded
+original Phone log.
+
+This establishes user-observed actual Phone result display and a reported
+100-result completion. **It is not an uninterrupted pass:** the receiver counts
+connection/read/protocol failures in `reconnects`, while its exit 0 checks the
+requested received count only. The tail does not establish the reconnect
+reason, whether it occurred before the first result, or equality of all 100
+Phone/sender ID sets. Collect the entire existing combined log and exit file
+through the Phone's SSH route into the prepared private board directory before
+diagnosing or retrying. Preserve every status line and original byte/hash when
+deriving result-only JSONL for correlation. At 11:11:33 UTC the destination
+directory was still available and empty. No software or protocol change is
+justified by this partial observation alone.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
 | F–J TLS, SSH, bridge, inference, independent viewer | Actual board deployment/binding, 100 synthetic and protected messages, 11 negative/routing checks, exact server/client trace correlation, ingestion/viewer/server interruption and recovery | No software or remote-access blocker remains for this desktop-viewer topology |
 | K protected path | Actual ESP -> Laptop -> verified SSH/TLS -> Ultra96 -> separate SSH/TLS desktop subscriber, clean 600 s and 5,965 exact results; tunnel/server/RTS/USB/physical RESET faults and clean regressions | Desktop path complete; actual Phone remains Gate M |
 | L BLE protection | Authenticated SC/MITM/bond, earlier bond-loss negatives/restoration, protected C/D/E/K, separately captured USB-only power loss and physical RESET with automatic approved mode-13 stored-bond recovery | No remaining listed BLE-protection check on this ESP/Laptop pair |
-| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1, SSH/SCP install, matching CA fingerprint, background SSH master45/control check and Phone TLS1.3 reported; Unity component supplied but uncompiled here | Actual subscription/result display, 100/600 s correlation, Phone TLS negative/lifecycle checks, device/OS details and teammate Unity build/integration |
+| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1, SSH/SCP install, matching CA, resumed SSH master60/Phone TLS1.3, actual result display and reported 100 received with one reconnect; Unity component supplied but uncompiled here | Full Phone log/100-ID correlation, clean uninterrupted run, 600 s coverage, Phone TLS negative/lifecycle checks, device/OS details and teammate Unity build/integration |
 
 The next operator can keep VPN connected, open the two generated independent SSH forwards, and run the current remote runner against the already deployed service. For Gate M, the Phone must own its own forward to Ultra96; stop the desktop subscriber so it does not replace the Phone's subscription. Follow the [current runbook](week7-runbook.md) and [Phone runbook](week7-phone-runbook.md), verify the public CA and host keys, and collect the remaining physical evidence. No protocol, TLS, security, architecture or implementation decision is awaiting approval. Real sensors/AI/FPGA, two-glove synchronization and AR UI retain the explicitly selected scope exclusions.
