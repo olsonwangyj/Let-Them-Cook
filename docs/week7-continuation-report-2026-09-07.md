@@ -724,6 +724,30 @@ any extra ACK/result-set mismatch rather than trim the attempt. The updated
 receiver remains bounded as selected in decision 31; no additional protocol
 or implementation change is needed for these test parameters.
 
+### Reducing manual Phone commands
+
+The user asked whether connecting the iPhone by USB would allow the agent to
+perform all remaining tests. A read-only Windows check found the iPhone only
+as a Bluetooth device; no USB iPhone entry, Apple Mobile Device service, or
+`idevice_id`/`ideviceinfo`/`iproxy`/`usbmuxd` command was found. A cable alone
+does not provide a shell: [libusbmuxd](https://github.com/libimobiledevice/libusbmuxd)
+forwards TCP to an existing device service and requires a USB-multiplexing
+backend. No USB software, driver, device trust or general Phone-control
+configuration was installed or changed.
+
+The practical next route is a scoped, temporary iSH SSH management channel,
+using the existing verified SSH/VPN route and board-loopback forwarding while
+keeping Ultra96 external access on port 22. The [official iSH SSH guide](https://github.com/ish-app/ish/wiki/Running-an-SSH-server)
+documents an in-app server and a high localhost port. First confirm the actual
+Phone has `/usr/sbin/sshd`, then prepare separate key-only server/host-key/config
+files and verify forwarding before claiming remote control works. This route
+is feasible but not yet configured or tested here; do not imply that USB or
+the current result tunnel already grants Phone command access. It would enable
+remote receiver runs and log collection, but unlocking, iOS/VPN approvals,
+screen locking, switching apps and foreground recovery still require the user.
+The latest `phone100.DoakOF` full-log upload/correlation remains pending while
+this management-access check is pursued. Preserve that attempt unchanged.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
