@@ -992,6 +992,17 @@ were live, and maintenance port 22222 remained absent. Actual Phone download,
 setup execution, account-state checks and authenticated maintenance remain
 pending; no new packet test has started.
 
+The operator then showed both SSH password prompts followed by the complete
+`replacement-key` SCP transfer, **6,095 bytes at 100%**, through the temporary
+configuration. The familiar inaccessible `/home/xilinx` and `.bashrc` warnings
+did not prevent this transfer. Proceed with the documented two short commands
+that set the trusted digest and gate `python3 setup.py` on `sha256sum -c -`
+success. The local source digest was freshly rechecked against that value.
+Phone-side hash verification and execution have not yet been reported. At
+14:44:20 UTC the board still showed only the existing application loopback
+listeners 8888/9999 among the three checked ports, with maintenance 22222
+absent. No replacement Phone account update or management readiness is claimed.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
