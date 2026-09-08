@@ -121,6 +121,21 @@ restore block is supplied even if downloading the helper fails. This resolves
 the actual iSH account prerequisite without weakening SSH host pins or TLS.
 See [locked-root procedure](week7-ish-root-lock.md).
 
+34. Explicitly disable both `ChallengeResponseAuthentication` and
+`KbdInteractiveAuthentication` in the temporary Phone daemon. Actual iSH
+OpenSSH 8.6p1 reported keyboard-interactive enabled despite the latter setting
+alone: this version's separate challenge-response default enables it again.
+`AuthenticationMethods publickey` already restricted successful authentication,
+but both effective flags must match the intended policy. The old directive is
+an alias in newer OpenSSH, so retaining both supports the measured iSH runtime
+without a package upgrade. Validate with the actual daemon's `-T` output and a
+fresh authenticated connection. Preserve the original scoped configuration
+before an owned-process reload; do not restart the Phone's application master.
+New setup downloads use separately hashed v3 files; earlier v2 files and failed
+policy-check evidence remain unchanged. The source behavior is documented in
+[OpenSSH 8.6](https://github.com/openssh/openssh-portable/blob/V_8_6_P1/sshd.c#L1645-L1647)
+and the [8.7 release notes](https://www.openssh.org/txt/release-8.7).
+
 ## Interfaces
 
 - common.sensor: SensorPacket(device_id, boot_id, seq, uptime_ms, values), encode_packet(packet)->bytes, decode_packet(data)->SensorPacket, dummy_values(seq)->tuple; packet.to_message(session_id)->dict.

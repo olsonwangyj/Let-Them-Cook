@@ -6,6 +6,16 @@ This procedure enables a temporary shell inside iSH; it does not grant iOS UI
 control. VPN toggles, screen locking, app switching and foreground recovery
 still need the operator. Keep iSH foreground during initial commissioning.
 
+**Actual replacement Phone, 2026-09-08:** pinned key authentication, remote
+Python 3.9.16, application TLS 1.3, wrong-name/untrusted-certificate rejection
+and board loopback management binding have now been verified. Alpine is 3.14.3
+with OpenSSH 8.6p1. The locked root prerequisite used the guarded decision-33
+backup/remedy; the private backup remains on Phone. An effective-policy check
+exposed the OpenSSH 8.6 challenge-response default, fixed by disabling both
+interactive directives and reloading only the verified scoped daemon. Fresh
+authentication and policy checks passed. See the continuation report for
+packet evidence and remaining physical lifecycle actions.
+
 ## Selected design and implementation sequence
 
 Use a dedicated, key-only iSH SSH daemon and a maintenance forward through the
@@ -29,8 +39,9 @@ would add dependencies without removing iOS's physical actions.
    forward, Laptop `127.0.0.1:12222` to board `127.0.0.1:22222`.
 6. Independently verify the board listener address, actual key authentication,
    remote Python execution and the existing application TLS connection before
-   treating the Phone as controllable. Then collect the unchanged
-   `phone100.DoakOF` capture and proceed to bounded physical test runs.
+   treating the Phone as controllable. Collect captures only from the device
+   that produced them: `phone100.DoakOF` remains on the original Phone and
+   cannot be retrieved from this replacement. Proceed with fresh bounded runs.
 7. At the end, stop only the owned daemon and cancel only the maintenance
    forward. Verify its board listener disappears and the result tunnel still
    works. Retain evidence and public manifests; remove the temporary client's

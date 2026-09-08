@@ -1,8 +1,9 @@
 # Replacement iPhone: one-time maintenance setup
 
-The replacement Phone subsequently reached `PHONE_ROOT_LOCKED`. Use the
-[updated account recovery and setup block](week7-ish-root-lock.md) for that
-observed condition. The original block below is retained as historical setup
+The replacement Phone subsequently reached `PHONE_ROOT_LOCKED`, then completed
+the [short-command file import](week7-ish-short-import.md) and guarded
+[account recovery](week7-ish-root-lock.md). Use that import for current setup.
+The original block below is retained as historical setup
 evidence and continues to refuse a locked account.
 
 Use this on the replacement iPhone after installing iSH, OpenSSH, Python and

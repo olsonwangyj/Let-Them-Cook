@@ -1,6 +1,88 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
-This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 33 decisions; no protocol or security approval is pending.
+This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 34 decisions; no protocol or security approval is pending.
+
+## Replacement Phone commissioning — 2026-09-08
+
+The short-command file import succeeded on the replacement iPhone. The Phone
+verified the 6,095-byte v2 setup digest, printed `KEY_LOGIN_READY` after the
+guarded private account backup, started its own master PID 31 at
+`/root/.ssh/week7-replacement.alqb39hl/control`, verified the downloaded helper
+files, and reported scoped daemon PID 43 in
+`/root/week7-control/w7-fd3c60de-z4l4ggnx`. The restore helper is
+`/root/.ssh/week7-replacement.alqb39hl/restore-ish-root-lock.py`; its private
+account backup remains on Phone and was not read into or uploaded with evidence.
+
+Independent commissioning verified the board's actual `127.0.0.1:22222`
+listener, the Phone's exact host key fingerprint
+`SHA256:mXmb6ZLALCTHGkax+dgOlzN7CQp6zlxumXuteYkp0Ws`, successful dedicated-key
+root authentication through Laptop loopback 12222, and remote Python execution.
+The Phone runtime is Python 3.9.16 / OpenSSL 1.1.1l / OpenSSH 8.6p1 / Alpine
+3.14.3. Exact iPhone model/iOS and foreground observations remain operator data.
+The application still uses its own Phone `-L19999` through SSH port 22 to board
+loopback 9999. The maintenance route carries no application result relay.
+
+The verified public CA and unchanged updated receiver were installed on this
+Phone; their SHA-256 values remain `f57b045b7879177371bf4a835cd80c3f2837d35000a728749d15e69e771c8e1a`
+and `b16c746255c9d91655b4da35cea6d5d240a260f4c289ca7b52c2e4441420e881`.
+The Phone accepted the correct certificate/identity with TLS 1.3, rejected a
+wrong identity with certificate verification code 62, and rejected an empty
+trust store with code 20. These were real Phone handshakes, without subscribing
+another viewer. Local evidence and scripts are under
+`D:\LetThemCook-builds\iphone-control-20260908\w7-fd3c60de`.
+
+An actual `sshd -T` policy check exposed an OpenSSH 8.6 compatibility issue:
+its challenge-response default re-enabled keyboard-interactive authentication
+despite the explicit keyboard-interactive `no`. `AuthenticationMethods publickey`
+and disabled password authentication already restricted access. Decision 34
+adds `ChallengeResponseAuthentication no`. The original scoped configuration
+was preserved as `sshd_config.before-challenge-fix`; an effective-policy check
+passed before atomic replacement, and the existing helper verified PID 43's
+executable, dedicated log descriptor and session ownership before SIGHUP.
+Fresh pinned key authentication and the complete TLS/policy/backup-permission
+check then passed. Both the initial failed assertion and successful follow-up
+logs are retained. No application master, CA, bond or firmware was replaced.
+
+The focused repository fix passed the root's fresh Windows Phone suite:
+**36 passed, 1 POSIX-only integration skip in 6.88 s**. Independent review also
+built upstream OpenSSH 8.6p1 in WSL and passed all **15 helper tests**, including
+real `sshd -T`; removing only the new directive in memory reproduced the
+effective keyboard-interactive `yes` failure. New owner-only board downloads
+are versioned separately: `ish_control-v3.py`, 17,917 bytes, SHA-256
+`3dda6b8bd514926a9a6434edbaad7785d18635d8523dc7be1867ceb6172517b3`, and
+`replacement-key-setup-v3.py`, 6,095 bytes, SHA-256
+`41503a72b25f5a14c6287ed274f37b4813361c49ec4d5eace450f8a061c7c472`.
+Both local/board hashes and Python 3.8 grammar were checked. The current
+[short import](week7-ish-short-import.md) selects v3; v2 artifacts are preserved.
+
+### Fresh replacement Phone 100-result capture
+
+Phone `/root/week7-evidence/phone100.OMIcKh` and local
+`...\w7-fd3c60de\evidence\phone100-OMIcKh` contain the original combined log,
+receiver exit and sender evidence. A fresh subscription was observed before
+starting the real protected BLE sender. All **100 ordered, unique packet,
+accepted ACK and Phone result IDs matched exactly**, `1:2375739948:201..300`.
+The Phone reported `received=100`, `reconnects=0`; sender, receiver and observed
+capture exits were zero. Source uptime spanned 9.9 seconds; ACK span was
+9.797 seconds. Ultra96 independently accepted those 100 IDs once and in order
+between 14:50:13.873 and 14:50:23.727 UTC. Its preserved full snapshot is
+`phone-audits-20260908/phone100-OMIcKh.server.log`, 1,647,682 bytes, SHA-256
+`179981249a65a0ca36c9139d95fd2a66ed1cbb0d90d1c7e5c921fd44700d55a9`.
+
+The sender recorded **one callback-generation discard**. The bridge clears its
+generation during shutdown, consistent with the historical teardown counter,
+but the discarded callback has no saved identity/timestamp. Therefore this is
+an exact 100-result delivery with no Phone reconnect, not an all-counters-zero
+claim. The supplemental strict audit preserves that failure explicitly. The
+older capture100 wrapper does not save separate capture/wrapper exit files;
+its observed stdout is distinguished from those absent files. The separate
+6,100-packet/660-second wrappers do preserve all process/capture/wrapper exits.
+
+A replacement Phone 6,100-packet run is in progress in
+`/root/week7-evidence/phone6100.OPiFjB`; do not mark it complete until original
+logs, exact IDs, durations, all exits and operator foreground observations are
+checked. The older Phone's `phone100.DoakOF` is still on that original device;
+replacement access does not make it available.
 
 ## VPN resolved the access blocker
 

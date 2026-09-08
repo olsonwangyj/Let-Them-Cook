@@ -24,9 +24,15 @@ restored; either resume setup or use the restore procedure below.
 
 ## Resume setup
 
-Copy the whole updated block from
+Use the [short-command file import](week7-ish-short-import.md) for current
+setup. It downloads the v3 script and verifies its hash before execution, and
+avoids the repeated heredoc paste failures seen on this Phone. The historical
+v2 block below is retained for provenance; do not paste it as the current
+bootstrap. V3 also includes the OpenSSH 8.6 challenge-response compatibility fix.
+
+The previously issued whole block is saved at
 `D:\LetThemCook-builds\iphone-control-20260908\w7-fd3c60de\replacement-key-setup-command.txt`
-into foreground iSH on the replacement Phone. It includes the account remedy
+and reproduced below. It includes the account remedy
 only when the actual field is locked, then runs the verified connection setup.
 The original setup and its failing observation remain preserved. The updated
 block is 6,133 bytes with SHA-256

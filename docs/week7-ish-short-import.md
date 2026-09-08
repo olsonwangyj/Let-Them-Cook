@@ -13,6 +13,10 @@ files against their exact expected bytes and refuses conflicting contents.
 The script applies the [guarded root-lock remedy](week7-ish-root-lock.md) only
 when its checks require it. The account backup remains private on the Phone.
 
+Current downloads use v3, which explicitly disables the older OpenSSH 8.6
+challenge-response default. The successfully installed v2 Phone was separately
+corrected and verified; retain its original download and evidence.
+
 ## 1. Prepare and check the two public host keys
 
 Copy these four commands separately. The fresh directory is private by
@@ -92,7 +96,7 @@ w7remote=/var/tmp/cg4002-week7-yanjie-20260907/phone-control-w7-fd3c60de
 ```
 
 ```sh
-scp -F "${w7f:?}/c" "b:${w7remote:?}/replacement-key-setup.py" "${w7f:?}/setup.py"
+scp -F "${w7f:?}/c" "b:${w7remote:?}/replacement-key-setup-v3.py" "${w7f:?}/setup.py"
 ```
 
 Enter the existing authorized passwords privately at their prompts. Wait for
@@ -104,7 +108,7 @@ failure or success. Require the file transfer and verification below.
 ## 4. Verify and execute
 
 ```sh
-w7sha=8076ee85e1e10c8d6b497d9743fc7434ef896451f5cf31bcd2ce895d50737864
+w7sha=41503a72b25f5a14c6287ed274f37b4813361c49ec4d5eace450f8a061c7c472
 ```
 
 ```sh

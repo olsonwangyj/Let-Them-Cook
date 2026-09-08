@@ -127,6 +127,9 @@ def config_text(directory):
         ("AllowUsers", "root"), ("PermitRootLogin", "prohibit-password"),
         ("PubkeyAuthentication", "yes"), ("AuthenticationMethods", "publickey"),
         ("UsePAM", "no"), ("PasswordAuthentication", "no"),
+        # OpenSSH <8.7 has a separate challenge-response default that can
+        # re-enable keyboard-interactive authentication unless both are off.
+        ("ChallengeResponseAuthentication", "no"),
         ("KbdInteractiveAuthentication", "no"), ("PermitEmptyPasswords", "no"),
         ("DisableForwarding", "yes"), ("PermitTTY", "no"), ("X11Forwarding", "no"),
         ("PermitUserEnvironment", "no"), ("PermitUserRC", "no"), ("LogLevel", "VERBOSE"),

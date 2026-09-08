@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import signal
 import socket
 import struct
@@ -137,9 +138,10 @@ class HelperTests(unittest.TestCase):
         config = dict(line.split(None, 1) for line in (directory / "sshd_config").read_text().splitlines())
         for name, value in {"ListenAddress": "127.0.0.1", "Port": "2222", "PermitRootLogin": "prohibit-password",
                             "PasswordAuthentication": "no", "KbdInteractiveAuthentication": "no",
+                            "ChallengeResponseAuthentication": "no",
                             "AuthenticationMethods": "publickey", "UsePAM": "no", "DisableForwarding": "yes",
                             "PermitTTY": "no", "X11Forwarding": "no", "PermitUserEnvironment": "no", "StrictModes": "yes"}.items():
-            self.assertEqual(config[name], value)
+            self.assertEqual(config.get(name), value, name)
         self.assertEqual(shlex.split(config["AuthorizedKeysFile"]), [str(directory / "authorized_keys")])
         self.assertEqual((directory / "authorized_keys").read_text().strip(), public_key())
         self.assertFalse((home / ".ssh" / "authorized_keys").exists())
@@ -151,6 +153,31 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(published["host_public_key"], public_key())
         self.assertNotIn("PRIVATE", json.dumps(status))
         self.assertTrue((directory / "state.json").is_file())
+
+    @unittest.skipUnless(os.name == "posix", "requires local POSIX OpenSSH tools")
+    def test_sshd_effective_policy_disables_interactive_authentication(self):
+        # ISH_TEST_SSHD allows this regression to run against OpenSSH 8.6p1:
+        # before 8.7, challenge-response defaults to yes and overrides KbdInteractiveAuthentication.
+        sshd = os.environ.get("ISH_TEST_SSHD") or shutil.which("sshd") or control.SSHD
+        keygen = shutil.which("ssh-keygen")
+        if not shutil.which(sshd) or keygen is None:
+            self.skipTest("local sshd and ssh-keygen are required; set ISH_TEST_SSHD for an older build")
+        with tempfile.TemporaryDirectory(prefix="ish policy ") as tmp:
+            directory = Path(tmp)
+            subprocess.run([keygen, "-q", "-t", "ed25519", "-N", "", "-f", str(directory / "host_ed25519")],
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20)
+            config = directory / "sshd_config"
+            config.write_text(control.config_text(directory), encoding="utf-8")
+            result = subprocess.run([sshd, "-T", "-f", str(config)], stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            effective = dict(line.split(None, 1) for line in result.stdout.splitlines())
+            self.assertEqual(effective["kbdinteractiveauthentication"], "no")
+            self.assertEqual(effective["passwordauthentication"], "no")
+            self.assertEqual(effective["authenticationmethods"], "publickey")
+            # OpenSSH 8.7+ omits the deprecated alias from its effective output.
+            if "challengeresponseauthentication" in effective:
+                self.assertEqual(effective["challengeresponseauthentication"], "no")
 
     def test_failed_publication_cancels_only_added_reverse_and_terminates_owned_child(self):
         home, calls = self.launch("publish")
