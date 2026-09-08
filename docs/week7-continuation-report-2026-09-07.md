@@ -1,6 +1,6 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
-This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 31 decisions; no protocol or security approval is pending.
+This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 32 decisions; no protocol or security approval is pending.
 
 ## VPN resolved the access blocker
 
@@ -747,6 +747,81 @@ remote receiver runs and log collection, but unlocking, iOS/VPN approvals,
 screen locking, switching apps and foreground recovery still require the user.
 The latest `phone100.DoakOF` full-log upload/correlation remains pending while
 this management-access check is pursued. Preserve that attempt unchanged.
+
+### Temporary iSH management preparation — 2026-09-08
+
+The operator confirmed `/usr/sbin/sshd` exists on the actual iPhone: root-owned,
+mode 755, 927,832 bytes, package timestamp 2021-10-05. Decision 32 and the
+[maintenance design](week7-iphone-control.md) select scoped key-only SSH access
+through the existing Phone master, with an explicit maintenance-only reverse
+forward. This resolves the USB/control design choice; USB charging does not
+provide the shell and is not the maintenance transport.
+
+The existing Laptop ingestion shell/tunnel remained live (exec session 83726,
+Windows PID 36432), and the existing board service remained PID 43932 with
+only loopback application listeners 8888/9999. The board's effective SSH
+configuration for user xilinx and the actual jump address 137.132.80.24 was
+checked with `sshd -T -C` using an isolated temporary host key, avoiding access
+to system private host keys. Results: **gatewayports no, allowtcpforwarding yes,
+disableforwarding no, permitlisten any**. Both generated preflight key files
+were removed from the exact owned directory afterward. No system SSH config
+or unrelated board service was changed.
+
+A dedicated client key was generated in the Laptop private directory
+`C:\Users\Yanjie Wang\.codex\private\iphone-control-w7-fd3c60de` with inheritance
+removed and access granted only to the current Windows user. The public bundle
+is prepared under `D:\LetThemCook-builds\iphone-control-20260908\w7-fd3c60de`,
+targeting board owner-only directory
+`/var/tmp/cg4002-week7-yanjie-20260907/phone-control-w7-fd3c60de`.
+Only the client's public key belongs in that bundle. A separate authenticated
+Laptop maintenance forward is active: exec session **23739**, SSH PID **18080**,
+**127.0.0.1:12222 -> board 127.0.0.1:22222**, through the same verified hosts and
+external port 22. This listener alone does not prove Phone access: the Phone
+daemon/reverse forward, pinned host-key authentication and command probe remain
+unperformed until the operator runs the prepared launcher.
+
+Independent design review identified two concrete safeguards included in the
+design: check effective GatewayPorts before creating any reverse listener, and
+use `-F /dev/null` for multiplex forwarding/cancellation so other configured
+forwards cannot be included. OpenSSH 8.6 cancellation can return zero despite a
+failure, so actual listener removal must be observed. A locked iSH root account
+must be diagnosed without logging or changing its password hash. The existing
+application master/result tunnel is not stopped by maintenance setup/cleanup.
+
+The implemented `phone/ish_control.py` and its 13 focused tests passed together
+with all 22 receiver tests: **35 passed in 6.24 s** in the root verification.
+Independent review also reran all 13 helper tests successfully. Regressions
+cover locked accounts, occupied local/remote ports, missing master, rejected
+configuration, uncertain forward failure, publication rollback, scoped PID
+cleanup and metadata/path validation. Review caught and fixed missing `-e`
+daemon logging, duplicate-forward ownership, and iSH's truncated `/proc`
+process title/zero start timestamp. Startup rollback now uses the unreaped
+owned subprocess; later shutdown checks executable, unique log descriptor,
+process group and session. Failure to verify those facts refuses termination.
+No account password/hash was changed or logged.
+
+Published exactly two public files in the board bundle directory, mode 600:
+
+- `ish_control.py`: **17,624 bytes**, SHA-256
+  `a5e275ecfe7eb8603706d3cdca47ef59a099ab76fb3749bc39844574a6310628`.
+- `control-public.json`: **245 bytes**, SHA-256
+  `d25c11cdad0ab0f17adc9ba5ac93fc597eb415e93089aeda5b042c65e340d10e`.
+
+Board/local hashes match. Python 3.8 grammar parsing and actual board Python
+CLI help passed. An isolated configuration generated by the helper passed
+the board's `sshd -t` with exit 0; its disposable host-key pair was removed
+afterward. This checks board OpenSSH syntax, not actual iSH server behavior.
+The board maintenance port 22222 remained free: neither Phone has activated
+the daemon or reverse forward, and no Phone root authentication is claimed.
+
+During preparation, the user chose **another iPhone** for further tests. Its
+iSH/runtime, own NUS VPN, SSH trust/config and master must be established on
+that device before invoking the helper. The former Phone's master/socket,
+installation and test results do not establish readiness of the replacement.
+Keep `/root/week7-evidence/phone100.DoakOF` unchanged on the original Phone;
+its full capture is still pending collection and correlation. Label all future
+replacement-Phone evidence separately, including device/iOS/runtime details,
+and do not run competing receivers during either device's packet tests.
 
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|

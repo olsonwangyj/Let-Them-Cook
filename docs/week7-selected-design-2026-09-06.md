@@ -87,6 +87,21 @@ established result stream do not get this grace. The portable C#/Unity client
 is unchanged. A physical zero-reconnect rerun is still required; the earlier
 100-result delivery with its startup retry is not relabelled as uninterrupted.
 
+32. Permit a temporary maintenance-only SSH reverse forward to a scoped iSH
+daemon so the agent can run Phone commands and collect evidence. This resolves
+the user's request to reduce manual copy/paste with the already installed SSH
+software. The daemon and both new forward listeners use loopback, with a
+dedicated client key, independently pinned Phone host key and separate config;
+no root password, global SSH configuration or application route is changed.
+Verify board `GatewayPorts` before creating the reverse forward and inspect its
+actual binding afterward. Empty-config multiplex control commands prevent
+accidental cancellation of the application's forward. This explicitly narrows
+the historical no-`-R` constraint to the assessed application path: Phone
+results still use the Phone's independent `-L` to board port 9999. Maintenance
+shares the Phone master initially and may be lost on VPN/master interruption;
+iOS actions and foreground restoration remain manual. Close the scoped access
+after tests. See [maintenance design](week7-iphone-control.md).
+
 ## Interfaces
 
 - common.sensor: SensorPacket(device_id, boot_id, seq, uptime_ms, values), encode_packet(packet)->bytes, decode_packet(data)->SensorPacket, dummy_values(seq)->tuple; packet.to_message(session_id)->dict.
