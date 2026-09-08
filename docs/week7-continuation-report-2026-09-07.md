@@ -925,6 +925,16 @@ may change through the account utility; no full shadow-metadata restoration
 claim is made. Close existing maintenance sessions as well as its listener:
 restoring an account lock alone does not terminate authenticated sessions.
 
+The next operator paste showed Python statements being interpreted directly
+by `ash` (`print` syntax errors, `except`/`raise`/`WEEK7_SETUP` not found).
+The Python heredoc was not active for that pasted tail. Reissue the complete
+existing tested command inline, including its opening
+`python3 - <<'WEEK7_SETUP'` and closing `WEEK7_SETUP`, using one full copy/paste
+at the normal iSH prompt. This is a presentation/input correction, not a new
+SSH/protocol failure or a code change. The tail alone does not establish
+whether an earlier part changed the account, so no new account or connection
+success is claimed; preserve any backup and rely on the script's state guards.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
