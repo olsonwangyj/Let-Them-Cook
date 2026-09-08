@@ -434,6 +434,33 @@ current attempt merely because the Phone evidence has not yet been supplied.
 Actual 100-message Phone success, the 600-second Phone soak and lifecycle checks
 remain unverified.
 
+### Resumption after idle — 2026-09-08 10:28 UTC
+
+The user clarified that the Phone test had **not been performed** before the
+idle interval. The saved 100-message Laptop/board evidence above remains valid
+for ingestion only. The earlier instruction to upload an existing Phone capture
+is superseded: no Phone capture has been established for that attempt, and a
+new coordinated sender/Phone run is required after restoring runtime readiness.
+
+Fresh local inspection found the Cisco AnyConnect adapter **Disabled**, no
+18888 or 19999 listener, and the old SSH control session terminated with
+`client_loop: send disconnect: Connection reset` (exit 1). The exact time/cause
+of the earlier session loss is unknown; this is not a measured recovery test.
+Windows reported no serial port, so the ESP's USB-only power connection also
+needs operator confirmation. No new firmware or bond change is indicated.
+The existing public CA and prepared Laptop sender command remain available.
+
+The next required human action is to reconnect the authorized VPN on both
+Laptop and iPhone and power the ESP by USB. Then restore the Laptop ingestion
+forward, inspect the actual board service and verify TLS. On iPhone, retain the
+installed receiver, CA and pinned SSH configuration; inspect scoped control
+sockets rather than trusting old shell variables or PID 45. Reuse a verified
+live master or establish one fresh forward, then perform a strict TLS probe
+before the new coordinated 100-message capture. Do not delete old evidence,
+kill unrelated SSH processes or start a competing desktop subscriber. Ultra96
+remains externally reachable only through its SSH port 22; app ports remain
+board loopback. No production code or remote service was changed in this check.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
