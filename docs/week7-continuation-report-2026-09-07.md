@@ -461,6 +461,25 @@ kill unrelated SSH processes or start a competing desktop subscriber. Ultra96
 remains externally reachable only through its SSH port 22; app ports remain
 board loopback. No production code or remote service was changed in this check.
 
+After the user confirmed readiness, the 10:35–10:37 UTC preflight found
+AnyConnect **Up**, the CH340 **COM3** device and Bluetooth present. A read-only
+BLE scan found **LTC-W7 / 38:18:2B:19:82:AE**; it did not connect or generate
+sensor traffic. Interactive authentication with both pinned Ed25519 host keys
+restored the Laptop ingestion tunnel as **PID 36432**, bound only to
+`127.0.0.1:18888`. Both SSH hops explicitly use port 22. The old tunnel was not
+reused, and no desktop viewer or 19999 listener was created.
+
+Fresh remote inspection at `2026-09-08T10:36:31Z` confirmed uid 1000 on `pynq`,
+the unchanged **PID 43932 / source-db6769a** server, and only board-loopback
+8888/9999 app listeners. The existing private Phone capture directory is still
+available. A new Laptop SSL probe passed CA/hostname validation with **TLS 1.3**
+and SAN `ultra96.week7.internal`; the service certificate expires
+`2026-10-06 15:11:29 UTC`. No service restart or certificate replacement was
+needed. Phone VPN readiness is operator-reported; its current SSH/TLS state
+still requires the scoped master check/restart and fresh Phone probe, followed
+by a new coordinated capture. The receiver and sender have not been started
+during this resumption preflight.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
