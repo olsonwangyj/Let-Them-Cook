@@ -1,20 +1,34 @@
 # Week 7 teacher demo pack
 
-Use this pack to demonstrate deterministic dummy packets travelling through real connections. The verified 100-message path is **ESP32 → protected BLE → Laptop → its SSH/TLS connection → actual Ultra96 → the iPhone's independent SSH/TLS connection → Python result display**. All 100 Phone results match the sender ACKs and board acceptance records. One startup read-timeout retry occurred before the first result; this is delivery evidence, not a zero-reconnect run. The teammate's visualizer integration, a 600-second Phone run and lifecycle checks remain pending.
+Use this pack to demonstrate deterministic dummy packets travelling through real connections: **ESP32 → protected BLE → Laptop → its SSH/TLS connection → actual Ultra96 → the iPhone's independent SSH/TLS connection → Python receiver**. The replacement Phone's latest **100/100** regression has zero reconnects and zero checked sender error/drop/gap/callback counters. A separate **6,100/6,100** capture has zero Phone reconnects and one retained sender callback discard. Controlled local-forward restoration and receiver restart are verified. Full-run physical foreground observation, SSH-master/VPN loss, physical app/screen lifecycle and teammate visualizer integration remain unverified; no full Gate M pass is claimed.
 
 Open [the teacher brief](teacher-brief.html), [printable PDF](teacher-brief.pdf), [talk track](teacher-script.md), and [packet walkthrough](packet-walkthrough.md). [packet-example.json](packet-example.json) is an illustrative fixture, not a captured measurement. Detailed procedures remain in the [communications runbook](../week7-runbook.md) and [Phone runbook](../week7-phone-runbook.md); the [selected design](../week7-selected-design-2026-09-06.md) governs current defaults.
 
-The operator used an **iPhone** for the verified 100-message test. Use the
-[iPhone quickstart](../week7-iphone-quickstart.md) and its public-only setup ZIP
-for the foreground iSH procedure. The [startup-grace update](../week7-iphone-startup-update.md)
-still requires an on-Phone rerun; it is not a physically verified fix for the recorded retry.
+The operator used actual **iPhones** for the recorded tests. Use the
+[iPhone quickstart](../week7-iphone-quickstart.md) and [startup update](../week7-iphone-startup-update.md)
+for the iSH procedure. The updated receiver ran on the replacement Phone with
+zero reported reconnects; the earlier Phone's retry remains part of its history.
+This rerun does not independently establish the earlier timeout's cause or a
+deliberate startup wait beyond five seconds.
 
 The [direct SSH import](../week7-iphone-ssh-import.md) can provision the same
 public iPhone setup bundle from Ultra96 over its existing SSH port 22.
 
 ### Verified iPhone evidence, 2026-09-08
 
-The [original Phone log](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone100.DDMJjm/phone100.combined.log) contains 104 lines: subscription, `TimeoutError`, a new subscription, 100 ordered results, then `received=100,reconnects=1`. There is no further logged reconnect after results begin; receiver exit is 0. The exact IDs are `1:2375739948:0` through `1:2375739948:99`. The **14.078-second duration belongs to the sender**, not an independently timed Phone observation.
+**Latest regression after controlled recovery.** The [original Phone log](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.combined.log) contains 100 ordered results, IDs `1:2375739948:6503` through `:6602`, with `received=100,reconnects=0`. The [supplemental audit](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/supplemental-audit.json) reports `content_passed=true`, exact Packet/ACK/Phone correlation and zero checked sender error/drop/gap/callback counters. Sender and receiver exit files are 0; capture exit 0 is recorded in [Phone command output](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone-ssh.stdout.log), but separate capture/wrapper exit files are absent. The board snapshot check in [the evidence index](evidence-index.json) matches those 100 IDs exactly; this separate check does not change the preserved supplemental audit's board field. Source/ACK spans are 9.900/9.750 s; sender elapsed time is 14.078 s. Original Phone log: 17,087 bytes, SHA-256 `216db268e40b058faa5b7cf79415cf46f5594154547cf8890295b8096b328169`. Output was also sent to iSH's console throughout this short capture; physical screen observation remains unconfirmed.
+
+**Controlled local-forward recovery and receiver restart.** The [fault audit](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-recovery-agent-20260908-230910/fault-audit.json) records cancellation of the Phone's application forward, verified listener absence and an actual `ConnectionRefusedError`, followed by restored TLS, re-subscription and 100 exact IDs `1:2375739948:6403` through `:6502`. Its receiver reports the expected one reconnect, all checked sender counters are zero, and recorded exits are 0. Fresh Python receiver execution is demonstrated by this test and the following regression. The separate board snapshot matches both consecutive 100-ID ranges. This tested local-listener restoration before data production; it did not interrupt an active application channel, terminate the SSH master, toggle VPN, switch the iOS app or lock the screen, and does not establish lossless outage recovery.
+
+**Earlier replacement-Phone baseline and long capture.** The [100-result original log](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.combined.log) contains exactly 100 ordered results, IDs `1:2375739948:201` through `:300`, with `received=100,reconnects=0`. The saved receiver and sender exits are 0; sender duration is 13.578 seconds. Its [supplemental audit](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/supplemental-audit.json) passes exact saved-ID correlation but retains `content_passed=false` because `callback_generation_dropped=1`. Separate capture/wrapper exits were not saved for this short run. The [board snapshot](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100-OMIcKh.server.log), filtered to those 100 IDs, matches each once. Original Phone log: 16,887 bytes, SHA-256 `26db4a18b395e39ce567ccb9ccc8dd42cf5e5ae7e79af4a5f54bf24ea15fff50`.
+
+The [6,100-result original log](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.combined.log) contains exactly 6,100 ordered unique results, IDs `1:2375739948:302` through `:6401`, with `received=6100,reconnects=0`. All six saved process/capture/wrapper exits are 0. The [supplemental audit](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/supplemental-audit.json) and [board snapshot](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100-OPiFjB.server.log) establish exact Packet/ACK/Phone/board ID agreement. Source uptime spans **609.900 s**; ACK activity spans **609.781 s**, with maximum ACK gap **0.360 s**. Sender elapsed time is **616.704 s**; the local orchestrator elapsed time is **618.250 s**. These are distinct measurements and none is a Phone inter-result or end-to-end latency measurement. Original Phone log: 1,037,192 bytes, SHA-256 `2421f7706a807cf6bfe485d817ce7df3b1f6fcfb08bca2dfab6b1c0d096455ea`.
+
+The long run also retains `callback_generation_dropped=1`, its sole nonzero checked bridge counter and the sole strict all-counters-zero failure. Exact-ID correlation passes while the supplemental audit reports `content_passed=false`; show both outcomes. Phone JSONL is post-deduplication and has no per-result timestamps. The [console helper record](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/console-display.json) reports writing 3,393 lines over 339.476 seconds during the latter portion; it does not prove physical screen visibility or full-run foreground continuity. Operator confirmation, SSH-master/VPN loss and physical app/screen lifecycle checks remain pending. The separate controlled local-forward test above verifies only its stated scope. Unity/app integration and full Gate M remain unverified.
+
+Actual [Phone TLS checks](D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/phone-tls-security-check-after-compat.stdout.json) accepted TLS 1.3 with the trusted identity, rejected a wrong name (verification code 62) and rejected an untrusted CA (code 20). Temporary maintenance access controls commands inside iSH; it does not control the iOS UI. Public provenance and original/derived hashes are in [the evidence index](evidence-index.json).
+
+**Earlier Phone capture, retained history.** The [original Phone log](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone100.DDMJjm/phone100.combined.log) contains 104 lines: subscription, `TimeoutError`, a new subscription, 100 ordered results, then `received=100,reconnects=1`. There is no further logged reconnect after results begin; receiver exit is 0. The exact IDs are `1:2375739948:0` through `1:2375739948:99`. The **14.078-second duration belongs to the sender**, not an independently timed Phone observation.
 
 The [full Phone audit](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone-full-audit.json) retains the startup retry and verifies all 100 results against sender ACKs; the board accepted each expected ID once. The original combined log is 16,727 bytes, SHA-256 `72bcbcc14bd542816258dd04625e2438a3a99eac0736de536abdf73e33c4c1a8`. Its [derived result JSONL](D:/LetThemCook-builds/iphone-live-20260907/phone100-20260908-185338/phone100.DDMJjm/phone100.results.derived.jsonl) contains only original lines 4–103. Preserve the full combined log and status when showing the derived-file audit: an exact-ID pass does not erase the timeout or prove zero duplicate wire arrivals, Phone timing, a 600-second run, lifecycle reliability or Unity integration.
 
@@ -156,7 +170,7 @@ To review the already recorded soak without starting hardware:
 
 ## 5. Actual Phone mode: complete this on the device
 
-The actual iPhone 100-message delivery is recorded above, with its startup retry. For another run, use the iPhone quickstart; the Termux commands below remain the Android alternative. Stop the desktop runner and any simulator; close the desktop viewer forward. Keep Laptop ingestion terminal A. Do not start `tools.rehearse_remote_week7` alongside the Phone: it includes a subscriber that will replace the Phone.
+The latest replacement-iPhone 100-result regression has zero receiver reconnects and zero checked sender counters. The separate 6,100-result capture retains its one callback-generation discard; both are recorded above. For another run, use the iPhone quickstart; the Termux commands below remain the Android alternative. Stop the desktop runner and any simulator; close the desktop viewer forward. Keep Laptop ingestion terminal A. Do not start `tools.rehearse_remote_week7` alongside the Phone: it includes a subscriber that will replace the Phone.
 
 1. On Android, follow the [Phone runbook](../week7-phone-runbook.md) to install Termux, provision independently verified host keys and the public CA, and verify the Phone's own authorized VPN/network access. Configure `week7-jump` for `stujump.comp.nus.edu.sg` and `week7-ultra96` for `makerslab-fpga-35.ddns.comp.nus.edu.sg`, destination port 22, authorized accounts, strict checking, and the documented 20/60-second timeouts. Laptop VPN/login success does not establish Phone connectivity.
 2. In **Phone Termux terminal 1**, execute the Phone-owned forward. Enter any passwords interactively; do not capture this terminal.
@@ -184,7 +198,7 @@ Use a third Phone terminal to show readiness and the live display:
 tail -f ~/week7-evidence/phone100.status.txt ~/week7-evidence/phone100.jsonl
 ```
 
-4. Prepare the Laptop command first. Immediately after Phone status prints `subscribed session=week7-demo`, run the producer below in the operator's PowerShell terminal. The originally installed receiver used a five-second frame/idle deadline; the audited iPhone run retried once before data arrived. Keep the complete startup status on every rerun and distinguish any newer startup-grace version from this original observation.
+4. Prepare the Laptop command first. Immediately after Phone status prints `subscribed session=week7-demo`, run the producer below in the operator's PowerShell terminal. The originally installed receiver used a five-second frame/idle deadline; the earlier original-iPhone run retried once before data arrived. Keep the complete startup status on every rerun and distinguish any newer startup-grace version from this original observation.
 
 ```powershell
 $week7Log = Join-Path $week7Evidence 'phone-sender100.jsonl'
@@ -206,7 +220,7 @@ Also retain the matching accepted traces from the owned Ultra96 server log. Reco
 
 The Phone's raw JSONL contains results **after receiver duplicate suppression** and has **no per-result timestamps**. Exact saved ID matches prove correlation of those retained results; zero duplicate rows cannot prove zero duplicate wire arrivals. The sender's five-second ACK-silence gate measures the ingestion side only. To claim 600-second Phone continuity, retain a separately timed on-device observation of the display and receiver status across the full production interval, with interruption/reconnection times. Neither the count nor this offline audit measures Phone inter-result gaps or synchronized end-to-end latency.
 
-The observed iPhone Python display establishes the minimal real-Phone dummy-result path for 100 messages, with one startup retry. The original teammate-visualizer requirement additionally needs its actual build and integration. Only the portable C# core has been compiled here; the supplied Unity component and actual app have not. The saved desktop soak does not establish Phone endurance, and the Phone trace does not establish a zero-reconnect or full Gate M pass.
+The actual replacement-iPhone receiver has recorded 100 and 6,100 exact results with zero reported reconnects. The long run covers more than 600 seconds of source/ACK activity; full-run physical foreground visibility and Phone timing remain unverified. The earlier 100- and 6,100-result senders each retain one callback-generation discard; the latest post-recovery 100-result sender has zero checked counters. The original teammate-visualizer requirement needs its actual build and integration: only the portable C# core has been compiled here, while the supplied Unity component and actual app have not. These captures do not establish full Gate M acceptance.
 
 ## 6. Diagnose or demonstrate a fault separately
 
@@ -230,3 +244,20 @@ The [evening 2026-09-07 USB-only test](../week7-continuation-report-2026-09-07.m
 4. The Ultra96 service may remain running as previously authorized. If stopping it is required, follow the verified owned-server procedure and require its `stopped` event and released listeners. Record the resulting state for the next operator.
 
 These checks implement the team's selected engineering contract. The official written marking rubric was not available, so this pack does not claim course acceptance.
+## 8. Rebuild the printable brief locally
+
+The HTML is the source for the three-page A4 landscape PDF. Its Print / Save as
+PDF button works in a browser. The existing local automated exporter is
+`D:\LetThemCook-builds\teacher-brief-20260907\render.cjs`; it uses bundled
+Playwright and installed Chrome, prints page-content/footer bounds, and writes
+`docs/week7-demo-pack/teacher-brief.pdf` in this checkout.
+
+```powershell
+& 'C:\Users\Yanjie Wang\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'D:\LetThemCook-builds\teacher-brief-20260907\render.cjs'
+pdfinfo 'docs\week7-demo-pack\teacher-brief.pdf'
+```
+
+After every export, require three A4 landscape pages, render each page with
+Poppler `pdftoppm -png`, and inspect all three for overflow, overlap and readable
+qualifications. The exporter and runtime paths are local tooling, not portable
+dependencies included in a copied demo pack.

@@ -1,6 +1,6 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
-This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 34 decisions; no protocol or security approval is pending.
+This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 35 decisions; no protocol or security approval is pending.
 
 ## Replacement Phone commissioning — 2026-09-08
 
@@ -78,11 +78,117 @@ older capture100 wrapper does not save separate capture/wrapper exit files;
 its observed stdout is distinguished from those absent files. The separate
 6,100-packet/660-second wrappers do preserve all process/capture/wrapper exits.
 
-A replacement Phone 6,100-packet run is in progress in
-`/root/week7-evidence/phone6100.OPiFjB`; do not mark it complete until original
-logs, exact IDs, durations, all exits and operator foreground observations are
-checked. The older Phone's `phone100.DoakOF` is still on that original device;
-replacement access does not make it available.
+### Sustained delivery and controlled recovery
+
+The replacement Phone run `/root/week7-evidence/phone6100.OPiFjB` completed:
+**6,100 exact ordered unique packet/ACK/Phone/board IDs**, `1:2375739948:302..6401`,
+with one Phone subscription and **zero reconnects**. Source uptime span was
+**609.9 s**, inter-ACK span **609.781 s**, maximum inter-ACK gap **0.360 s**;
+sender elapsed was 616.704 s. The separate management-side orchestration
+observed 618.25 s after readiness through both process exits. All six separately
+saved sender/Phone receiver, capture and wrapper exits were zero. The only
+nonzero error/drop-class counter was one callback-generation discard, so the
+strict all-counters-zero audit remains false; exact sustained delivery passed.
+Do not relabel this as zero discarded callbacks or infer Phone per-result
+arrival times from sender timings.
+
+Original Phone logs, contexts, exits, supplemental audit and board snapshot
+are local at `...\w7-fd3c60de\evidence\phone6100-agent-20260908-225451`;
+the sender's original bundle is
+`D:\LetThemCook-builds\iphone-soak-20260908\evidence\phone6100-20260908-225456-eccf6034`.
+The board accepted all 6,100 IDs once and in order between 14:55:03.379 and
+15:05:13.236 UTC. Its full preserved snapshot has 1,784,637 bytes and SHA-256
+`06480e55d77ae0a34abf9e3effc74a2683a9fe8b6912c875ddbdc87147387e78`.
+A display helper wrote 3,393 lines to the verified Phone console `/dev/pts/0`
+over the latter 339.476 seconds and ended automatically with the wrapper.
+This was ordinary terminal output, without an iOS background keepalive method.
+It is not a 600-second physical display observation. The operator was asked
+whether iSH stayed visible/unlocked with VPN for the whole run; that answer
+remains pending, as do exact device/iOS details.
+
+The management-preserving local-forward fault also passed. A bounded driver
+verified original Phone application TLS, cancelled only `-L19999`, verified
+the listener absent, started the receiver, observed an actual
+`ConnectionRefusedError`, restored the same forward and verified TLS, then
+observed a fresh subscription before starting the sender. The Phone received
+**100 exact ordered IDs `1:2375739948:6403..6502`** with its one expected
+reconnect. Every sender error/drop counter, including callback-generation,
+was zero; receiver/capture/driver/sender exits were zero. Listener absence to
+verified restored TLS took about 2.73 s; recovered subscription was recorded
+at driver elapsed 3.561 s. The Phone master and maintenance forward remained
+available. Removing a local listener does not terminate existing forwarded
+channels: this test deliberately started a new receiver while it was absent,
+and does not claim full master, VPN or active-channel interruption.
+
+Fault originals are at `/root/week7-evidence/forward-recovery.g3sh28o5`, local
+`...\w7-fd3c60de\evidence\forward-recovery-agent-20260908-230910`; its fault audit
+checks exact raw statuses, packet bytes/dummy values, all IDs, exits and
+milestone order. The driver source and 12 passing offline simulations are
+preserved outside Git. The original failure and restored stream are both kept.
+
+A subsequent fresh receiver restart also passed with **100 exact ordered IDs
+`1:2375739948:6503..6602`**, **zero reconnects and all sender error/drop counters
+zero**. Its original Phone capture is `/root/week7-evidence/phone100.OopIPE`,
+local `...\w7-fd3c60de\evidence\post-recovery-phone100-agent-20260908-231307`.
+Source span was 9.9 s, inter-ACK span 9.75 s, sender elapsed 14.078 s. This run
+also teed the entire capture to `/dev/pts/0`; physical visibility still needs
+operator confirmation. The existing short wrapper's separate capture/wrapper
+exit files remain absent, while its complete saved management stdout shows
+capture/receiver zero and the independent receiver exit file is zero. The
+supplemental content audit with board correlation passes and separately flags
+those absent standalone capture-status files.
+
+The board's combined fault/post-restart snapshot independently matches all
+200 IDs once and in order, has 1,802,837 bytes and SHA-256
+`c83c7be3510befc97c2f2dfad8357a3adf029e506a073a97cee86f47e2b9bd6e`.
+It is preserved at `phone-audits-20260908/forward-and-post-recovery.server.log`
+and copied to local `...\w7-fd3c60de\evidence`. A manual hash transcription
+initially duplicated one character from PTY line wrapping; the hash assertion
+correctly stopped that collection step. The non-PTY Phone hash and downloaded
+Laptop hash then agreed on the 64-character value above; no source log changed.
+
+Remaining Phone acceptance work is physical foreground confirmation, screen
+locking/background/app-switch and VPN/full-master interruption/recovery,
+device/iOS details and teammate Unity build/integration. Management cannot
+operate iOS UI. Keep the scoped access available for those tests and perform
+the saved daemon/forward/account-lock cleanup after them. The older Phone's
+`phone100.DoakOF` remains on that original device; replacement access cannot
+collect it.
+
+### Materials and next physical actions ready
+
+The teacher README, talk track, evidence index, three-page HTML/PDF brief,
+quickstart, startup-update note and Phone runbook now distinguish the latest
+all-zero-counter 100-result regression, the qualified 6,100-result run and the
+controlled forward-recovery test. Historical desktop and earlier Phone records
+remain unchanged. The regenerated PDF is 114,800 bytes, SHA-256
+`cd70a625a3fafdf223b83debd55198260f7dc0185cf83cee57cda7f080845067`.
+All three A4 landscape pages were rendered and visually inspected by the
+implementer and root; no clipping or overlap was seen. Verification checked
+102 local links, 40 evidence hashes, exact recovery board correlations and
+16 PowerShell blocks. The verification report and page PNGs are at
+`D:\LetThemCook-builds\teacher-brief-replacement-iphone-20260908`.
+
+Decision 35 supplies the [remaining physical test procedures](week7-iphone-next-physical-tests.md)
+and the exact already staged Phone files. `resume-week7-control.py` has SHA-256
+`8f0bae4b99a18380d41d2be42dae8dc9e4e2b0a7fa5e8a65a2d6a31eb72a8f45`;
+15 offline Windows tests passed with one POSIX skip, and all 16 WSL tests
+passed. Root reviewed the scoped state/trust/rollback logic and requested the
+additional pre-forward effective board-policy guard, which has regression
+coverage. The actual Phone check-only branch returned
+`PHONE_RESUME_ALREADY_READY` with its original socket, valid TLS 1.3 and matching
+loopback maintenance host key. Full-master loss/restoration remains physically
+untested; the helper keeps password prompts on the Phone terminal.
+
+The staged `capture-lifecycle.sh` (count 0, duration 240) passed actual Phone
+shell syntax checking; SHA-256 is
+`fb51e6670bfee55ce5557cf28df8b1175b48c88c6dc61a9af53d8de2220c7b3b`.
+The staged `restart-week7-control.py` is the same hashed v3 full setup for
+later daemon/kernel loss, after reconciling this attempt's stale readiness.
+The new lifecycle capture and screen/VPN actions have not been started; they
+require operator timing. Packet senders/captures from this turn have
+finished; scoped SSH access is retained for the remaining human actions and
+subsequent verified cleanup. No credential backup was copied off the Phone.
 
 ## VPN resolved the access blocker
 
@@ -1091,6 +1197,6 @@ absent. No replacement Phone account update or management readiness is claimed.
 | F–J TLS, SSH, bridge, inference, independent viewer | Actual board deployment/binding, 100 synthetic and protected messages, 11 negative/routing checks, exact server/client trace correlation, ingestion/viewer/server interruption and recovery | No software or remote-access blocker remains for this desktop-viewer topology |
 | K protected path | Actual ESP -> Laptop -> verified SSH/TLS -> Ultra96 -> separate SSH/TLS desktop subscriber, clean 600 s and 5,965 exact results; tunnel/server/RTS/USB/physical RESET faults and clean regressions | Desktop path complete; actual Phone remains Gate M |
 | L BLE protection | Authenticated SC/MITM/bond, earlier bond-loss negatives/restoration, protected C/D/E/K, separately captured USB-only power loss and physical RESET with automatic approved mode-13 stored-bond recovery | No remaining listed BLE-protection check on this ESP/Laptop pair |
-| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1, SSH/SCP install, matching CA, resumed SSH master60/Phone TLS1.3, original Phone capture with 100/100 exact ordered correlation and one startup timeout before first result; Unity component supplied but uncompiled here | Updated receiver physical acceptance, clean uninterrupted run, 600 s coverage, Phone TLS negative/lifecycle checks, device/OS details and teammate Unity build/integration |
+| M real Phone / teammate integration | Runnable Python receiver and portable C# core; actual iSH Python 3.9.16/OpenSSH 8.6p1, SSH/SCP install, matching CA, resumed SSH master60/Phone TLS1.3, original Phone capture with 100/100 exact ordered correlation and one startup timeout before first result; Unity component supplied but uncompiled here | Completed replacement Phone 100/6100 delivery and TLS/local-forward/restart checks are detailed above; remaining operator foreground confirmation, screen/background/VPN/full-master recovery, device/OS details, cleanup and teammate Unity integration |
 
 The next operator can keep VPN connected, open the two generated independent SSH forwards, and run the current remote runner against the already deployed service. For Gate M, the Phone must own its own forward to Ultra96; stop the desktop subscriber so it does not replace the Phone's subscription. Follow the [current runbook](week7-runbook.md) and [Phone runbook](week7-phone-runbook.md), verify the public CA and host keys, and collect the remaining physical evidence. No protocol, TLS, security, architecture or implementation decision is awaiting approval. Real sensors/AI/FPGA, two-glove synchronization and AR UI retain the explicitly selected scope exclusions.

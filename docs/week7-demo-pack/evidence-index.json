@@ -135,6 +135,762 @@
         "source_sha256": "118dcc9f59edd7131c52b6543cd2ce90ec6f43cb518845fa9b2957506d1a1d6f",
         "phone_results_sha256": null
       }
+    },
+    "replacement_iphone_100": {
+      "capture_date_local": "2026-09-08",
+      "physical_route": "Real ESP protected BLE -> Laptop SSH/TLS -> actual Ultra96 -> replacement iPhone independent SSH/TLS -> Python receiver inside iSH",
+      "phone_directory": "/root/week7-evidence/phone100.OMIcKh",
+      "context": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/context.json",
+        "bytes": 331,
+        "sha256": "2522511cdb9d88bd3013f5368325ec4ea1f043598235ac5fd5199c25080529a4"
+      },
+      "original_phone_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.combined.log",
+        "bytes": 16887,
+        "sha256": "26db4a18b395e39ce567ccb9ccc8dd42cf5e5ae7e79af4a5f54bf24ea15fff50"
+      },
+      "supplemental_audit_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/supplemental-audit.json",
+        "bytes": 5348,
+        "sha256": "1ef491f0456f64664f72836e9569b260bead4b58a620757c20b0ebd4681bb831"
+      },
+      "supplemental_audit": {
+        "kind": "offline supplemental audit; physical provenance and foreground are external observations",
+        "content_passed": false,
+        "capture_exits_passed": false,
+        "required_process_exits_passed": true,
+        "board_correlation_supplied": false,
+        "full_physical_acceptance_established": false,
+        "failures": [
+          "all_bridge_error_drop_gap_counters_zero"
+        ],
+        "count": 100,
+        "session": "week7-demo",
+        "first_id": "1:2375739948:201",
+        "last_id": "1:2375739948:300",
+        "phone_statuses": [
+          {
+            "line": 1,
+            "kind": "subscribed",
+            "text": "subscribed session=week7-demo"
+          }
+        ],
+        "phone_summaries": [
+          {
+            "received": 100,
+            "reconnects": 0
+          }
+        ],
+        "bridge_counters": {
+          "malformed": 0,
+          "stale_dropped": 0,
+          "generation_dropped": 0,
+          "duplicate_acks": 0,
+          "ack_errors": 0,
+          "ambiguous_dropped": 0,
+          "transport_errors": 0,
+          "ble_errors": 0,
+          "cleanup_errors": 0,
+          "queue_dropped": 0,
+          "callback_generation_dropped": 1,
+          "queue_size": 0,
+          "gaps": 0,
+          "duplicates": 0,
+          "out_of_order": 0,
+          "new_boots": 0
+        },
+        "nonzero_or_missing_bridge_counters": {
+          "callback_generation_dropped": 1
+        },
+        "source_uptime_span_seconds": 9.9,
+        "ack_span_seconds": 9.797,
+        "maximum_source_gap_seconds": 0.1,
+        "maximum_ack_gap_seconds": 0.1720000000000006,
+        "minimum_span_required_seconds": 0,
+        "sender_evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/sender.jsonl",
+          "bytes": 52353,
+          "sha256": "5a40b368e76ab4e3a97e66f51f6365dd8e1affcec838aeb7b5a6309b3b08e05f"
+        },
+        "original_phone_evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.combined.log",
+          "bytes": 16887,
+          "sha256": "26db4a18b395e39ce567ccb9ccc8dd42cf5e5ae7e79af4a5f54bf24ea15fff50"
+        },
+        "derived_results": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/supplemental-audit.results.derived.jsonl",
+          "bytes": 16825,
+          "sha256": "a088e8b74fac46e083ba98d7f6c509d36ba3cc5d069ab2292ff2a5293bcde823"
+        },
+        "existing_id_audit": {
+          "audit_passed": true,
+          "evidence_kind": "offline log correlation; no live connection or physical provenance verified",
+          "session_id": "week7-demo",
+          "minimum_count": 100,
+          "acks": 100,
+          "accepted_unique": 100,
+          "results": 100,
+          "result_unique": 100,
+          "matched": 100,
+          "exact_id_match": true,
+          "missing_results": 0,
+          "unexpected_results": 0,
+          "missing_sample": [],
+          "unexpected_sample": [],
+          "duplicate_acks": 0,
+          "repeated_accepted_acks": 0,
+          "duplicate_results": 0,
+          "complete_summary": true,
+          "interruption_events": 0,
+          "recorded_ack_count_consistent": true,
+          "recorded_runner_passed": true,
+          "source_sha256": "5a40b368e76ab4e3a97e66f51f6365dd8e1affcec838aeb7b5a6309b3b08e05f",
+          "phone_results_sha256": "a088e8b74fac46e083ba98d7f6c509d36ba3cc5d069ab2292ff2a5293bcde823"
+        },
+        "derived_transformation": "Result lines in original order with universal-newline normalization; original bytes unchanged.",
+        "exit_statuses": [
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/sender.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/sender.exit.txt",
+              "bytes": 3,
+              "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/sender.jsonl.capture.exit.txt",
+            "present": false,
+            "zero": false
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/sender.jsonl.wrapper.exit.txt",
+            "present": false,
+            "zero": false
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.exit.txt",
+              "bytes": 2,
+              "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.capture.exit.txt",
+            "present": false,
+            "zero": false
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100.wrapper.exit.txt",
+            "present": false,
+            "zero": false
+          }
+        ],
+        "board": null,
+        "limitations": [
+          "Content cannot prove actual Phone origin or foreground display.",
+          "Phone receiver has no per-result timestamps; source/ACK span is not Phone timing.",
+          "Post-deduplication output cannot exclude duplicate arrivals on the wire.",
+          "A full-board snapshot is filtered to this attempt's ACK IDs; unrelated attempts remain in the original."
+        ]
+      },
+      "phone_reconnects": 0,
+      "strict_all_bridge_counters_zero": false,
+      "retained_callback_generation_dropped": 1,
+      "foreground_entire_run_confirmed": false,
+      "phone_per_result_timing_available": false,
+      "full_gate_m_acceptance": false,
+      "board_snapshot_check": {
+        "evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone100-OMIcKh/phone100-OMIcKh.server.log",
+          "bytes": 1647682,
+          "sha256": "179981249a65a0ca36c9139d95fd2a66ed1cbb0d90d1c7e5c921fd44700d55a9"
+        },
+        "matching_rows": 100,
+        "exact_ordered_match": true,
+        "scope": "Snapshot filtered to the expected 100 IDs; separate check, not part of the preserved supplemental audit."
+      },
+      "sender_elapsed_seconds": 13.578,
+      "capture_exit_note": "Sender and receiver exits are 0; separate wrapper/capture exits were not saved in this short run."
+    },
+    "replacement_iphone_6100": {
+      "capture_date_local": "2026-09-08",
+      "physical_route": "Real ESP protected BLE -> Laptop SSH/TLS -> actual Ultra96 -> replacement iPhone independent SSH/TLS -> Python receiver inside iSH",
+      "phone_directory": "/root/week7-evidence/phone6100.OPiFjB",
+      "context": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/context.json",
+        "bytes": 423,
+        "sha256": "65159d7c536f344441b0645a600e1d02fa570d9b7457eaef93bdaed0a7619823"
+      },
+      "original_phone_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.combined.log",
+        "bytes": 1037192,
+        "sha256": "2421f7706a807cf6bfe485d817ce7df3b1f6fcfb08bca2dfab6b1c0d096455ea"
+      },
+      "supplemental_audit_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/supplemental-audit.json",
+        "bytes": 7081,
+        "sha256": "3bfdb02d1dee4ef50b41572539e329674cd0c4478cdf24187dc58830090481e3"
+      },
+      "supplemental_audit": {
+        "kind": "offline supplemental audit; physical provenance and foreground are external observations",
+        "content_passed": false,
+        "capture_exits_passed": true,
+        "required_process_exits_passed": true,
+        "board_correlation_supplied": true,
+        "full_physical_acceptance_established": false,
+        "failures": [
+          "all_bridge_error_drop_gap_counters_zero"
+        ],
+        "count": 6100,
+        "session": "week7-demo",
+        "first_id": "1:2375739948:302",
+        "last_id": "1:2375739948:6401",
+        "phone_statuses": [
+          {
+            "line": 1,
+            "kind": "subscribed",
+            "text": "subscribed session=week7-demo"
+          }
+        ],
+        "phone_summaries": [
+          {
+            "received": 6100,
+            "reconnects": 0
+          }
+        ],
+        "bridge_counters": {
+          "malformed": 0,
+          "stale_dropped": 0,
+          "generation_dropped": 0,
+          "duplicate_acks": 0,
+          "ack_errors": 0,
+          "ambiguous_dropped": 0,
+          "transport_errors": 0,
+          "ble_errors": 0,
+          "cleanup_errors": 0,
+          "queue_dropped": 0,
+          "callback_generation_dropped": 1,
+          "queue_size": 0,
+          "gaps": 0,
+          "duplicates": 0,
+          "out_of_order": 0,
+          "new_boots": 0
+        },
+        "nonzero_or_missing_bridge_counters": {
+          "callback_generation_dropped": 1
+        },
+        "source_uptime_span_seconds": 609.9,
+        "ack_span_seconds": 609.7810000000001,
+        "maximum_source_gap_seconds": 0.1,
+        "maximum_ack_gap_seconds": 0.36000000000001364,
+        "minimum_span_required_seconds": 600.0,
+        "sender_evidence": {
+          "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl",
+          "bytes": 3146085,
+          "sha256": "59c6d302488060650b8a714c20b7a870dd7a90b45f672807ccd4eba18b6818a0"
+        },
+        "original_phone_evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.combined.log",
+          "bytes": 1037192,
+          "sha256": "2421f7706a807cf6bfe485d817ce7df3b1f6fcfb08bca2dfab6b1c0d096455ea"
+        },
+        "derived_results": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/supplemental-audit.results.derived.jsonl",
+          "bytes": 1037129,
+          "sha256": "3e1afc8f060202bce80e56322c2e3c67520e42a206754404e405421b419341e4"
+        },
+        "existing_id_audit": {
+          "audit_passed": true,
+          "evidence_kind": "offline log correlation; no live connection or physical provenance verified",
+          "session_id": "week7-demo",
+          "minimum_count": 6100,
+          "acks": 6100,
+          "accepted_unique": 6100,
+          "results": 6100,
+          "result_unique": 6100,
+          "matched": 6100,
+          "exact_id_match": true,
+          "missing_results": 0,
+          "unexpected_results": 0,
+          "missing_sample": [],
+          "unexpected_sample": [],
+          "duplicate_acks": 0,
+          "repeated_accepted_acks": 0,
+          "duplicate_results": 0,
+          "complete_summary": true,
+          "interruption_events": 0,
+          "recorded_ack_count_consistent": true,
+          "recorded_runner_passed": true,
+          "source_sha256": "59c6d302488060650b8a714c20b7a870dd7a90b45f672807ccd4eba18b6818a0",
+          "phone_results_sha256": "3e1afc8f060202bce80e56322c2e3c67520e42a206754404e405421b419341e4"
+        },
+        "derived_transformation": "Result lines in original order with universal-newline normalization; original bytes unchanged.",
+        "exit_statuses": [
+          {
+            "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl.exit.txt",
+              "bytes": 3,
+              "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl.capture.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl.capture.exit.txt",
+              "bytes": 3,
+              "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl.wrapper.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-soak-20260908/evidence/phone6100-20260908-225456-eccf6034/phone-sender6100.jsonl.wrapper.exit.txt",
+              "bytes": 3,
+              "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.exit.txt",
+              "bytes": 2,
+              "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.capture.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.capture.exit.txt",
+              "bytes": 2,
+              "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.wrapper.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100.wrapper.exit.txt",
+              "bytes": 2,
+              "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+            }
+          }
+        ],
+        "board": {
+          "evidence": {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/phone6100-OPiFjB.server.log",
+            "bytes": 1784637,
+            "sha256": "06480e55d77ae0a34abf9e3effc74a2683a9fe8b6912c875ddbdc87147387e78"
+          },
+          "matching_rows": 6100,
+          "exact_ordered_match": true,
+          "unique": 6100
+        },
+        "limitations": [
+          "Content cannot prove actual Phone origin or foreground display.",
+          "Phone receiver has no per-result timestamps; source/ACK span is not Phone timing.",
+          "Post-deduplication output cannot exclude duplicate arrivals on the wire.",
+          "A full-board snapshot is filtered to this attempt's ACK IDs; unrelated attempts remain in the original."
+        ]
+      },
+      "phone_reconnects": 0,
+      "strict_all_bridge_counters_zero": false,
+      "retained_callback_generation_dropped": 1,
+      "foreground_entire_run_confirmed": false,
+      "phone_per_result_timing_available": false,
+      "full_gate_m_acceptance": false,
+      "sender_elapsed_seconds": 616.704,
+      "local_orchestrator_elapsed_seconds": 618.25,
+      "console_display": {
+        "target": "/dev/pts/0",
+        "lines_written": 3393,
+        "duration_seconds": 339.476,
+        "physical_visibility": "operator confirmation pending"
+      },
+      "console_display_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/phone6100-agent-20260908-225451/console-display.json",
+        "bytes": 142,
+        "sha256": "dd1f9b50002850b80cdc6f0342543403346f05d1d7a0c40aaf39c8f683548dc2"
+      }
+    },
+    "replacement_iphone_post_recovery_100": {
+      "capture_date_local": "2026-09-08",
+      "phone_directory": "/root/week7-evidence/phone100.OopIPE",
+      "original_phone_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.combined.log",
+        "bytes": 17087,
+        "sha256": "216db268e40b058faa5b7cf79415cf46f5594154547cf8890295b8096b328169"
+      },
+      "supplemental_audit_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/supplemental-audit.json",
+        "bytes": 5574,
+        "sha256": "620a56c19f4cb900b9dece0732a1187d06f25220d3c8c90f0732d33382aed2ff"
+      },
+      "supplemental_audit": {
+        "kind": "offline supplemental audit; physical provenance and foreground are external observations",
+        "content_passed": true,
+        "capture_exits_passed": false,
+        "required_process_exits_passed": true,
+        "board_correlation_supplied": false,
+        "full_physical_acceptance_established": false,
+        "failures": [],
+        "count": 100,
+        "session": "week7-demo",
+        "first_id": "1:2375739948:6503",
+        "last_id": "1:2375739948:6602",
+        "phone_statuses": [
+          {
+            "line": 1,
+            "kind": "subscribed",
+            "text": "subscribed session=week7-demo"
+          }
+        ],
+        "phone_summaries": [
+          {
+            "received": 100,
+            "reconnects": 0
+          }
+        ],
+        "bridge_counters": {
+          "malformed": 0,
+          "stale_dropped": 0,
+          "generation_dropped": 0,
+          "duplicate_acks": 0,
+          "ack_errors": 0,
+          "ambiguous_dropped": 0,
+          "transport_errors": 0,
+          "ble_errors": 0,
+          "cleanup_errors": 0,
+          "queue_dropped": 0,
+          "callback_generation_dropped": 0,
+          "queue_size": 0,
+          "gaps": 0,
+          "duplicates": 0,
+          "out_of_order": 0,
+          "new_boots": 0
+        },
+        "nonzero_or_missing_bridge_counters": {},
+        "source_uptime_span_seconds": 9.9,
+        "ack_span_seconds": 9.75,
+        "maximum_source_gap_seconds": 0.1,
+        "maximum_ack_gap_seconds": 0.1880000000000006,
+        "minimum_span_required_seconds": 0,
+        "sender_evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/sender.jsonl",
+          "bytes": 52655,
+          "sha256": "987366e80ee016a10c1dc65b698ce82f414f9e6adb76fa0f4eb7ca61d094fdf4"
+        },
+        "original_phone_evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.combined.log",
+          "bytes": 17087,
+          "sha256": "216db268e40b058faa5b7cf79415cf46f5594154547cf8890295b8096b328169"
+        },
+        "derived_results": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/supplemental-audit.results.derived.jsonl",
+          "bytes": 17025,
+          "sha256": "9e763853d55a5e00bc971993d2f0758261d07cf89f27e8fe86039293f69d90b2"
+        },
+        "existing_id_audit": {
+          "audit_passed": true,
+          "evidence_kind": "offline log correlation; no live connection or physical provenance verified",
+          "session_id": "week7-demo",
+          "minimum_count": 100,
+          "acks": 100,
+          "accepted_unique": 100,
+          "results": 100,
+          "result_unique": 100,
+          "matched": 100,
+          "exact_id_match": true,
+          "missing_results": 0,
+          "unexpected_results": 0,
+          "missing_sample": [],
+          "unexpected_sample": [],
+          "duplicate_acks": 0,
+          "repeated_accepted_acks": 0,
+          "duplicate_results": 0,
+          "complete_summary": true,
+          "interruption_events": 0,
+          "recorded_ack_count_consistent": true,
+          "recorded_runner_passed": true,
+          "source_sha256": "987366e80ee016a10c1dc65b698ce82f414f9e6adb76fa0f4eb7ca61d094fdf4",
+          "phone_results_sha256": "9e763853d55a5e00bc971993d2f0758261d07cf89f27e8fe86039293f69d90b2"
+        },
+        "derived_transformation": "Result lines in original order with universal-newline normalization; original bytes unchanged.",
+        "exit_statuses": [
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/sender.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/sender.exit.txt",
+              "bytes": 3,
+              "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/sender.jsonl.capture.exit.txt",
+            "present": false,
+            "zero": false
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/sender.jsonl.wrapper.exit.txt",
+            "present": false,
+            "zero": false
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.exit.txt",
+            "present": true,
+            "zero": true,
+            "evidence": {
+              "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.exit.txt",
+              "bytes": 2,
+              "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+            }
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.capture.exit.txt",
+            "present": false,
+            "zero": false
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone100.wrapper.exit.txt",
+            "present": false,
+            "zero": false
+          }
+        ],
+        "board": null,
+        "limitations": [
+          "Content cannot prove actual Phone origin or foreground display.",
+          "Phone receiver has no per-result timestamps; source/ACK span is not Phone timing.",
+          "Post-deduplication output cannot exclude duplicate arrivals on the wire.",
+          "A full-board snapshot is filtered to this attempt's ACK IDs; unrelated attempts remain in the original."
+        ]
+      },
+      "context": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/context.json",
+        "bytes": 345,
+        "sha256": "bb900f9c1164656bafab077be3e26d6e86d8233bb81a4cd4e101c5bac0586c9e"
+      },
+      "phone_command_output": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/post-recovery-phone100-agent-20260908-231307/phone-ssh.stdout.log",
+        "bytes": 17224,
+        "sha256": "8158e911d6b54d7e011fed3f25cf7f0384d8ef0d977c8d9ca37ad27ae5ed9411"
+      },
+      "sender_elapsed_seconds": 14.078,
+      "phone_reconnects": 0,
+      "all_checked_sender_error_drop_gap_callback_counters_zero": true,
+      "capture_exit_note": "Sender and receiver exit files are 0; capture exit 0 appears in command output, but separate capture/wrapper exit files are absent.",
+      "console_output_scope": "Short capture output was also sent to /dev/pts/0 throughout; physical screen observation remains unconfirmed.",
+      "foreground_entire_run_confirmed": false,
+      "phone_per_result_timing_available": false,
+      "full_gate_m_acceptance": false,
+      "board_snapshot_check": {
+        "evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-and-post-recovery.server.log",
+          "bytes": 1802837,
+          "sha256": "c83c7be3510befc97c2f2dfad8357a3adf029e506a073a97cee86f47e2b9bd6e"
+        },
+        "matching_rows": 100,
+        "first_id": "1:2375739948:6503",
+        "last_id": "1:2375739948:6602",
+        "exact_ordered_match": true,
+        "scope": "Later snapshot filtered to this run's expected 100 IDs; original audit remains unchanged, including its historical absent/pending board field."
+      }
+    },
+    "replacement_iphone_local_forward_recovery": {
+      "capture_date_local": "2026-09-08",
+      "fault_audit_evidence": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-recovery-agent-20260908-230910/fault-audit.json",
+        "bytes": 4479,
+        "sha256": "5bf7b4cb2b6855d39be0aabb5d718be1adc35bd4d3ea2de704c899e0b89502f1"
+      },
+      "fault_audit": {
+        "fault_recovery_passed": true,
+        "count": 100,
+        "first_id": "1:2375739948:6403",
+        "last_id": "1:2375739948:6502",
+        "phone_summary": {
+          "received": 100,
+          "reconnects": 1
+        },
+        "phone_statuses": [
+          "reconnect reason=ConnectionRefusedError",
+          "subscribed session=week7-demo"
+        ],
+        "all_sender_error_drop_counters_zero": true,
+        "recorded_exits_zero": true,
+        "milestones": [
+          {
+            "utc": "2026-09-08T15:09:14.485509+00:00",
+            "elapsed_seconds": 0.195388,
+            "event": "original_application_tls_verified",
+            "tls": {
+              "version": "TLSv1.3",
+              "identity": "ultra96.week7.internal"
+            }
+          },
+          {
+            "utc": "2026-09-08T15:09:14.492634+00:00",
+            "elapsed_seconds": 0.201614,
+            "event": "application_forward_cancel_requested"
+          },
+          {
+            "utc": "2026-09-08T15:09:14.523439+00:00",
+            "elapsed_seconds": 0.232442,
+            "event": "application_listener_absent"
+          },
+          {
+            "utc": "2026-09-08T15:09:14.526939+00:00",
+            "elapsed_seconds": 0.235961,
+            "event": "receiver_started",
+            "pid": 155
+          },
+          {
+            "utc": "2026-09-08T15:09:17.153845+00:00",
+            "elapsed_seconds": 2.862879,
+            "event": "receiver_connection_refusal_observed"
+          },
+          {
+            "utc": "2026-09-08T15:09:17.185684+00:00",
+            "elapsed_seconds": 2.894747,
+            "event": "application_forward_add_requested"
+          },
+          {
+            "utc": "2026-09-08T15:09:17.251475+00:00",
+            "elapsed_seconds": 2.960495,
+            "event": "application_forward_tls_verified",
+            "tls": {
+              "version": "TLSv1.3",
+              "identity": "ultra96.week7.internal"
+            }
+          },
+          {
+            "utc": "2026-09-08T15:09:17.852024+00:00",
+            "elapsed_seconds": 3.56102,
+            "event": "recovered_subscription_observed"
+          },
+          {
+            "utc": "2026-09-08T15:09:31.356098+00:00",
+            "elapsed_seconds": 17.065394,
+            "event": "receiver_count_completed",
+            "summary": {
+              "received": 100,
+              "reconnects": 1
+            }
+          },
+          {
+            "utc": "2026-09-08T15:09:31.371663+00:00",
+            "elapsed_seconds": 17.080642,
+            "event": "driver_finished",
+            "driver_exit": 0,
+            "receiver_exit": 0,
+            "capture_exit": 0,
+            "recovered_subscription_observed": true,
+            "forward_restore_pending": false,
+            "failures": [],
+            "physical_acceptance_established": false,
+            "qualification": "Controlled application listener loss/restoration; not SSH-master/VPN loss or Phone UI proof."
+          }
+        ],
+        "baseline_id_audit": {
+          "audit_passed": true,
+          "evidence_kind": "offline log correlation; no live connection or physical provenance verified",
+          "session_id": "week7-demo",
+          "minimum_count": 100,
+          "acks": 100,
+          "accepted_unique": 100,
+          "results": 100,
+          "result_unique": 100,
+          "matched": 100,
+          "exact_id_match": true,
+          "missing_results": 0,
+          "unexpected_results": 0,
+          "missing_sample": [],
+          "unexpected_sample": [],
+          "duplicate_acks": 0,
+          "repeated_accepted_acks": 0,
+          "duplicate_results": 0,
+          "complete_summary": true,
+          "interruption_events": 0,
+          "recorded_ack_count_consistent": true,
+          "recorded_runner_passed": true,
+          "source_sha256": "2068cc05c3b7eeaa38e57b1f89b3acce5df776da78d1f7fdb1f2d5f669457dd0",
+          "phone_results_sha256": "b1b257e6a05e75e85185dcfc1b92d8389c260d5c0bc0a0751d1cb430e0e15fd7"
+        },
+        "board_correlation_pending": true,
+        "qualification": "Local application listener loss/restoration; no active channel/master/VPN/UI interruption claim",
+        "raw_files": [
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-recovery-agent-20260908-230910/sender.jsonl",
+            "sha256": "2068cc05c3b7eeaa38e57b1f89b3acce5df776da78d1f7fdb1f2d5f669457dd0",
+            "bytes": 52649
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-recovery-agent-20260908-230910/phone-original/receiver.combined.log",
+            "sha256": "327f0f50d55e623444d581865060426bd2805830939feec74deb2a057eba0f7b",
+            "bytes": 17127
+          },
+          {
+            "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-recovery-agent-20260908-230910/phone-original/milestones.jsonl",
+            "sha256": "f21dc167cd81584b49c8cb3df259ba308a2b265fe763e0b3359d4088bc7f0f59",
+            "bytes": 1561
+          }
+        ]
+      },
+      "context": {
+        "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-recovery-agent-20260908-230910/context.json",
+        "bytes": 340,
+        "sha256": "1aa18425c2979e96177d2b274005c01a0ca4f62506858afea01135e050095724"
+      },
+      "controlled_application_forward_recovery_verified": true,
+      "python_receiver_restart_verified": true,
+      "active_channel_interruption_tested": false,
+      "ssh_master_loss_tested": false,
+      "vpn_loss_tested": false,
+      "physical_ios_lifecycle_tested": false,
+      "full_gate_m_acceptance": false,
+      "board_snapshot_check": {
+        "evidence": {
+          "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/evidence/forward-and-post-recovery.server.log",
+          "bytes": 1802837,
+          "sha256": "c83c7be3510befc97c2f2dfad8357a3adf029e506a073a97cee86f47e2b9bd6e"
+        },
+        "matching_rows": 100,
+        "first_id": "1:2375739948:6403",
+        "last_id": "1:2375739948:6502",
+        "exact_ordered_match": true,
+        "scope": "Later snapshot filtered to this run's expected 100 IDs; original audit remains unchanged, including its historical absent/pending board field."
+      }
     }
+  },
+  "scope_note": "The original top-level date, verified_route and phone_acceptance:false describe the preserved desktop evidence set. Added replacement_iphone_* records have separate 2026-09-08 provenance and qualified delivery outcomes; full Phone/Gate M acceptance remains unestablished.",
+  "latest_phone_capture_date_local": "2026-09-08",
+  "replacement_phone_tls_security": {
+    "evidence": {
+      "path": "D:/LetThemCook-builds/iphone-control-20260908/w7-fd3c60de/phone-tls-security-check-after-compat.stdout.json",
+      "bytes": 1180,
+      "sha256": "1bfe2ab83f1cf6294f46f88bd5f8fbf87fc808921fb5123bef94c240c74cd195"
+    },
+    "positive_tls": "TLSv1.3",
+    "wrong_identity_verify_code": 62,
+    "untrusted_ca_verify_code": 20,
+    "management_scope": "Command execution inside iSH only; does not establish iOS UI control or foreground visibility."
   }
 }

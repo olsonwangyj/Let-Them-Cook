@@ -1,13 +1,6 @@
 # Week 7 iPhone quickstart: foreground iSH experiment
 
-This prepares an actual iPhone to receive the Week 7 dummy results through its
-own SSH/TLS connection to Ultra96. **Actual iPhone delivery was verified on
-2026-09-08: 100/100 exact result IDs, with one startup timeout before the first
-result.** A clean zero-reconnect run, longer soak and lifecycle checks remain.
-Android remains the selected baseline; this experiment establishes neither an
-iOS Unity build nor background operation. The older iSH appendix's key-only
-shell job is a different recipe. The candidate below lets OpenSSH prompt for
-passwords before it backgrounds itself inside the foreground iSH app.
+The replacement iPhone's latest 100-result regression has **100 exact Packet/ACK/Phone/board IDs, zero receiver reconnects and zero checked sender error/drop/gap/callback counters**. The separate 6,100-result run has exact IDs and zero Phone reconnects, but retains one sender callback-generation discard. That long run spans 609.900 seconds of source uptime and 609.781 seconds of ACK activity; Phone results have no individual timestamps. Controlled local-forward loss/restoration and restarting the Python receiver are verified. Full-run physical foreground observation, SSH-master/VPN loss, physical app/screen lifecycle and teammate Unity integration remain unverified. See the [latest Phone evidence](week7-demo-pack/README.md#verified-iphone-evidence-2026-09-08).
 
 ## 1. Have the human complete the Phone prerequisites
 
@@ -184,7 +177,7 @@ frame/idle deadline, so start production immediately when it displays
 30 seconds while preserving the five-second partial-frame and later-result
 deadlines (decision 31). Previously installed files do not update automatically.
 Use the separately hashed [update/capture procedure](week7-iphone-startup-update.md)
-for the current physical test.
+for future captures; the updated receiver has already run on the replacement Phone. Keep the immutable original bundle distinct from that installed update.
 
 This capture step creates a fresh directory. The `tail` shell job only displays
 safe application output; SSH authentication has already finished.
@@ -247,8 +240,10 @@ test uses sender `--target 0 --duration 600`, Phone `--count 0 --duration 630`,
 fresh files and at least 5,400 correlated results. Retain timed on-device
 observation across the full production interval: Phone JSONL is deduplicated
 and contains no per-result timestamps, so counts alone prove neither continuous
-delivery nor an absence of duplicate wire arrivals. Retain separately timed
-TLS rejection and SSH/VPN/foreground recovery checks.
+delivery nor an absence of duplicate wire arrivals. Actual Phone TLS identity/CA rejection has passed. Retain separately timed
+SSH-master/VPN and physical app/screen recovery checks and the full-run visibility
+observation. Controlled local-forward restoration and Python receiver restart
+have already been verified in separate captures.
 
 Keep iSH in the foreground throughout. The project's separate
 [background mechanism](https://github.com/ish-app/ish/wiki/Running-in-background)

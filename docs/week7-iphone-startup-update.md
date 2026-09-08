@@ -15,7 +15,15 @@ TLS identity and original immutable setup ZIP are unchanged. The old receiver
 remains available at `~/week7-phone/receiver.py`.
 
 This update passed 22 Phone tests and a 215-passed/2-skipped full Python suite.
-Its new on-iPhone acceptance is still pending. Keep the tested iPhone's iSH
+The same updated receiver subsequently ran on the replacement iPhone for 100
+and 6,100 exactly correlated results, each with zero receiver reconnects and
+one retained sender callback-generation discard. See the [latest evidence](week7-demo-pack/README.md#verified-iphone-evidence-2026-09-08).
+A later regression after controlled local-forward restoration and Python
+receiver restart delivered another 100 exact IDs (`1:2375739948:6503` through
+`:6602`) with zero Phone reconnects and zero checked sender counters. Those
+captures establish execution of the deployed update; they do not
+independently prove the earlier timeout cause or that the deliberate six-second
+delay in the procedure below was exercised. Keep the tested iPhone's iSH
 app visible and screen awake, both VPNs connected, and the ESP powered by USB.
 Use the existing independently verified Laptop ingestion and Phone Gateway
 forwards over SSH port 22. No desktop subscriber should run during capture.
@@ -104,6 +112,13 @@ deriving result-only JSONL; the ID auditor alone does not establish timing or
 absence of Phone reconnects. Any overshoot, missing ID, timeout or reconnect
 remains in the saved attempt and must not be trimmed into a passing run.
 
-This 100-result check does not replace the remaining 600-second Phone soak,
-VPN/tunnel interruption, app restart, screen-lock/background observations,
-Phone TLS-negative checks, device/OS inventory or teammate Unity integration.
+The separate 6,100-result capture now covers 609.900 seconds of source uptime
+and 609.781 seconds of ACK activity with zero Phone reconnects. Its strict
+all-counters-zero audit fails only on one sender callback-generation discard.
+The Phone log has no per-result timestamps; full-run physical foreground
+confirmation remains pending. Actual Phone TLS-positive and name/CA-negative
+checks passed. Controlled local-forward loss/restoration and Python receiver
+restart have also passed. SSH-master/VPN loss, physical iOS app restart,
+screen-lock/background observations, full device/OS inventory and teammate
+Unity integration remain unverified; the original Phone's uncollected `phone100.DoakOF` capture is not
+available from the replacement device.

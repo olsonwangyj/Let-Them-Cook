@@ -84,8 +84,9 @@ standalone receiver in a separately hashed public directory and retain the
 original iPhone setup ZIP/capture evidence. Cost: an entirely silent initial
 subscription can wait up to 30 seconds before retrying; partial frames and an
 established result stream do not get this grace. The portable C#/Unity client
-is unchanged. A physical zero-reconnect rerun is still required; the earlier
-100-result delivery with its startup retry is not relabelled as uninterrupted.
+is unchanged. Actual replacement Phone runs on 2026-09-08 subsequently supplied
+zero-reconnect 100- and 6,100-result captures. The earlier 100-result delivery
+with its startup retry is not relabelled as uninterrupted.
 
 32. Permit a temporary maintenance-only SSH reverse forward to a scoped iSH
 daemon so the agent can run Phone commands and collect evidence. This resolves
@@ -135,6 +136,24 @@ New setup downloads use separately hashed v3 files; earlier v2 files and failed
 policy-check evidence remain unchanged. The source behavior is documented in
 [OpenSSH 8.6](https://github.com/openssh/openssh-portable/blob/V_8_6_P1/sshd.c#L1645-L1647)
 and the [8.7 release notes](https://www.openssh.org/txt/release-8.7).
+
+35. Recover a lost Phone SSH master with a manual, scope-checked helper while
+retaining the verified daemon, host key and private account backup. The
+operator returns the Phone VPN/iSH to foreground and runs one command; any
+needed passwords are entered at inherited terminal prompts. This avoids new
+credential storage, account enrollment and background supervision for Week 7.
+Accept an existing healthy master only after application TLS and maintenance
+host/binding checks; refuse an uncertain live master. After genuine master
+loss, require the application port free and board policy/port available,
+create only a fresh scoped master, verify both routes, then back up and
+atomically update the saved socket path. Failure cleanup targets only that
+new attempt. If iSH's daemon/kernel is lost, reconcile the old owned readiness
+record and use the v3 full setup with independent host-key verification; do not
+treat an old PID as the new daemon or bypass scope checks. The current helper
+intentionally targets the measured replacement Phone. Physical fault captures
+must run detached from management SSH, so loss of its output pipe does not
+confound the actual application behavior. See the
+[remaining physical procedures](week7-iphone-next-physical-tests.md).
 
 ## Interfaces
 

@@ -1,16 +1,12 @@
 # Week 7 Android Phone receiver
 
-**Current operator device (2026-09-07): iPhone.** Follow the separate
-[iPhone quickstart](week7-iphone-quickstart.md) for the prepared public setup
-bundle and foreground iSH password-authentication experiment. That recipe is
-not yet verified on the physical iPhone; the Android baseline below remains
-available. The older key-only iSH appendix is an alternative, not a prerequisite
-for the password recipe.
+**Current operator device (2026-09-08): replacement iPhone.** The replacement iPhone's latest 100-result regression has **100 exact Packet/ACK/Phone/board IDs, zero receiver reconnects and zero checked sender error/drop/gap/callback counters**. The separate 6,100-result run has exact IDs and zero Phone reconnects, but retains one sender callback-generation discard. That long run spans 609.900 seconds of source uptime and 609.781 seconds of ACK activity; Phone results have no individual timestamps. Controlled local-forward loss/restoration and restarting the Python receiver are verified. Full-run physical foreground observation, SSH-master/VPN loss, physical app/screen lifecycle and teammate Unity integration remain unverified. See the [latest Phone evidence](week7-demo-pack/README.md#verified-iphone-evidence-2026-09-08).
 
-For the current connected iPhone, the [direct SSH import procedure](week7-iphone-ssh-import.md)
-downloads that same public bundle from Ultra96 over port 22 after bootstrapping
-the two verified host keys. This is an alternative to transferring the ZIP
-through the Files app; physical iPhone execution still needs confirmation.
+Use the [iPhone quickstart](week7-iphone-quickstart.md), [startup update](week7-iphone-startup-update.md)
+and [temporary maintenance guide](week7-iphone-control.md) for current iSH setup.
+The [direct SSH import](week7-iphone-ssh-import.md) was executed on the earlier
+iPhone. The Android instructions below remain an alternative; their actual
+Android/Unity acceptance is separate from the recorded iPhone Python results.
 
 The selected baseline is an Android Phone running its own OpenSSH local forward
 in Termux and either the standalone Python receiver or the Unity sample. The
@@ -305,14 +301,14 @@ as Phone or Ultra96 deployment evidence.
 - After evidence collection, stop Python/Unity and the Phone SSH command, release
   the wake lock, and confirm no test forward remains running.
 
-## Optional iOS appendix: foreground iSH JSON experiment — untested
+## Historical iOS appendix: alternative key-authentication recipe
 
-Android remains the selected baseline. This appendix prepares a possible minimal
-iPhone demonstration using **one foreground iSH app**: its OpenSSH process owns
-the local forward and its Python process prints received JSON. It does not add
-an iOS Unity integration or establish any physical Phone acceptance. A Windows
-PnP inventory entry named iPhone does not prove a connected, unlocked, controllable
-device, installed iSH, or a working network path.
+This appendix preserves an earlier alternative key-authentication recipe.
+The recorded replacement-iPhone runs used the current setup linked above;
+they do not verify every command in this historical recipe. In the iSH route,
+OpenSSH owns the local forward and Python receives JSON. Actual packet delivery
+is now recorded, while iOS Unity integration and full-run physical foreground
+visibility remain unverified. A Windows PnP entry alone establishes none of these.
 
 The [official iSH site](https://ish.app/) describes a local Linux shell for iOS
 and links its distribution channels. The project documents
@@ -328,21 +324,24 @@ Local forwarding needs an actual device check. Historical
 and mixed user outcomes; a
 [maintainer reply](https://github.com/ish-app/ish/issues/408#issuecomment-513810489)
 identifies the background-execution limitation. Combining these capabilities
-into the following same-app foreground route is an engineering inference, not
-a reproduced iPhone result. If it fails, record the failure and retain Android
-as the runnable baseline; do not claim that a successful SSH login proves the
-forward or TLS receiver works.
+into the historical recipe below was originally an engineering inference.
+The current Phone procedure has since produced actual correlated results;
+do not treat that evidence as validation of every alternative setup command.
+If this recipe fails, retain its failure. SSH login alone does not prove the
+application forward or TLS receiver works.
 
 ### Human setup on the iPhone
 
 An operator must install/open iSH from a channel linked by the official project,
 provision authorized Phone-owned SSH credentials and independently verified
 host keys, and establish the required network/VPN access. VPN/password access
-through both hops has worked from the Laptop; iPhone access remains untested.
+through both hops has now worked from the actual iPhone as well as the Laptop;
+each new device still requires its own authorized access.
 The background shell-job recipe below specifically requires usable key/agent
 authentication because it cannot prompt. That is a constraint of this recipe,
 not an institutional requirement to enroll an SSH key. These commands are
-instructions for that operator; none were executed on an iPhone here.
+instructions for an alternative setup; the current actual Phone provenance
+is linked at the start of this guide.
 
 Inside iSH, install the packages and inspect the actual runtime:
 
@@ -461,12 +460,14 @@ does not supervise/restart an exited SSH process.
 
 ### Evidence still required
 
-Record actual iPhone/iOS/iSH/Alpine/Python/OpenSSH versions, successful authorized
-SSH on both hops, local-forward operation, TLS CA/name rejection checks, the
-100-result correlation and a separate 600-second foreground soak. Also check
-cleanup, interruption and foreground recovery on that exact device. No such iOS
-execution, installation, credential provisioning or result delivery was observed
-in this task.
+The current replacement-Phone records establish iSH execution, independent
+application forwarding, TLS CA/name rejection, exact 100- and 6,100-result
+correlation, controlled local-forward restoration and Python receiver restart.
+The long source/ACK spans exceed 600 seconds, with one retained callback discard.
+Still record complete iPhone/iOS/iSH inventory, full-run physical foreground
+observation, SSH-master/VPN loss, physical app/screen lifecycle and teammate
+Unity integration. These requirements are not satisfied by this historical
+recipe or by the captured JSONL alone.
 
 Do not switch to Unity, another app or a locked screen and assume SSH continues.
 iSH's [background guide](https://github.com/ish-app/ish/wiki/Running-in-background)

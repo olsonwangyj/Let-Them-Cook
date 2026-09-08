@@ -16,6 +16,10 @@ interactive directives and reloading only the verified scoped daemon. Fresh
 authentication and policy checks passed. See the continuation report for
 packet evidence and remaining physical lifecycle actions.
 
+The [next physical test guide](week7-iphone-next-physical-tests.md) records the
+already staged bounded capture, manual master-resume and full-restart files,
+their hashes, exact operator actions and cleanup order.
+
 ## Selected design and implementation sequence
 
 Use a dedicated, key-only iSH SSH daemon and a maintenance forward through the

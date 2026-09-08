@@ -76,7 +76,7 @@ p { margin:0; line-height:1.4; }
 <section class="sheet" aria-labelledby="architecture-title">
 <p class="eyebrow">CG4002 / Week 7 / Connection demonstration</p>
 <h1 id="architecture-title">One ESP. A verified connection path.</h1>
-<p class="subtitle">Real ESP and Ultra96 hardware deliver 100 matching dummy results to the actual iPhone.</p>
+<p class="subtitle">Real ESP and Ultra96 hardware deliver 6,100 matching dummy results to the actual iPhone.</p>
 <div class="banner"><strong>Ultra96 external access: TCP 22 (SSH) only</strong><span>TLS services stay on Ultra96 loopback.</span></div>
 <svg class="architecture" viewBox="0 0 1026 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
 <title id="flow-title">Verified ESP-to-iPhone demonstration data flow</title>
@@ -101,7 +101,7 @@ p { margin:0; line-height:1.4; }
 <div class="card"><h2>Phone owns a separate tunnel</h2><span class="port mono">Phone 19999 &rarr; Ultra96 9999</span><p>Both ends bind <span class="mono">127.0.0.1</span>. The Phone opens TLS, sends <b>SUBSCRIBE</b>, then receives live <b>GESTURE_RESULT</b>.</p></div>
 </div>
 <p class="micro" style="margin-top:11px">Each SSH connection reaches Ultra96 port 22 through the institutional jump host. Host keys are verified; TLS validates the demo CA and <span class="mono">ultra96.week7.internal</span>.</p>
-<div class="note"><b>100/100 actual Phone delivery.</b> One startup read-timeout retry preceded the first result; no further reconnect was logged. Phone 600-second, lifecycle and Unity checks remain pending.</div>
+<div class="note"><b>Actual Phone: 100/100 and 6,100/6,100.</b> Latest 100: zero reconnects and checked counters. Long run: one callback discard. Local-forward recovery verified; physical foreground/lifecycle and Unity remain unverified.</div>
 <footer class="footer"><span>Source: <a href="../week7-selected-design-2026-09-06.md">selected design</a> + <a href="README.md#verified-iphone-evidence-2026-09-08">2026-09-08 iPhone evidence</a> &middot; Recorded evidence, not live status</span><strong>01 / 03</strong></footer>
 </section>
 
@@ -139,23 +139,23 @@ p { margin:0; line-height:1.4; }
 <section class="sheet" aria-labelledby="evidence-title">
 <p class="eyebrow">CG4002 / Week 7 / Evidence and live show</p>
 <h1 id="evidence-title">Show the trace. State the boundary.</h1>
-<p class="subtitle">Actual iPhone: 100 exact results with one startup retry. The clean ten-minute soak used a desktop viewer.</p>
+<p class="subtitle">Actual iPhone: 6,100 exact results across 609.900 s of source activity; zero receiver reconnects.</p>
 <div class="metric-grid">
-<div class="metric primary"><div class="label">Actual iPhone / 100 messages</div><div class="value">100 / 100</div><p>Phone results / matching sender ACKs.<br>Sender duration: 14.078 s.</p><small>One startup TimeoutError before first result.<br>No further logged reconnect; receiver exit 0.</small></div>
-<div class="metric"><div class="label">Desktop / clean 600-second soak</div><div class="value">5,965 / 5,965</div><p>Accepted ACKs / exact matching results.<br>Zero stream and transport errors.</p><small>600.563 s; one BLE/TLS/subscriber connection; no reboot. One shutdown callback discard.</small></div>
-<div class="metric"><div class="label">Observed USB / RESET faults</div><div class="value">2,715 + 5,832</div><p>Exact ACK/result matches in separate physical interruption runs.</p><small>USB: 300.422 s; RESET: 600.422 s.<br>New boots; auth mode 13, MTU 517.<br>Both remain <span class="mono">passed=false</span>.</small></div>
+<div class="metric primary"><div class="label">Actual iPhone / latest long run</div><div class="value">6,100 / 6,100</div><p>Exact Packet / ACK / Phone / board IDs.<br>Zero Phone reconnects; six saved exits 0.</p><small>Source / ACK spans: 609.900 / 609.781 s.<br>One sender callback discard; strict zero-drop check fails. Phone timing unmeasured.</small></div>
+<div class="metric"><div class="label">Actual iPhone / after recovery</div><div class="value">100 / 100</div><p>Exact IDs <span class="mono">:6503</span> through <span class="mono">:6602</span>.<br>Zero Phone reconnects; sender 14.078 s.</p><small>Zero checked error/drop/gap/callback counters. Sender/receiver exits 0; separate capture/wrapper exit files absent.</small></div>
+<div class="metric"><div class="label">Phone / local-forward recovery</div><div class="value">100 / 100</div><p>Listener removed, refusal observed,<br>TLS restored, then fresh results.</p><small>One expected receiver reconnect.<br>Receiver restart also verified.<br>No SSH-master/VPN or iOS UI loss tested.</small></div>
 </div>
 <div class="evidence-bottom">
 <div><h2>Live show checklist</h2><ol class="checklist">
 <li><b>Establish provenance.</b> VPN connected; verify host trust, actual Ultra96 service and loopback listeners.</li>
 <li><b>Open independent SSH forwards.</b> Laptop <span class="mono">18888 &rarr; 8888</span>; Phone <span class="mono">19999 &rarr; 9999</span>. Both use Ultra96 SSH port 22. Stop the desktop subscriber.</li>
-<li><b>Subscribe before sending.</b> Capture full Phone output; start the logging BLE sender. Keep any startup retry in the evidence.</li>
+<li><b>Subscribe before sending.</b> Capture full Phone output; start the logging BLE sender. Retain retries and every drop counter.</li>
 <li><b>Point to one shared trace.</b> Show device, boot, sequence, accepted ACK and matching result ID in the separate streams.</li>
 <li><b>Finish with counted evidence.</b> Show exact ID-set match, duration and error/drop metrics; close owned clients and forwards.</li>
 </ol><p class="smallprint">Use this pack's README and runbooks for commands. If the board path is unavailable, label an offline walkthrough explicitly.</p></div>
-<div><div class="pending"><h2>Pending: Phone soak + Unity</h2><p><b>Phone:</b> 100-message delivery is verified with one startup retry. A zero-reconnect rerun, 600-second test and lifecycle recovery remain pending. New startup-grace behavior is not yet tested on Phone.</p><p><b>Unity:</b> build the supplied component and complete teammate integration. Portable C# tests do not establish Unity acceptance.</p></div>
+<div><div class="pending"><h2>Pending: physical lifecycle + Unity</h2><p><b>Phone:</b> source/ACK activity exceeded 600 s; JSONL has no Phone timestamps. Full-run visible foreground confirmation is pending. The long-run display helper covered only the latter 339.476 s. SSH-master/VPN loss and physical app/screen actions remain untested.</p><p><b>Unity:</b> target build and teammate integration remain pending. Exact-ID delivery is not full Gate M acceptance.</p></div>
 <p class="smallprint"><b>Observed physical recovery:</b> USB-only power loss caused a 21.431 s serial outage; the separate RESET kept serial open. Maximum ACK/result gaps: USB 25.656/25.594 s; RESET 14.000/13.938 s. Both recovered with new boots and matching board-log traces.</p>
-<p class="smallprint"><b>Final desktop check after USB/RESET:</b> 100/100 exact matches in 13.797 s; maximum ACK/result gap 0.250 s. All reported errors, drops and callback discards were zero.</p>
+<p class="smallprint"><b>Actual Phone trust:</b> TLS 1.3 accepted; wrong name / untrusted CA rejected (codes 62 / 20). <b>Earlier desktop soak:</b> 5,965 exact matches in 600.563 s, with one shutdown callback discard. Historical physical recovery remains desktop evidence.</p>
 </div>
 </div>
 <footer class="footer"><span>Sources: <a href="README.md#verified-iphone-evidence-2026-09-08">full iPhone log + audit</a>, <a href="../week7-continuation-report-2026-09-07.md">desktop and physical recovery report</a> &middot; No official rubric acceptance claim</span><strong>03 / 03</strong></footer>
