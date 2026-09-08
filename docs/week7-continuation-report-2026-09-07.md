@@ -674,6 +674,56 @@ sequence verifies both Phone hashes, stages the six-second-delay Laptop helper,
 then sources the short Phone capture helper and starts the sender after
 SUBSCRIBED. No new physical packet run has yet been observed.
 
+### Startup-grace rerun — 2026-09-08 20:31 local time
+
+The new Laptop capture is
+`D:\LetThemCook-builds\iphone-live-20260907\phone100-20260908-203121`.
+Its context records revision `98e958f`, an operator start marker at
+`2026-09-08T12:31:46.3572949Z`, and the intentional six-second delay. The pasted
+terminal names the delayed helper and prints its delay announcement. The
+sender's own elapsed time excludes that delay; exact Phone subscription-to-first
+result latency is not timestamped.
+
+Two independent audits found **201 matching saved/pasted JSON records**:
+100 raw/decoded packets, 100 accepted ACKs and one passing summary. IDs are
+unique, ordered and contiguous, **1:2375739948:101..200**. All 32-byte fields,
+dummy values and 100 ms uptime increments validate. Sender duration is
+**13.938 s**, first/last ACK **3.906/13.703 s**, maximum inter-ACK gap
+**0.188 s**, and maximum including shutdown tail **0.235 s**. There is one
+BLE and one ingestion connection; **every error, drop, duplicate, gap, reboot
+and callback-discard counter is zero**. Sender exit is 0 and stderr empty.
+Sequence 100 lies between measured attempts and is not assigned a proven
+disposition. Sender SHA-256 is
+`c833b038db625ca7a5e2fe2be0cd9fe113aaaafa5c5df4d6fffa13ad51d5329c`.
+
+The actual board independently accepted the same 100 IDs exactly once, from
+**12:31:56,601 to 12:32:06,458 UTC**. The observed full-log snapshot is 1,221,235
+bytes with SHA-256
+`6761a4fb7d8fc4e70e923564637366c9ed1bd4d9c28001f7d997f66977a8e1b88`.
+Local `sender-audit.json` and `board-acceptance-observation.json` retain checks
+and source hashes, distinguishing remotely observed output from a downloaded
+board log.
+
+The operator's iSH tail reports **received=100, reconnects=0, capture exit 0,
+receiver exit 0**, saved in **`/root/week7-evidence/phone100.DoakOF`**. The ten
+visible complete result records, sequences 191–200, have the correct gesture
+cycle/confidence and match sender ACKs; local `phone-operator-summary.json`
+records that limited observation. The full new Phone capture has not yet
+arrived on the board (only the earlier `phone100.DDMJjm` was present). Collect
+it and compare all 100 IDs before promoting this reported zero-reconnect result
+to fully audited acceptance. Retain the earlier startup-retry evidence.
+
+The following longer test will use matching **6,100-message** sender/Phone
+targets and **660-second** overall failure limits. At the source's 10 Hz cadence,
+that gives roughly 609.9 seconds between first/last generated packets, providing
+margin beyond 600 seconds and letting the Phone exit naturally before a
+post-sender idle timeout. Verify actual source/ACK timing and an independently
+timed foreground Phone observation; count alone does not establish Phone gap
+timing. Sender target polling can overshoot, so preserve complete logs and fail
+any extra ACK/result-set mismatch rather than trim the attempt. The updated
+receiver remains bounded as selected in decision 31; no additional protocol
+or implementation change is needed for these test parameters.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
