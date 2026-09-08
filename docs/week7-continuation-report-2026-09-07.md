@@ -480,6 +480,20 @@ still requires the scoped master check/restart and fresh Phone probe, followed
 by a new coordinated capture. The receiver and sender have not been started
 during this resumption preflight.
 
+The next operator-pasted iSH output contained `ash: missing ]` in the scoped
+socket discovery and post-start guard lines; the displayed commands were
+missing the intended `||` separators. That discovery attempt therefore did
+not reliably establish whether a prior master existed. The subsequent fresh
+SSH command reported **`SSH startup exit=0`** after authentication (one jump
+password attempt was rejected before the successful retry). The final shell
+guard also failed, so do not interpret the wrapper status as a complete
+readiness check or start another tunnel immediately. The next instruction is
+a standalone scoped `-S "$week7_ssh_socket" -O check`, followed by the separate
+strict TLS probe only if the master check succeeds. Use simple individual
+commands for this paste path. At 10:40:08 UTC the Laptop 18888 owner remained
+36432 and both actual board-loopback app listeners were still present. Current
+Phone master/TLS and the packet capture remain unverified.
+
 | Area | Completed evidence | What still requires unavailable hardware or human action |
 |---|---|---|
 | A–E firmware, discovery, counter, MTU, packet | Both builds/upload, >5 min serial, dedicated 1,001-counter and 600 s counter runs, exact protected MTU boundary, fixed 32-byte packet and real stream; separately observed live USB-only power loss and physical RESET with new boots/protected recovery | No remaining listed physical interruption check on this ESP |
