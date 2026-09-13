@@ -81,7 +81,14 @@ communications/security decisions without rewriting physical acceptance.
   passes. Imported vendor whitespace is preserved instead of reformatted.
 - Existing communications runtime was not changed, so its historical test-suite
   results are not presented as a new run. Import checks do not certify app
-  correctness. Remote publication is checked after committing below.
+  correctness.
+
+Delivery commit **`e49c7777908a84c8e3a962de8503217d2829e979`** was pushed to
+`origin/main`. Git LFS reported **247/247 distinct objects, approximately 698 MB,
+uploaded successfully**; the Git push completed with exit 0. A subsequent remote
+branch query matched the delivery commit, the working tree was clean, and
+`git lfs fsck` passed. This report update is a follow-up documentation commit on
+the same branch. No iOS build or physical result is implied by publication.
 
 ## Next work and remaining physical acceptance
 
