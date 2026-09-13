@@ -25,3 +25,9 @@ ios-visualizer/**/build/
 !ios-visualizer/xcode-export/Il2CppOutputProject/IL2CPP/build/**
 ios-visualizer/**/Il2CppTempDirArtifacts/
 ios-visualizer/*.png
+
+# Native iOS integration dependencies and local evidence.
+ios-visualizer/Week7Native/.build/
+ios-visualizer/Week7Native/.swiftpm/
+ios-visualizer/NativePreview/*.xcodeproj/
+ios-visualizer/NativePreview/Info.plist

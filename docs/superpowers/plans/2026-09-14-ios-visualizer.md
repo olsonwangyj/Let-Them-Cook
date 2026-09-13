@@ -20,38 +20,38 @@
 Files: `ios-visualizer/Week7Native/Sources/Week7Core/{Protocol,DisplayState}.swift`, `Tests/Week7CoreTests/ProtocolTests.swift`.
 Interfaces: `Week7Protocol.subscribe(session: String) throws -> [UInt8]`; `FrameDecoder.feed(_ bytes: [UInt8]) throws -> [[UInt8]]`; `Week7Protocol.subscribed(_ body: [UInt8], session: String) throws`; `Week7Protocol.result(_ body: [UInt8], session: String) throws -> GestureResult`; GestureResult immutable public `json`, `resultID`, `gesture`, `seq` properties. Display state is thread-safe, exposes monotonically fresh snapshots and generation-aware accept/clear.
 
-- [ ] Add failing tests with literal SUBSCRIBED/result bodies, fragmented/coalesced frames, exact uint32 limits, duplicate decoded keys, wrong types/fields/session/dummy values, UTF-8 failures, overflow and frame boundaries.
-- [ ] Implement bounded lexical JSON validation and framing. Example expectation: result ID `1:7:42` maps to `OPEN`; `seq:42.0` and duplicate `seq` reject.
-- [ ] Test first-byte deadline policy, generation discard, reconnect dedup and 2s display expiry at controlled monotonic times; implement state without timers in core.
-- [ ] Run `swift test --package-path ios-visualizer/Week7Native --filter Week7CoreTests` and report actual red/green evidence.
+- [x] Add failing tests with literal SUBSCRIBED/result bodies, fragmented/coalesced frames, exact uint32 limits, duplicate decoded keys, wrong types/fields/session/dummy values, UTF-8 failures, overflow and frame boundaries.
+- [x] Implement bounded lexical JSON validation and framing. Example expectation: result ID `1:7:42` maps to `OPEN`; `seq:42.0` and duplicate `seq` reject.
+- [x] Test first-byte deadline policy, generation discard, reconnect dedup and 2s display expiry at controlled monotonic times; implement state without timers in core.
+- [x] Run `swift test --package-path ios-visualizer/Week7Native --filter Week7CoreTests` and report actual red/green evidence.
 
 ## Task 2: Native SSH/TLS transport
 
 Files: `Sources/Week7Transport/*.swift`, `Tests/Week7TransportTests/*.swift` in the same package.
 Interfaces: `SSHRoute` with board host/user/password/hostKey, optional jump host/user/password/hostKey and `caPEM`; `Week7Client(route:session:onStatus:onResult:)`, `start()`, `stop()`; callbacks can occur off main thread. Result callback returns Task1 GestureResult; stop invalidates callbacks and closes the entire owned root channel. Fixed production ports22/9999; test-only fixture constructors may inject ephemeral local ports internally.
 
-- [ ] Build failing tests of exact host-key matching and CA/hostname rejection against local SSH/TLS peers; actual app uses this same transport.
-- [ ] Implement NIOSSH password delegate, exact NIOSSHPublicKey comparison and direct-tcpip byte wrapper. Nest board SSH inside jump channel. TLS handler uses imported CA, `.fullVerification`, minimum `.tlsv12`, serverHostname constant.
-- [ ] Send exactly one SUBSCRIBE after TLS, require SUBSCRIBED; frame deadlines5s, first ever result first-byte grace30s, reconnect0.5..5s, bounded cancellation.
-- [ ] Test local two-hop success, trust/auth rejection, partial-frame deadlines, cancellation during connect/live stream, connection recovery and no retired callbacks.
+- [x] Build failing tests of exact host-key matching and CA/hostname rejection against local SSH/TLS peers; actual app uses this same transport.
+- [x] Implement NIOSSH password delegate, exact NIOSSHPublicKey comparison and direct-tcpip byte wrapper. Nest board SSH inside jump channel. TLS handler uses imported CA, `.fullVerification`, minimum `.tlsv12`, serverHostname constant.
+- [x] Send exactly one SUBSCRIBE after TLS, require SUBSCRIBED; frame deadlines5s, first ever result first-byte grace30s, reconnect0.5..5s, bounded cancellation.
+- [x] Test local two-hop success, trust/auth rejection, partial-frame deadlines, cancellation during connect/live stream, connection recovery and no retired callbacks.
 
 ## Task 3: Actual Unity bridge, private setup and reproducible build
 
 Files: `Sources/Week7Bridge/*.swift`, `ios-visualizer/native/*`, `ios-visualizer/tools/*`, targeted exported receiver bodies/Xcode configuration.
 Interfaces: C ABI `Week7Start()`, `Week7CopyDisplay(char*, int32_t)->int32_t`, `Week7Stop()`. Main-thread Unity Update calls CopyDisplay into fixed buffer, creates Il2CppString, invokes the existing TMP_Text virtual setter.
 
-- [ ] Run import baseline check after LFS hydration; store evidence locally. Build initially with upload disabled to expose real compiler issues.
-- [ ] Write reproducible guarded export patch; fail on unknown input rather than guessing. Preserve method signatures, structs, registration tables, scene and metadata.
-- [ ] Add UIKit setup panel with board/jump usernames, secure password fields and CA document import. Persist only public config. Show CA SHA256 for comparison. User starts/stops session explicitly.
-- [ ] Store latest result/status only; old generation cannot update text. Register background observer to close and forget credentials. Foreground shows reconnect instructions.
-- [ ] Add local SwiftPM product to UnityFramework, C ABI references to generated GameAssembly, camera/local-network descriptions and export-compliance metadata as appropriate to actual included crypto.
-- [ ] Build full arm64 app with `CODE_SIGNING_ALLOWED=NO`; inspect linked symbols and assets. Signing/install require real identity/device; document absent inputs.
+- [x] Run import baseline check after LFS hydration; store evidence locally. Build initially with upload disabled to expose real compiler issues.
+- [x] Write reproducible guarded export patch; fail on unknown input rather than guessing. Preserve method signatures, structs, registration tables, scene and metadata.
+- [x] Add UIKit setup panel with board/jump usernames, secure password fields and CA document import. Persist only public config. Show CA SHA256 for comparison. User starts/stops session explicitly.
+- [x] Store latest result/status only; old generation cannot update text. Register background observer to close and forget credentials. Foreground shows reconnect instructions.
+- [x] Add local SwiftPM product to UnityFramework, C ABI references to generated GameAssembly, camera/local-network descriptions and export-compliance metadata as appropriate to actual included crypto.
+- [x] Build full arm64 app with `CODE_SIGNING_ALLOWED=NO`; inspect linked symbols and assets. Signing/install require real identity/device; document absent inputs.
 
 ## Task 4: Verification, review and publication
 
-- [ ] Run existing Python suite in isolated venv plus Swift suite and local actual-package SSH/TLS rehearsals. Save bounded logs, no secrets.
-- [ ] Independently review protocol/security/lifecycle and generated export integration; fix findings and rerun affected checks.
-- [ ] Update README, continuation report and exact human device steps with decisions, evidence and limitations.
+- [x] Run existing Python suite in isolated venv plus Swift suite and local actual-package SSH/TLS rehearsals. Save bounded logs, no secrets.
+- [x] Independently review protocol/security/lifecycle and generated export integration; fix findings and rerun affected checks.
+- [x] Update README, continuation report and exact human device steps with decisions, evidence and limitations.
 - [ ] Verify staged secret/whitespace checks; commit on `codex/ios-visualizer-week7-native`, push and verify remote commit. No merge or PDF.
 
 ## Rulings and progress
@@ -62,3 +62,17 @@ Interfaces: C ABI `Week7Start()`, `Week7CopyDisplay(char*, int32_t)->int32_t`, `
 - Native first-result grace follows the current Python client decision, not the older5s C# behavior.
 - Read-only context/scene audits complete; original Unity source, real Week7 CA, signing identity and attached iPhone absent initially.
 - Task ownership: protocol agent owns Week7Core; transport agent owns Week7Transport; root owns package manifest, bridge/Xcode/scripts, documentation and integration.
+
+## Verification progress and review decisions
+
+- Original import verified: 3,480 files / 1,470,729,976 bytes; LFS fsck passed. No original Unity source, real CA, signing identity or attached iPhone was found.
+- Core implements strict protocol/framing and 23 tests. Review reproduced/fixed a callback timestamp racing a later UI poll; fresh data is accepted while stale data is rejected.
+- Transport tests use real nested SSH/TLS. Review required ownership of all connection candidates, deferred-password revocation, retryable SSH disconnects and a single established-frame deadline; fixes have regression tests.
+- Actual Python board/native interoperability passed 100 ordered unique results through both SSH hops; no board drops/rejections.
+- Actual arm64 Unity Debug and Release builds succeeded, including all three C ABI symbols. Final native suite: 54 tests passed; Python suite: 246 passed, four skipped, 49 subtests. Independent review has no remaining high/medium findings.
+- Native simulator UI test passed blank-setup validation and password clearing on background; CUA visual inspection confirmed readable landscape settings. It is explicitly a shared-module harness, not Unity device acceptance.
+- Review expanded the actual scene TMP rectangle with anchors/autosizing; no scene binary/metadata edit was necessary.
+- Reapply scripts now validate exact receiver hashes and complete package-reference wiring before writes. Eighteen script/harness tests passed.
+- Cleared 16 inherited Unity upload settings (one distinct 64-character value) and two remaining teammate target-level signing attributes. Default symbol upload is disabled; previously published credential validity is untested and owner rotation is an external action.
+- Mac Python regression fixture now delegates non-/proc readlink calls to the real function, preserving macOS /var symlink behavior; runtime Phone code is unchanged.
+- Build/report finalization retains the original import manifest and restores only generated compiler diagnostics. User's chosen finish is commit/push the feature branch, with no merge.

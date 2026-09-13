@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# Local Week 7 builds never upload symbols to an inherited Unity account.
+# Opt in only with an explicitly configured account in a private build.
+if [ "${WEEK7_ALLOW_SYMBOL_UPLOAD:-NO}" != "YES" ]; then
+    exit 0
+fi
+
 #  process_symbols
 #
 #  Copyright (c) 2015 Unity Technologies. All rights reserved.

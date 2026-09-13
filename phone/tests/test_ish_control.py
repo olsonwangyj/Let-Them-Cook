@@ -217,7 +217,16 @@ class HelperTests(unittest.TestCase):
             scope = Path("/root/week7-control/run")
             (process / "stat").write_text("123 (sshd) " + " ".join(["S", "1", "123", "123"] + ["0"] * 18))
             expected_links = {str(process / "exe"): "/usr/sbin/sshd", str(process / "fd" / "2"): str(scope / "sshd.log")}
-            with patch.object(control.os, "readlink", side_effect=lambda path: expected_links[str(path)]):
+            real_readlink = control.os.readlink
+
+            def readlink(path):
+                # Only emulate /proc entries. realpath must still resolve host
+                # symlinks, including macOS /var -> /private/var.
+                if str(path) in expected_links:
+                    return expected_links[str(path)]
+                return real_readlink(path)
+
+            with patch.object(control.os, "readlink", side_effect=readlink):
                 control.verify_scoped_process(123, scope, proc)
                 expected_links[str(process / "fd" / "2")] = "/var/log/another-sshd.log"
                 with self.assertRaisesRegex(control.ControlError, "PROCESS_UNVERIFIED"):

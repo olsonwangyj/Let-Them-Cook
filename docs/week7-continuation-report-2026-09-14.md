@@ -1,4 +1,133 @@
-# Week 7 continuation: iOS delivery and Mac handoff — 2026-09-14
+# Week 7 continuation: native iOS integration — 2026-09-14
+
+## Current Mac outcome
+
+The actual Unity Xcode export now contains a compatible native Phone subscriber.
+It owns its SSH connection through Ultra96 TCP22, verifies the Week 7 TLS CA and
+service hostname, subscribes using the existing framed protocol, and updates the
+scene's existing TextMeshPro label. The old inbound TLS receiver is disabled.
+The reusable implementation, tests and reproducible export scripts are in
+[the native integration guide](../ios-visualizer/NATIVE-INTEGRATION.md).
+
+**Verified:** full unsigned arm64 Unity Debug and Release builds; 54 Swift tests; 246 Python
+tests (4 platform-dependent skips, 49 subtests); shared native UI test on an iOS
+simulator; 100-result interoperability with the actual Python board server over
+two real local SSH hops. **Not verified:** signed install or execution of the
+Unity app on a physical iPhone, campus VPN/account access from this app, actual
+Windows BLE/ESP32 chain, or physical lock/background recovery. Historical iSH
+acceptance below remains separate.
+
+Work began on a clean `main` at `bf38f83`, equal to fetched `origin/main`, and
+continues on **`codex/ios-visualizer-week7-native`**. No merge to main or PDF was
+made. The original Unity source was not found in this checkout or the bounded
+Documents search; its absence does not prevent this native-export build.
+
+## Mac decisions and reasons
+
+These extend IOS-01..12 below and the selected communications contract. The
+user explicitly delegated routine design/implementation/approval decisions.
+
+| ID | Decision | Reason / consequence |
+| --- | --- | --- |
+| IOS-13 | Work in the clean existing checkout on a new feature branch | Preserves the requested Mac location and avoids duplicating the 1.47 GB export; main stays unchanged. |
+| IOS-14 | Install Git LFS and verify the original baseline before edits | Initial checkout contained 275 LFS pointers. Hydration, LFS fsck and all 3,480 baseline hashes then passed. |
+| IOS-15 | Link a native Swift package into UnityFramework and patch existing generated lifecycle bodies | Detached C# cannot update this export. Start/Update/OnDestroy retain existing registration and serialized layout; Update invokes the actual assigned TMP label. |
+| IOS-16 | Use app-owned SwiftNIO SSH, optionally nested through the existing campus jump host | Both SSH destinations remain pinned to TCP22. The Phone does not depend on foreground iSH or the Laptop for results. Dependencies and resolved revisions are pinned. |
+| IOS-17 | Carry TLS within a direct-tcpip stream to board 127.0.0.1:9999 | Preserves the existing board route and TLS protocol while removing the need for a Phone TCP19999 listener. No board application port becomes externally reachable. |
+| IOS-18 | Pin both already enrolled Ed25519 host keys and the documented Week 7 CA SHA-256 | CA import rejects even a valid unrelated public certificate. TLS still validates the full chain, validity and `ultra96.week7.internal`; trust rotation needs independent verification. |
+| IOS-19 | Use foreground password entry for both SSH hops, with memory-only revocable storage | The existing physical route used passwords; Windows private credentials are unavailable here. Deferred authentication cannot recover passwords after stop. No credential files or account changes are introduced. |
+| IOS-20 | Stop on app deactivation/background and require explicit reconnect on return | Prevents reliance on unproven iOS background lifetime. This also stops for system UI that deactivates the app. Passwords are cleared; uninterrupted background reception is not promised. |
+| IOS-21 | Keep only the newest display result, with 2-second monotonic freshness and 4,096-ID dedup | Bounds memory and avoids displaying queued old data. Count reflects accepted unique results within the current explicit Connect session, not persistent exactly-once delivery. |
+| IOS-22 | Adopt the current Python client's 30-second initial first-byte grace, then one 5-second frame budget | Allows operator-controlled BLE startup without permitting slow partial frames. Established streams keep 5-second deadlines. |
+| IOS-23 | Retry transient network/SSH forwarding failures with 0.5..5-second backoff; make auth/trust/schema failures terminal | Allows recovery without repeated wrong-password attempts or accepting untrusted peers. User corrects setup and explicitly reconnects after terminal failure. |
+| IOS-24 | Own every allocated connection candidate and revoke callback generations before teardown | Review found multi-address connection and cancellation races. Regression tests verify that pending candidates close and retired callbacks cannot update fresh UI. |
+| IOS-25 | Stretch the delivered TMP label using runtime RectTransform anchors and font autosizing | The original fixed 200×50 rectangle could not fit status/result/count. The existing label now uses 90% canvas width, 70% height and 18..36 font autosizing without scene/metadata binary edits. |
+| IOS-26 | Fail closed when replaying patches onto unknown or incomplete exports | Exact receiver hashes and the complete Xcode package-reference chain are checked before writes. Reviewed patch upgrades and idempotent reapplication are tested. |
+| IOS-27 | Remove 16 inherited Unity symbol-upload settings and two remaining target-level teammate signing attributes; disable symbol upload by default | A local build should not publish to a teammate account. The 16 entries held one repeated 64-character token; validity was not tested. Earlier Git history still contains it; an authorized owner should revoke/rotate it if active. No history rewrite was attempted. |
+| IOS-28 | Install iOS support and add a small simulator host for the same native UI module | The SDK was present but Xcode could not build storyboards until platform support was installed. The host verifies native UI behavior; it does not replace physical Unity acceptance. |
+| IOS-29 | Fix only the Mac-specific mock in the existing iSH test | The mock incorrectly intercepted macOS `/var` symlink resolution. It now delegates non-/proc links to the real function; Phone runtime code is unchanged. |
+| IOS-30 | Preserve the original import manifest and exclude regenerated compiler diagnostics from delivery | The manifest remains provenance. Native source/configuration changes are explicit; build-time profile/trace/compile-data rewrites are restored rather than published as product edits. |
+
+## What changed in the actual app
+
+`Week7Core` validates bounded UTF-8 frames and exact schemas; tests include
+malformed UTF-8/BOM, duplicate decoded keys, invalid integer forms/ranges,
+non-finite numbers, wrong sessions and deterministic result mismatches.
+`Week7Transport` owns SSH/TLS, subscription, deadlines and recovery.
+`Week7Bridge` supplies CA import, native settings and the C ABI display mailbox.
+No asynchronous worker retains a managed Unity object pointer.
+
+The enabled delivered `NetworkManager` receiver references the existing
+`Text (TMP)` component in `Data/level0`. Only generated method bodies and native
+build configuration changed. No scene or IL2CPP metadata binary was edited.
+The legacy ListenLoop is also disabled, so direct invocation cannot reopen port 5005.
+
+The setup button uses the export's existing UIWindowScene lifecycle. The form
+persists only public CA/configuration and usernames in protected app storage,
+excluded from backup. Passwords are never encoded into settings. The native
+client makes no remote shell requests and sends no application bytes after
+SUBSCRIBE. There is no plaintext, hostname bypass or accept-any-host-key mode.
+
+## Verification evidence on this Mac
+
+Toolchain: macOS 26.5.1/arm64, Xcode 26.2 (17C52), Swift 6.2.3, iPhoneOS 26.2 SDK,
+iOS 26.3.1 simulator runtime, Git LFS 3.8.0. Python tests use the ignored
+`.week7-local/venv` with Python 3.13; the real board rehearsal uses the available
+`python3` CLI and standard-library server. New temporary test PKI and owned
+server processes are cleaned up; no institutional accounts were contacted.
+
+| Check | Result and evidence |
+| --- | --- |
+| Import provenance | `IMPORT_OK`: 3,480 files / 1,470,729,976 bytes before edits; LFS fsck passed. `.week7-local/evidence/import-baseline.txt`, `lfs-fsck.txt`. |
+| Full native suite | `swift test --package-path ios-visualizer/Week7Native`: **54 passed**, 0 failed. `.week7-local/evidence/swift-final.txt`. |
+| Existing and export Python suite | `.week7-local/venv/bin/python -m pytest -q`: **246 passed**, 4 skipped, 49 subtests. `.week7-local/evidence/python-final.txt`. |
+| Reproducible export integration | **18 tests passed**, including compiled C++ lifecycle/layout/display harness, patch upgrade/idempotence and rejection of broken Xcode wiring. Included in the Python total. |
+| Actual Python board/native interoperability | **100 ordered unique results**, IDs `1:7:0` through `1:7:99`, native SSH→SSH→TLS; board accepted 100 / subscribers 1 with zero duplicates, rejections, drops, stale or disconnected results. Included in the Swift total; `swift-python-board-green.log`. |
+| Negative/lifecycle tests | Both wrong SSH pins, wrong password/CA/hostname, expired leaf, invalid subscription/result schema, prefix/body/idle deadlines, reconnect, multiple address candidates, credential revocation and stop during pending/live work. Included in the Swift total. |
+| Actual Unity Debug and Release apps | Both `xcodebuild … -scheme Unity-iPhone -configuration Debug/Release … CODE_SIGNING_ALLOWED=NO`: **BUILD SUCCEEDED**. `xcode-final-debug.log`, `xcode-final-release.log`; all three `_Week7Start`, `_Week7CopyDisplay`, `_Week7Stop` symbols resolved in both app-bundled UnityFramework binaries. |
+| Shared native UI simulator | **1 UI test passed**, including blank-setup rejection and password clearing on background. `native-ui-final.log` and the matching `.xcresult` under `.week7-local/PreviewDerivedData/Logs/Test/`. Settings were also visually inspected in landscape. |
+| Final provenance/bundle audit | Exactly 3,476 baseline files unchanged and four reviewed imported source/configuration edits. Both app bundles retain the native bridge, correct display/encryption metadata and no PFX/P12. `import-final-delta.txt`, `app-verification.json`; final LFS fsck passes. |
+| Independent whole-change review | No remaining high/medium findings. Earlier callback/candidate/deadline/credential/layout/reapply findings were fixed with regression tests; a README table formatting issue was corrected. |
+| Device/signing discovery | `xcrun devicectl list devices`: **No devices found**. `security find-identity -v -p codesigning`: **0 valid identities**. |
+
+Full logs/builds remain in the ignored `.week7-local` directory on this Mac.
+They are local evidence, not a claim of remote hardware acceptance. Imported
+Unity/native dependencies emit deprecation and unavailable original debug-path
+warnings; the original vendor files were not broadly refactored.
+
+## Exact next human actions
+
+1. Open `ios-visualizer/xcode-export/Unity-iPhone.xcodeproj`. Select your Apple
+   development team and an available app bundle ID; connect/unlock/trust the
+   iPhone and enable Developer Mode. Run the Unity-iPhone scheme. Expected:
+   Unity scene plus **Week 7 Connect**, with no attempt to load `server.pfx`.
+2. Transfer the existing **public** Week 7 CA to Files. Its SHA-256 must be
+   `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`.
+   Import it in the app, enable the required Phone VPN, enter board/jump
+   usernames and passwords, and Connect. Expected: **Subscribed**.
+3. Stop competing subscribers. Start the existing board service and Windows BLE
+   bridge per the [Week 7 runbook](week7-runbook.md), then power/pair the ESP32
+   dummy firmware. After Subscribed, capture 100 unique results. Pass: app count,
+   board/Windows trace IDs and REST/FIST/OPEN/POINT mapping agree; no malformed
+   or stale label appears. Save observed Phone evidence and board/bridge logs.
+4. Interrupt and restore network access, then perform an observed lock/return
+   trial. Expected: the app clears the live result, stops its channels and
+   forgets passwords when deactivated. Enter passwords and Connect again;
+   fresh subscription/results must resume without an old-generation label.
+   Record this physical result separately; screen-lock recovery is still pending.
+5. Have the authorized owner review/revoke the previously imported Unity upload
+   token if it was active. Obtain original Unity source for a future source-level
+   integration if desired; it is not required to test this native-export build.
+
+These are the remaining physical/account/private-input actions. No routine
+coding approval is pending. App-owned campus authentication, real Phone TLS,
+camera/ARKit behavior and complete ESP32→BLE→Windows→Ultra96→iPhone acceptance
+cannot be established from host tests or unsigned builds.
+
+## Historical import and Mac handoff
+
+The following preserved report describes the import before native integration.
+Its statements that integration/builds were pending are historical.
 
 The user requested a clearer name for the teammate's `unity/` folder, a commit
 and push, and an autonomous GPT-6 Mac prompt for work while they sleep. This task

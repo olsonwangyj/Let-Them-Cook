@@ -38,7 +38,8 @@ Passwords are supplied in secure text fields, kept in memory for reconnect only,
 and discarded when disconnected or the app is backgrounded. No password save,
 logging, automatic account enrollment or silent host-key replacement.
 
-Import the real public Week 7 CA PEM via the document picker; configuration and
+Import the real public Week 7 CA PEM via the document picker, requiring the
+already enrolled SHA-256 fingerprint from the Phone runbook; configuration and
 public CA may be stored in the app's private directory with data protection.
 No private keys or PFX imports. SwiftNIO TLS uses only that CA, full certificate
 and hostname verification for `ultra96.week7.internal`, TLS >=1.2, bounded

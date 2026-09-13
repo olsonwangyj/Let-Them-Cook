@@ -1,0 +1,53 @@
+name: Week7NativePreview
+options:
+  deploymentTarget:
+    iOS: '15.0'
+packages:
+  Week7Native:
+    path: ../Week7Native
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CODE_SIGNING_ALLOWED: NO
+targets:
+  Week7NativePreview:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: Week7Native
+        product: Week7Native
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: '1,2'
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Week 7 Native Preview
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+  Week7NativePreviewUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: Week7NativePreview
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Week7NativePreview:
+    build:
+      targets:
+        Week7NativePreview: all
+    test:
+      targets: [Week7NativePreviewUITests]

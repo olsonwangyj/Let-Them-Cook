@@ -1,13 +1,18 @@
 # iOS visualizer delivery
 
 Jieling's Week 7 delivery, imported on 2026-09-14 from the former root `unity/`
-folder. **Integration is pending. This is an Xcode export, not the original Unity
-Editor project, and its original receiver is incompatible with the board client
-protocol.** Start the Mac work with the
+folder. **Native integration is implemented in this branch; physical iPhone acceptance
+remains pending. This is an Xcode export, not the original Unity Editor project.**
+See [native build, setup and verification](NATIVE-INTEGRATION.md). The original
+receiver remains incompatible as reference; the actual export uses native client
+hooks. Start the Mac work with the
 [autonomous agent prompt](../docs/week7-mac-agent-prompt.md).
 
 | Path | Purpose |
 | --- | --- |
+| `Week7Native/` | App-linked Swift protocol, Phone-owned SSH/TLS and native settings |
+| `tools/patch_export.py`, `tools/configure_xcode.py` | Guarded receiver hooks and local package integration |
+| `NativePreview/` | Same native UI module in a simulator test host; not Unity acceptance |
 | `xcode-export/Unity-iPhone.xcodeproj` | Native Xcode project; renamed outer directory preserves internal paths |
 | `xcode-export/Il2CppOutputProject/` | Generated C++ and supplied IL2CPP compiler inputs |
 | `xcode-export/Data/`, `Frameworks/`, `Libraries/` | Required Unity app data and native dependencies |
@@ -25,9 +30,14 @@ modifying the imported files:
 git lfs install --local
 git lfs pull
 git lfs fsck
-python3 ios-visualizer/verify-import.py
+python3 ios-visualizer/tools/patch_export.py
+python3 ios-visualizer/tools/configure_xcode.py
 open ios-visualizer/xcode-export/Unity-iPhone.xcodeproj
 ```
+
+The original baseline was verified before this integration. On this branch,
+`verify-import.py` intentionally reports the documented native edits. For the
+original import commit only, it should pass unchanged.
 
 The manifest describes the import baseline. An intentional later edit should
 change its hash; retain the original inventory as provenance rather than
@@ -47,19 +57,21 @@ proof of the export's Xcode version.
 
 No original `Assets/`, `Packages/` or `ProjectSettings/` source project was supplied.
 Xcode builds the generated C++ using the included IL2CPP tools. A new C# file
-outside that pipeline will not change the app. Obtain/use original Unity source
-when available, or make a deliberate, reproducible native integration in this
-export and document its limitations. See
+outside that pipeline will not change the app. This branch supplies a guarded
+native integration; original Unity source would allow a future source-level
+adapter. See
 [Unity's Xcode project structure](https://docs.unity3d.com/6000.0/Documentation/Manual/StructureOfXcodeProject.html).
 
-Automatic signing remains configured; eight teammate development-team settings
-were cleared. The Mac must use the user's available signing identity. Signing,
-device trust and SDK availability have not been tested here. The existing bundle
+Automatic signing remains configured. The original eight teammate build settings
+and two remaining target-level team attributes were cleared. Xcode 26.2 and its
+iOS SDK successfully built the actual app in Debug and Release. This Mac has no
+valid signing identity or attached physical iPhone, so signing/install/device
+trust remain pending. The existing bundle
 identifier is `com.CookingCompany.unityTutorial`; select a suitable user-owned
 identifier during provisioning. Nineteen script/native-tool executable bits are
 stored in Git for macOS checkout.
 
-## Protocol mismatch to resolve
+## Original protocol mismatch and native replacement
 
 | Concern | Delivered reference | Selected Week 7 contract |
 | --- | --- | --- |
@@ -70,8 +82,9 @@ stored in Git for macOS checkout.
 | Trust | Phone server PFX, self-signed localhost cert | Client verifies Week 7 CA and `ultra96.week7.internal` |
 | UI delivery | Main-thread label fed by unbounded queue | Bounded, fresh, validated results with reconnect/cancellation |
 
-The existing reusable client is in `phone/unity/`; its adapter needs actual iOS
-build/UI/SSH integration. The supplied reference additionally lacks bounded
+The existing reusable C# client remains in `phone/unity/`. This branch supplies
+the iOS build/UI/SSH integration through the app-linked native package. The
+supplied reference additionally lacks bounded
 lines/queues, schema/session validation, handshake/read deadlines, and robust
 active-client shutdown. Port 5005 alone does not establish compatibility. Keep
 board application ports private; only SSH TCP22 is externally reachable.
@@ -89,7 +102,8 @@ available automatically on the Mac and is not required for the intended client.
 - Replaced the old password with the equal-length placeholder `REMOVED` in the
   reference C#, serialized `Data/level0`, and
   `Data/Managed/Metadata/global-metadata.dat`. File lengths are preserved;
-  serialized/app runtime validity still requires Mac build/device validation.
+  Mac builds now pass; serialized scene/app runtime validity still requires
+  physical-device validation.
 - Excluded Apple archive metadata, Xcode user state and the personal signing
   screenshot. Retained third-party libraries/licenses and generated source paths.
 - Cleared eight nonempty teammate signing-team settings. No board service,
