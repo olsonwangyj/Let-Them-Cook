@@ -7,7 +7,9 @@ import Crypto
 import Week7Core
 @testable import Week7Transport
 
-// Every secret here is generated for a loopback-only test and deleted at teardown.
+// Every secret here is generated for loopback-only tests. macOS creates fresh
+// PKI directly; iOS copies a fresh authority from the host-generated test bundle.
+// Both paths delete their private temporary copy at teardown.
 final class TestPKI {
     let directory: URL
     let ca: String
@@ -18,6 +20,17 @@ final class TestPKI {
         self.directory = directory
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         do {
+            #if os(iOS)
+            let fixture = try IOSFixturePool.shared.take(hostname: hostname, expired: expired)
+            for filename in ["ca.pem", "server.pem", "server.key"] {
+                let source = fixture.appendingPathComponent(filename)
+                let destination = directory.appendingPathComponent(filename)
+                guard try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]).isRegularFile == true,
+                      try source.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw FixtureError.pki }
+                try FileManager.default.copyItem(at: source, to: destination)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            }
+            #else
             let config = """
             [req]
             distinguished_name=dn
@@ -64,6 +77,7 @@ final class TestPKI {
             } else {
                 try run(["x509", "-req", "-in", "server.csr", "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-out", "server.pem", "-days", "1", "-extfile", "config", "-extensions", "server"])
             }
+            #endif
             ca = try String(contentsOf: directory.appendingPathComponent("ca.pem"))
             certificate = try NIOSSLCertificate.fromPEMFile(directory.appendingPathComponent("server.pem").path)[0]
             key = try NIOSSLPrivateKey(file: directory.appendingPathComponent("server.key").path, format: .pem)
@@ -74,6 +88,40 @@ final class TestPKI {
     }
     deinit { try? FileManager.default.removeItem(at: directory) }
 }
+
+#if os(iOS)
+private final class FixtureBundleAnchor: NSObject {}
+
+/// Tests that construct an unrelated CA must never accidentally reuse an
+/// authority. Exhaustion and unsupported fixture variants fail closed.
+private final class IOSFixturePool: @unchecked Sendable {
+    static let shared = IOSFixturePool()
+    private let lock = NSLock()
+    private var consumed: [String: Int] = [:]
+
+    func take(hostname: String, expired: Bool) throws -> URL {
+        let kind: String
+        let capacity: Int
+        switch (hostname, expired) {
+        case ("ultra96.week7.internal", false): kind = "valid"; capacity = 8
+        case ("wrong.week7.internal", false): kind = "wrong-host"; capacity = 2
+        case ("ultra96.week7.internal", true): kind = "expired"; capacity = 2
+        default: throw FixtureError.pki
+        }
+        lock.lock(); defer { lock.unlock() }
+        let index = consumed[kind, default: 0]
+        guard index < capacity,
+              let root = Bundle(for: FixtureBundleAnchor.self).url(forResource: "Week7FixturePKI", withExtension: nil) else {
+            throw FixtureError.pki
+        }
+        consumed[kind] = index + 1
+        let fixture = root.appendingPathComponent(String(format: "%@-%02d", kind, index), isDirectory: true)
+        let values = try fixture.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else { throw FixtureError.pki }
+        return fixture
+    }
+}
+#endif
 
 enum FixtureError: Error { case pki, forbiddenTarget, incorrectSubscription }
 

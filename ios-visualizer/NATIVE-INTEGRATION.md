@@ -106,23 +106,48 @@ accepted unique results in the current explicit Connect session. No replay or
 persistent exactly-once delivery is promised. Local freshness cannot measure
 source-to-display latency because the selected result schema has no timestamp.
 
-## Simulator UI check
+## Simulator UI and transport checks
 
 `NativePreview` is an optional test host for the **same** Swift bridge/settings
-module. It does not include Unity/ARKit or synthesize gesture success. Its test
-checks setup validation and that backgrounding clears passwords. With XcodeGen
-installed:
+module. It does not include Unity/ARKit or synthesize gesture success. The UI
+test checks setup validation and that backgrounding clears passwords. A separate
+unit-test target runs the existing transport suite on iOS: real loopback SSH
+through both hops, verified TLS, trust failures, framing, retry and cancellation.
+With XcodeGen installed, generate fresh disposable test certificates before each
+test run:
 
 ```sh
+python3 ios-visualizer/NativePreview/tools/generate_test_pki.py
 xcodegen generate --spec ios-visualizer/NativePreview/project.yml
 xcodebuild -project ios-visualizer/NativePreview/Week7NativePreview.xcodeproj \
+  -scheme Week7NativeTransport -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/Week7NativePreview" \
+  -jobs 4 -parallel-testing-enabled NO test
+xcodebuild -project ios-visualizer/NativePreview/Week7NativePreview.xcodeproj \
   -scheme Week7NativePreview -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -derivedDataPath .week7-local/PreviewDerivedData test
+  -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/Week7NativePreview" \
+  -jobs 4 test
 ```
 
-A successful simulator test proves the native UI behavior, not the delivered
-Unity scene on a physical Phone. Full-app build, shared-client tests and actual
-physical acceptance remain separate evidence categories.
+The generator creates short-lived, unrelated authorities in ignored
+`.week7-local/Week7FixturePKI`. Only the transport XCTest bundle copies their
+certificates and disposable server keys. During testing, Xcode embeds that bundle
+under the preview host's `PlugIns` directory. The delivered Unity app has no such
+test bundle or fixture resources.
+Each fixture allocation uses a distinct authority, and the loader rejects missing
+or exhausted fixtures. Production CA enrollment, hostname verification and fixed
+ports are unchanged. The actual Python board interoperability test remains a
+macOS test because it launches host processes.
+
+Use the standard Library location above for simulator build products. When this
+checkout is under Documents, an absolute debug-framework path into a repository
+DerivedData directory can stall the simulator's loader on a macOS privacy request.
+Building the test products in Library avoids requiring source-folder access from
+the simulator; no privacy setting needs to be changed.
+
+Simulator results establish native iOS UI/transport behavior against local test
+peers. They do not establish the delivered Unity scene on a physical Phone,
+institutional VPN authentication, BLE hardware, or physical lock recovery.
 
 ## Physical acceptance still required
 

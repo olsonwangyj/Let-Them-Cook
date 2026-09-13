@@ -54,7 +54,29 @@ Interfaces: C ABI `Week7Start()`, `Week7CopyDisplay(char*, int32_t)->int32_t`, `
 - [x] Update README, continuation report and exact human device steps with decisions, evidence and limitations.
 - [x] Verify staged secret/whitespace checks; commit on `codex/ios-visualizer-week7-native`, push and verify remote commit. No merge or PDF.
 
-## Rulings and progress
+## Task 5: Follow-up native iOS transport execution
+
+User requested continuation after publication. A fresh check still found no
+device or signing identity. The bounded remaining validation is to run the
+existing transport tests inside iOS, where `Foundation.Process` cannot create
+their temporary OpenSSL certificates. The chosen test-only adaptation generates
+distinct short-lived fixture authorities on the Mac, copies them into the XCTest
+bundle, and allocates them once under a lock. Application trust/configuration and
+production source remain unchanged. The user's autonomous authorization applies.
+
+- [x] Generate isolated fixture resources and add the iOS fixture loader while preserving macOS generation/cleanup.
+- [x] Add the simulator transport XCTest target; run its 26 existing tests and rerun the shared setup UI test.
+- [x] Verify macOS transport regressions and ensure fixture keys appear only in the test bundle.
+- [ ] Independently review the changes, update evidence, commit/push and verify the remote branch.
+
+Follow-up evidence: 26 iOS transport/trust tests and the setup UI test passed;
+27 macOS transport tests passed again. OpenSSL verified all twelve distinct
+fixture authorities and rejection cases; independent review found no actionable
+issues. Test bundles alone contain disposable server keys. Xcode test products
+now use the standard Library DerivedData location after a loader/TCC stall when
+loading dynamic debug frameworks from Documents; no privacy setting changed.
+
+## Earlier rulings and progress
 
 - Work in clean existing checkout on feature branch, avoiding duplicate large import. Agents own disjoint source directories and never commit concurrently.
 - Internal SSH direct stream replaces an unnecessary local TCP19999 listener; board route and Phone ownership remain unchanged.

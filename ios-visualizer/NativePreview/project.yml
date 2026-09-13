@@ -5,6 +5,9 @@ options:
 packages:
   Week7Native:
     path: ../Week7Native
+  SwiftNIO:
+    url: https://github.com/apple/swift-nio.git
+    exactVersion: 2.102.0
 settings:
   base:
     SWIFT_VERSION: '5.0'
@@ -44,6 +47,26 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview.uitests
         GENERATE_INFOPLIST_FILE: YES
+  Week7NativeTransportTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ../Week7Native/Tests/Week7TransportTests/LocalPeers.swift
+      - path: ../Week7Native/Tests/Week7TransportTests/TransportTests.swift
+      - path: ../Week7Native/Tests/Week7TransportTests/TrustTests.swift
+      - path: ../../.week7-local/Week7FixturePKI
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: Week7NativePreview
+      - package: SwiftNIO
+        product: NIOEmbedded
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview.transporttests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Week7NativePreview.app/Week7NativePreview
+        BUNDLE_LOADER: $(TEST_HOST)
 schemes:
   Week7NativePreview:
     build:
@@ -51,3 +74,11 @@ schemes:
         Week7NativePreview: all
     test:
       targets: [Week7NativePreviewUITests]
+  Week7NativeTransport:
+    build:
+      targets:
+        Week7NativePreview: all
+    test:
+      targets:
+        - name: Week7NativeTransportTests
+          parallelizable: false

@@ -12,7 +12,7 @@ hooks. Start the Mac work with the
 | --- | --- |
 | `Week7Native/` | App-linked Swift protocol, Phone-owned SSH/TLS and native settings |
 | `tools/patch_export.py`, `tools/configure_xcode.py` | Guarded receiver hooks and local package integration |
-| `NativePreview/` | Same native UI module in a simulator test host; not Unity acceptance |
+| `NativePreview/` | Shared native UI and SSH/TLS simulator tests; not Unity device acceptance |
 | `xcode-export/Unity-iPhone.xcodeproj` | Native Xcode project; renamed outer directory preserves internal paths |
 | `xcode-export/Il2CppOutputProject/` | Generated C++ and supplied IL2CPP compiler inputs |
 | `xcode-export/Data/`, `Frameworks/`, `Libraries/` | Required Unity app data and native dependencies |

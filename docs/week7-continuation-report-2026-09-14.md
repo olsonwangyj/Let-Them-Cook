@@ -10,8 +10,9 @@ The reusable implementation, tests and reproducible export scripts are in
 [the native integration guide](../ios-visualizer/NATIVE-INTEGRATION.md).
 
 **Verified:** full unsigned arm64 Unity Debug and Release builds; 54 Swift tests; 246 Python
-tests (4 platform-dependent skips, 49 subtests); shared native UI test on an iOS
-simulator; 100-result interoperability with the actual Python board server over
+tests (4 platform-dependent skips, 49 subtests); 26 transport/trust tests executed
+inside the iOS simulator in addition to the shared native UI test; 100-result
+interoperability with the actual Python board server over
 two real local SSH hops. **Not verified:** signed install or execution of the
 Unity app on a physical iPhone, campus VPN/account access from this app, actual
 Windows BLE/ESP32 chain, or physical lock/background recovery. Historical iSH
@@ -30,6 +31,15 @@ and credential checks passed; the working tree was clean after the implementatio
 commit. This publication record is a documentation-only follow-up. All available
 Mac implementation, build, testing and review work is complete; the remaining
 physical/account steps are listed below.
+
+After the user requested continuation, device/signing discovery again returned
+no physical device and zero valid identities. One further runtime check
+was completed: the existing transport tests now run inside iOS itself using an
+XCTest fixture bundle. The 26 simulator tests passed; the 27 macOS transport
+tests, including actual Python board interoperability, also passed again. These
+are additional platform executions of existing tests, not new physical hardware
+acceptance. Production app source and the Unity export did not change.
+The setup UI test also passed again using the new simulator build location.
 
 ## Mac decisions and reasons
 
@@ -56,6 +66,8 @@ user explicitly delegated routine design/implementation/approval decisions.
 | IOS-28 | Install iOS support and add a small simulator host for the same native UI module | The SDK was present but Xcode could not build storyboards until platform support was installed. The host verifies native UI behavior; it does not replace physical Unity acceptance. |
 | IOS-29 | Fix only the Mac-specific mock in the existing iSH test | The mock incorrectly intercepted macOS `/var` symlink resolution. It now delegates non-/proc links to the real function; Phone runtime code is unchanged. |
 | IOS-30 | Preserve the original import manifest and exclude regenerated compiler diagnostics from delivery | The manifest remains provenance. Native source/configuration changes are explicit; build-time profile/trace/compile-data rewrites are restored rather than published as product edits. |
+| IOS-31 | Execute the existing transport/trust tests in an iOS XCTest host using generated fixture PKI | macOS-only OpenSSL process creation previously prevented iOS execution. A locked pool provides distinct, short-lived authorities; test copies are cleaned up and production trust is unchanged. |
+| IOS-32 | Use Xcode's standard Library DerivedData directory for simulator tests | A repository-derived absolute debug-framework path under Documents stalled the loader on a macOS privacy request before main. Moving generated test products to Library resolved it without changing privacy controls. |
 
 ## What changed in the actual app
 
@@ -95,11 +107,17 @@ server processes are cleaned up; no institutional accounts were contacted.
 | Negative/lifecycle tests | Both wrong SSH pins, wrong password/CA/hostname, expired leaf, invalid subscription/result schema, prefix/body/idle deadlines, reconnect, multiple address candidates, credential revocation and stop during pending/live work. Included in the Swift total. |
 | Actual Unity Debug and Release apps | Both `xcodebuild … -scheme Unity-iPhone -configuration Debug/Release … CODE_SIGNING_ALLOWED=NO`: **BUILD SUCCEEDED**. `xcode-final-debug.log`, `xcode-final-release.log`; all three `_Week7Start`, `_Week7CopyDisplay`, `_Week7Stop` symbols resolved in both app-bundled UnityFramework binaries. |
 | Shared native UI simulator | **1 UI test passed**, including blank-setup rejection and password clearing on background. `native-ui-final.log` and the matching `.xcresult` under `.week7-local/PreviewDerivedData/Logs/Test/`. Settings were also visually inspected in landscape. |
+| Native iOS transport runtime follow-up | **26 tests passed**, zero failures, inside iOS 26.3.1 simulator: two-hop/direct SSH, verified TLS, wrong trust/password/hostname, expired leaf, framing, deadlines, reconnect and cancellation. `ios-transport-simulator-final.log`; `.xcresult` in `~/Library/Developer/Xcode/DerivedData/Week7NativePreview/Logs/Test/`. |
+| Native UI follow-up | **1 UI test passed again**, including blank setup and password clearing on background, using the Library build location. `ios-ui-continuation-final.log`; matching `.xcresult` alongside the transport result. |
+| macOS transport follow-up | **27 tests passed**, zero failures after adapting test PKI loading. `transport-macos-fixture-adaptation.log`; production package source was unchanged. |
+| Simulator fixture safety | Twelve unique CAs/leaves; ten valid chains; two expired and twelve unrelated-CA rejections; expected hostnames/key matching; 0700 directories/0600 files; foreign content preserved and symlink output rejected. `ios-test-pki-verification.json`. |
+| Fixture bundle isolation | All twelve disposable server keys reside only in the XCTest bundle under the simulator preview host's `PlugIns`; neither actual Unity Debug nor Release app contains fixture resources or test bundles. `ios-fixture-bundle-audit.json`. |
 | Final provenance/bundle audit | Exactly 3,476 baseline files unchanged and four reviewed imported source/configuration edits. Both app bundles retain the native bridge, correct display/encryption metadata and no PFX/P12. `import-final-delta.txt`, `app-verification.json`; final LFS fsck passes. |
-| Independent whole-change review | No remaining high/medium findings. Earlier callback/candidate/deadline/credential/layout/reapply findings were fixed with regression tests; a README table formatting issue was corrected. |
+| Independent whole-change review | No remaining high/medium findings. Earlier callback/candidate/deadline/credential/layout/reapply findings were fixed with regression tests; a README table formatting issue was corrected. Separate follow-up fixture/generator/Xcode review found no actionable issues. |
 | Device/signing discovery | `xcrun devicectl list devices`: **No devices found**. `security find-identity -v -p codesigning`: **0 valid identities**. |
 
-Full logs/builds remain in the ignored `.week7-local` directory on this Mac.
+Full logs and Unity builds remain in the ignored `.week7-local` directory on this
+Mac; follow-up simulator products/results are under the Library path above.
 They are local evidence, not a claim of remote hardware acceptance. Imported
 Unity/native dependencies emit deprecation and unavailable original debug-path
 warnings; the original vendor files were not broadly refactored.
