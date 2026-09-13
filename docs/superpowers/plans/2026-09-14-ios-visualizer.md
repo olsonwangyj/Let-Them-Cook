@@ -52,7 +52,7 @@ Interfaces: C ABI `Week7Start()`, `Week7CopyDisplay(char*, int32_t)->int32_t`, `
 - [x] Run existing Python suite in isolated venv plus Swift suite and local actual-package SSH/TLS rehearsals. Save bounded logs, no secrets.
 - [x] Independently review protocol/security/lifecycle and generated export integration; fix findings and rerun affected checks.
 - [x] Update README, continuation report and exact human device steps with decisions, evidence and limitations.
-- [ ] Verify staged secret/whitespace checks; commit on `codex/ios-visualizer-week7-native`, push and verify remote commit. No merge or PDF.
+- [x] Verify staged secret/whitespace checks; commit on `codex/ios-visualizer-week7-native`, push and verify remote commit. No merge or PDF.
 
 ## Rulings and progress
 
@@ -76,3 +76,4 @@ Interfaces: C ABI `Week7Start()`, `Week7CopyDisplay(char*, int32_t)->int32_t`, `
 - Cleared 16 inherited Unity upload settings (one distinct 64-character value) and two remaining teammate target-level signing attributes. Default symbol upload is disabled; previously published credential validity is untested and owner rotation is an external action.
 - Mac Python regression fixture now delegates non-/proc readlink calls to the real function, preserving macOS /var symlink behavior; runtime Phone code is unchanged.
 - Build/report finalization retains the original import manifest and restores only generated compiler diagnostics. User's chosen finish is commit/push the feature branch, with no merge.
+- Implementation commit `33f8c7e127e810b9c5071feac9aee8ba7a16c34b` was pushed and independently confirmed with `git ls-remote`; main remains `bf38f83d9ca3d621258ac32b8de9f3d789042651`. All available Mac tasks are complete; only documented physical/account/private-input actions remain.

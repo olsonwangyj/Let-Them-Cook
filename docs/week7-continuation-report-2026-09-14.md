@@ -22,6 +22,15 @@ continues on **`codex/ios-visualizer-week7-native`**. No merge to main or PDF wa
 made. The original Unity source was not found in this checkout or the bounded
 Documents search; its absence does not prevent this native-export build.
 
+**Publication:** implementation commit `33f8c7e127e810b9c5071feac9aee8ba7a16c34b`
+was pushed to [the feature branch](https://github.com/olsonwangyj/Let-Them-Cook/tree/codex/ios-visualizer-week7-native).
+An independent `git ls-remote` check confirmed that exact remote commit and
+unchanged `main` at `bf38f83d9ca3d621258ac32b8de9f3d789042651`. Staged whitespace
+and credential checks passed; the working tree was clean after the implementation
+commit. This publication record is a documentation-only follow-up. All available
+Mac implementation, build, testing and review work is complete; the remaining
+physical/account steps are listed below.
+
 ## Mac decisions and reasons
 
 These extend IOS-01..12 below and the selected communications contract. The
