@@ -5,3 +5,23 @@ __pycache__/
 .week7-local/
 *.pem
 *.key
+*.pfx
+*.p12
+*.mobileprovision
+
+# Only the reviewed public reference certificate belongs in the iOS delivery.
+!ios-visualizer/reference/teammate-localhost-cert.pem
+
+# macOS archive metadata and per-user Xcode/build output.
+__MACOSX/
+.DS_Store
+._*
+xcuserdata/
+*.xcuserstate
+ios-visualizer/**/DerivedData/
+ios-visualizer/**/build/
+# The exported IL2CPP compiler is a required input, despite its directory name.
+!ios-visualizer/xcode-export/Il2CppOutputProject/IL2CPP/build/
+!ios-visualizer/xcode-export/Il2CppOutputProject/IL2CPP/build/**
+ios-visualizer/**/Il2CppTempDirArtifacts/
+ios-visualizer/*.png

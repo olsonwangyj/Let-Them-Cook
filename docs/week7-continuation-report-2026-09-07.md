@@ -1,5 +1,8 @@
 # Week 7 Ultra96 continuation — 2026-09-07
 
+**Latest handoff:** [2026-09-14 iOS delivery and autonomous Mac work](week7-continuation-report-2026-09-14.md).
+The teammate export is now available; the physical evidence below is preserved.
+
 This report continues local completion at `03790c1` and the pre-VPN retry at `ec7a08e`, in `D:\LetThemCook-worktrees\week7-stage-d-onward` on `feature/week7-stage-d-onward`. The user's original autonomous authorization remains in force. Earlier failures, firmware evidence and local soaks are preserved in the [previous report](week7-continuation-report-2026-09-06.md). The [selected design](week7-selected-design-2026-09-06.md) now records 35 decisions; no protocol or security approval is pending.
 
 ## Physical testing deferred by operator — 2026-09-09

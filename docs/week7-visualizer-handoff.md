@@ -1,9 +1,13 @@
 # Week 7 visualizer teammate handoff
 
-Request the target phone OS and Unity version; the Unity project/repository
-(including the scene or UI controller to integrate); the desired display for
-`REST`, `FIST`, `OPEN`, `POINT`; and an installable test build/device session.
-A changing text label is sufficient for the Week 7 dummy connection demo.
+Jieling's iPhone delivery is now in [ios-visualizer](../ios-visualizer/README.md).
+Start with the [autonomous Mac prompt](week7-mac-agent-prompt.md) and
+[current decisions and findings](week7-continuation-report-2026-09-14.md).
+It is a Unity 6000.5.10f1 Xcode/IL2CPP export; original Unity Editor source was
+not included. Her receiver is a TLS server on port 5005 using newline strings,
+while the selected Phone protocol requires a framed-JSON TLS client. A port
+change alone cannot integrate them. A changing REST/FIST/OPEN/POINT label, count
+and connection status suffice for the selected Week 7 dummy demo.
 
 The existing [Unity adapter](../phone/unity/Week7PhoneReceiver.cs) exposes
 `On Result Json`, a main-thread `UnityEvent<string>`. The communications side
@@ -12,17 +16,17 @@ CA and SSH setup. The app uses Phone localhost port 19999 through its own SSH
 tunnel to Ultra96; the board exposes SSH port 22 only. See the
 [Phone runbook](week7-phone-runbook.md#unity-sample) for setup.
 
-The supplied Unity sample targets native Android and still requires compilation
-in her project and a device integration test. Actual iPhone results so far are
-Python/iSH reception. An iPhone Unity target needs its own SSH/lifecycle
+The supplied reusable Unity sample targeted native Android and still requires
+actual iOS compilation, scene integration and a device test. Existing iPhone
+results are Python/iSH reception. The iPhone Unity app needs its own SSH/lifecycle
 integration and install/signing route; switching from iSH to Unity is not an
-established working transport. Confirm the target before promising that build.
+established working transport. Editing the detached teammate C# reference does
+not update the generated Xcode app. Use original source if available; otherwise
+complete independent work and investigate a documented native export adapter.
 
-Copyable message:
+If original Unity source cannot be found on the Mac, request it later:
 
-> Hi, our Week 7 dummy-packet communications are working. Could you send me your
-> Unity project, Unity version and target phone (Android/iPhone), and tell me how
-> REST/FIST/OPEN/POINT should appear in the UI? I have a C# receiver ready for
-> integration; a changing label is enough for the demo. Then we can test a build
-> together. Please flag an iPhone target because its Unity connection still
-> needs integration.
+> Hi Jieling, thanks! Could you also send the original Unity project, including
+> Assets, Packages and ProjectSettings? I received the Xcode export. Our Phone
+> needs a TLS client with length-prefixed JSON, while the supplied receiver is a
+> TLS server on 5005, so I'm adapting it and need the scene/UI source too.

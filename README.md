@@ -7,7 +7,10 @@ Week 7 implements a protected ESP32 BLE dummy stream, a bounded Windows bridge, 
 - [Current selected architecture and every Week 7 design decision](docs/week7-selected-design-2026-09-06.md)
 - [Setup, deployment, recovery and physical acceptance runbook](docs/week7-runbook.md)
 - [Android/Unity receiver setup](docs/week7-phone-runbook.md)
-- [Latest Ultra96 continuation evidence and remaining work](docs/week7-continuation-report-2026-09-07.md)
+- [Latest iOS delivery, decisions and remaining work](docs/week7-continuation-report-2026-09-14.md)
+- [iOS visualizer Xcode export and Mac setup](ios-visualizer/README.md)
+- [Autonomous GPT-6 Mac execution prompt](docs/week7-mac-agent-prompt.md)
+- [Ultra96 and actual iPhone Python evidence](docs/week7-continuation-report-2026-09-07.md)
 - [Earlier local, firmware and BLE evidence](docs/week7-continuation-report-2026-09-06.md)
 - [Original A–M gate definitions](docs/week7-development-plan.md)
 

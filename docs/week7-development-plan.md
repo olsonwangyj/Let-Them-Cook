@@ -1,5 +1,7 @@
 # Week 7 Communications Test-Gated Implementation Plan
 
+> Current iOS handoff (2026-09-14): [delivery, decisions and Mac continuation](week7-continuation-report-2026-09-14.md). Teammate iOS export is received; integration is pending. Read the current report before interpreting historical unresolved items below.
+
 > Current execution authority (updated 2026-09-07): the user explicitly authorized autonomous resolution of all design and approval checkpoints. [Selected Week 7 decisions](week7-selected-design-2026-09-06.md), [completion plan](superpowers/plans/2026-09-06-week7-completion.md), and [latest Ultra96 evidence](week7-continuation-report-2026-09-07.md) supersede this historical plan's unresolved/approval/"Gate A only" instructions. Its A–M physical acceptance definitions remain useful; they are not automatically passed by implementation.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
