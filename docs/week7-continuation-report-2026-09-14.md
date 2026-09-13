@@ -42,9 +42,17 @@ LFS; 19 executable modes are required for macOS scripts/native build tools.
 | IOS-09 | Mac agent decides implementation details and continues all independent work while user sleeps | Explicit user autonomy supersedes routine approval checkpoints. True account/device prompts become recorded actions without blocking unrelated work. |
 | IOS-10 | Prefer original Unity source if available; investigate a documented native export adapter otherwise | Detached C# edits cannot update generated app code. A native diagnostic fallback proves its own path, not teammate Unity UI acceptance. |
 | IOS-11 | Future Mac work uses a `codex/ios-visualizer-*` branch, cohesive commits and pushes | Overnight integration remains reviewable without automatically merging a large implementation to main. |
+| IOS-12 | Shorten the Mac prompt and reference existing technical documentation | User requested a shorter prompt after checking official OpenAI guidance. Keep the goal, context, constraints, autonomous decisions, evidence and stopping criteria; let the agent choose implementation steps. |
 
 No new design approval is pending. These decisions supplement the 35 existing
 communications/security decisions without rewriting physical acceptance.
+
+The compact prompt revision follows OpenAI's
+[GPT-6 guidance on prompts and persistence](https://learn.chatgpt.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)
+and [Codex best practices](https://learn.chatgpt.com/guides/best-practices), checked
+2026-09-14. Technical constraints remain in this report, the import README and
+linked runbooks. The revision changes documentation only; validation consists of
+reviewing retained requirements, checking referenced paths and `git diff --check`.
 
 ## Inspection findings
 
