@@ -67,7 +67,7 @@ production source remain unchanged. The user's autonomous authorization applies.
 - [x] Generate isolated fixture resources and add the iOS fixture loader while preserving macOS generation/cleanup.
 - [x] Add the simulator transport XCTest target; run its 26 existing tests and rerun the shared setup UI test.
 - [x] Verify macOS transport regressions and ensure fixture keys appear only in the test bundle.
-- [ ] Independently review the changes, update evidence, commit/push and verify the remote branch.
+- [x] Independently review the changes, update evidence, commit/push and verify the remote branch.
 
 Follow-up evidence: 26 iOS transport/trust tests and the setup UI test passed;
 27 macOS transport tests passed again. OpenSSL verified all twelve distinct
@@ -75,6 +75,8 @@ fixture authorities and rejection cases; independent review found no actionable
 issues. Test bundles alone contain disposable server keys. Xcode test products
 now use the standard Library DerivedData location after a loader/TCC stall when
 loading dynamic debug frameworks from Documents; no privacy setting changed.
+Commit `cbbc212b5d30f2f2725fc083ce93b3b27e154802` was pushed and its remote
+hash verified; main remained unchanged.
 
 ## Earlier rulings and progress
 

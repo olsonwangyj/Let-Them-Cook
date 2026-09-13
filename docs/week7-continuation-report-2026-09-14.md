@@ -40,6 +40,10 @@ tests, including actual Python board interoperability, also passed again. These
 are additional platform executions of existing tests, not new physical hardware
 acceptance. Production app source and the Unity export did not change.
 The setup UI test also passed again using the new simulator build location.
+Follow-up commit `cbbc212b5d30f2f2725fc083ce93b3b27e154802` was pushed to the
+same branch and independently confirmed with `git ls-remote`; main remained
+unchanged. The remaining actions still require a physical device, accounts or
+the existing live hardware/private setup.
 
 ## Mac decisions and reasons
 
