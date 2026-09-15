@@ -76,6 +76,12 @@ other attributes and framework bytes. The observed build needed FinderInfo
 removed from the imported UnityRuntime and MediaPipeUnity framework roots.
 [Apple documents this signing restriction](https://developer.apple.com/library/archive/qa/qa1940/_index.html).
 
+Local signing selections, Keychain/provisioning locators, the signed app,
+private test logs and iPhone public-setting paths are listed in the
+[local-only file and credential inventory](../docs/week7-continuation-report-2026-09-14.md#local-only-files-and-credential-locations--september-16).
+It also explains which credentials are memory-only and how to locate evidence
+without committing secrets.
+
 ## Configure the Phone
 
 1. Obtain the **public** Week 7 `ca-cert.pem` from the existing private setup.

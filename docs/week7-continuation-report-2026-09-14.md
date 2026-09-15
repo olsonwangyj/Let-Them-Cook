@@ -44,8 +44,10 @@ completed; the remaining hardware run is an integration regression for the new
 Phone app.
 
 Work began on a clean `main` at `bf38f83`, equal to fetched `origin/main`, and
-continues on **`codex/ios-visualizer-week7-native`**. No merge to main or PDF was
-made. The original Unity source was not found in this checkout or the bounded
+continues on **`codex/ios-visualizer-week7-native`**. The original instruction kept
+main unchanged. On September 16 the operator explicitly authorized documenting
+local-only locations, pushing the report, and merging the feature branch into
+main. No PDF was made. The original Unity source was not found in this checkout or the bounded
 Documents search; its absence does not prevent this native-export build.
 
 **Publication:** implementation commit `33f8c7e127e810b9c5071feac9aee8ba7a16c34b`
@@ -263,7 +265,8 @@ controls. The operator subsequently reported fixing the keyboard. Mirroring's
 click tool returned `noWindowsAvailable` even while screenshots and keyboard
 input worked, so the operator selected the board password field and later
 clicked Connect; the agent entered both supplied passwords using the secure app
-fields and Tab navigation. No passwords were stored in project files. The final
+fields and Tab navigation. No passwords were stored in project files during that test. The later
+user-requested local credential record is documented below. The final
 app reached **Subscribed** and passed the new 100-result run above. Independent
 review confirmed all 100 ordered ACK/board IDs and the zero-error sender summary.
 The operator offered to handle subsequent scrolling and field selection.
@@ -364,6 +367,93 @@ Mac; follow-up simulator products/results are under the Library path above.
 They are local evidence, not a claim of remote hardware acceptance. Imported
 Unity/native dependencies emit deprecation and unavailable original debug-path
 warnings; the original vendor files were not broadly refactored.
+
+## Local-only files and credential locations — September 16
+
+This inventory describes this Mac, not files supplied by a fresh Git clone.
+The checkout is `/Users/Zhuanz/Documents/Let-Them-Cook`; paths beginning with
+`.week7-local/` below are relative to it. In Finder, use **Go → Go to Folder**
+(Command-Shift-G) and enter the absolute folder path. Hidden folders can also
+be shown with Command-Shift-period. The report publishes locations and recovery
+instructions, not passwords, private keys, personal team IDs or device IDs.
+
+### Personal Xcode signing and build products
+
+| Item | Verified location | How to find or recover it |
+| --- | --- | --- |
+| Current personal signing selection and Xcode project rewrites | `ios-visualizer/xcode-export/Unity-iPhone.xcodeproj/project.pbxproj` in this checkout | Open the project in Xcode and inspect the target's **Signing & Capabilities → Team**. `git diff -- ios-visualizer/xcode-export/Unity-iPhone.xcodeproj/project.pbxproj` shows the local selection and Xcode formatting/project-version changes. This is a tracked file with an intentionally unstaged local diff; `.gitignore` does not hide tracked edits. |
+| Exact local project backup | `.week7-local/signing-backup/project.pbxproj`, `personal-xcode-settings.patch`, and `manifest.json` | An owner-only backup was made before merging. The manifest records the source path, base commit and SHA-256 values. Compare the backup with the current project before restoring; use `git apply --check` on the patch before applying it to a compatible checkout. On a new Mac, selecting your own team in Xcode is still required. |
+| Apple signing identity/private key and account access | Xcode/OS-managed credentials; configured user keychain is `/Users/Zhuanz/Library/Keychains/login.keychain-db` | Use Xcode's account settings for the signed-in Apple account, and Keychain Access → **My Certificates** to locate the Apple Development identity and its associated private key. `security list-keychains -d user` locates configured keychains. Private items were not exported or inspected; no Apple password/private-key file was created in this repository. The keychain path alone does not identify every OS-managed account token. |
+| Provisioning profile cache | `/Users/Zhuanz/Library/Developer/Xcode/UserData/Provisioning Profiles/` | This Mac has one cached profile there. The signed app also contains `embedded.mobileprovision`; inspect it locally through Xcode/signing tools when needed. The older `~/Library/MobileDevice/Provisioning Profiles/` directory was absent at this checkpoint. |
+| Final signed iPhone app | `/Users/Zhuanz/Library/Developer/Xcode/DerivedData/Week7UnityDevice/Build/Products/Debug-iphoneos/unityTutorial.app` | Locate the app in Finder or use this path with `xcrun devicectl device install app`. Its embedded profile and signature contain personal metadata. Installation still requires the paired authorized device and valid signing. |
+| Unsigned/baseline build products and dependencies | `.week7-local/DerivedData/`, `.week7-local/baseline-products/`, `.week7-local/native-products/`, `.week7-local/SourcePackages/`, `.week7-local/venv/`, and `ios-visualizer/Week7Native/.build/` | These are generated products/caches or the local Python environment. The unsigned app directories are `.week7-local/DerivedData/Build/Products/Debug-iphoneos/` and `.week7-local/DerivedData/Build/Products/Release-iphoneos/`. Use the [native integration guide](../ios-visualizer/NATIVE-INTEGRATION.md) to rebuild; these directories are not transferred by Git. |
+| Original signing-attribute backup | `.week7-local/evidence/signing-metadata-backup-private.json` | Records the original framework Finder metadata before the narrowly scoped signing fix. `.week7-local/physical-connection/local-signing-before-doc-commit.sha256` also records the preserved local project hash. Neither file is a signing private-key backup. |
+
+### SSH credentials, trust files and the iPhone container
+
+During testing, the supplied jump-host and board passwords existed only in
+the original private task messages and terminal/app session memory. On September
+16 the operator explicitly requested a saved local record. Both supplied SSH
+passwords, usernames, hostnames, ports and the two-hop SSH command are now in
+`/Users/Zhuanz/Documents/Let-Them-Cook/.week7-local/credentials/week7-ssh-accounts.json`.
+The directory is mode `0700` and the file mode `0600`, owned by this Mac account.
+The jump password's ASCII punctuation was preserved exactly. No Apple Account
+or macOS login password was supplied, so none is inferred or saved.
+
+This separate local record is ignored by Git and is not imported automatically
+by the iPhone app. The app still keeps passwords only in memory and clears them
+on disconnect/deactivation. Open the local record privately when credentials
+are needed again; the task history also retains the original messages. No
+password values are copied into the published report.
+
+| Item | Location | How to find or use it |
+| --- | --- | --- |
+| User-requested SSH credential record | `.week7-local/credentials/week7-ssh-accounts.json` | Use Finder Go to Folder with `/Users/Zhuanz/Documents/Let-Them-Cook/.week7-local/credentials/`, then open the JSON locally. It contains the two SSH passwords and their connection details; permissions are owner-only. It is not an Apple/macOS credential backup and is not included in Git. |
+| SSH account names and pinned route | `.week7-local/physical-connection/ssh-config` and `known_hosts` | These contain hostnames, usernames and public host-key pins, not passwords. `connect-board.command`/`board-session.py` in the same directory create an interactive, temporary authenticated session; `close-board.command` closes only that owned session. |
+| Temporary Mac SSH authentication | Process memory and a generated `/private/tmp/week7-ssh-<uid>-<random>/control` socket while active | When active, `.week7-local/physical-connection/board-session.json` records the exact socket path; `board-session-pending.json` represents an incomplete attempt. Both records and the owned socket directory were removed during test cleanup. Remaining `board-session.lock` or `ingestion-forward.json` files are not proof of a live connection. The helper starts no application forward automatically. |
+| Verified public Week 7 CA | `.week7-local/physical-connection/ca-cert.pem` and `phone-ca-readback.pem` | The second file is the verified phone readback. The original public ZIP and its verification receipt are under `.week7-local/physical-connection/retrieval-wmlcmdvp/`; the separate failed retrieval directory remains preserved. These contain public trust material, not a live TLS private key. |
+| Public iPhone app settings | App bundle ID `com.CookingCompany.unityTutorial`, data-container-relative `Library/Application Support/Week7/public-settings.json` and `week7-ca.pem` | The JSON holds usernames and the jump-host toggle; the PEM is the public CA. The container UUID is device-assigned and can change. Local copies are `.week7-local/physical-connection/current-phone-public-settings.json`, `phone-public-setup/Application Support/Week7/`, and `phone-ca-readback.pem`. |
+| Passwords while the iPhone is connected | The app's `CredentialVault` and secure setup fields in process memory | `Credentials.swift` and `Configuration.swift` document the separation. The form clears after Connect; session credentials are revoked on disconnect/deactivation. The app writes no password file or password Keychain item. |
+| Live board TLS private key, external to this Mac | Recorded Ultra96 path `/var/tmp/cg4002-week7-yanjie-20260907/tls/server-key.pem` | This is the existing server's configured key location, recorded in preflight evidence. The key was not downloaded to the Mac or iPhone. The issuer private-key location was not inspected. Public CA retrieval does not require copying either private key. |
+
+To locate a current device identifier and read back only the public settings,
+run from the checkout, replace `<device-id>` with the identifier printed by the
+first command, and choose a fresh destination filename:
+
+```sh
+xcrun devicectl list devices
+xcrun devicectl device copy from --device '<device-id>' \
+  --domain-type appDataContainer \
+  --domain-identifier com.CookingCompany.unityTutorial \
+  --source 'Library/Application Support/Week7/public-settings.json' \
+  --destination .week7-local/physical-connection/phone-public-settings-readback.json
+```
+
+### Private test evidence and historical originals
+
+| Evidence | Location | How to find the relevant result |
+| --- | --- | --- |
+| Mac builds, tests, signing/install/launch receipts and debug logs | `.week7-local/evidence/` | Final app: `xcode-password-entry-final-private.log`, `physical-password-entry-final-install-private.json`, and `physical-password-entry-final-launch-private.json`. Simulator UI: `ios-ui-password-entry-private.log`. Other named logs are indexed in the verification tables above. Some files contain personal signing/device metadata. |
+| Physical iPhone synthetic tests | `.week7-local/physical-connection/physical100*-sender.jsonl`, matching `*-board.log` and `*-correlation.json` | `physical100-updated-*` is the final binary's clean 100-result run. The original, repeat and final-prefixed earlier runs remain separate, including recorded failures. `physical-fist-*` records the separate 20-result visual check with intentional gaps. Local helpers are `send-mock-to-phone.py` and `capture-fist-on-phone.py`. |
+| UI test result bundles and exported attachments | `.week7-local/PreviewDerivedData/Logs/Test/`, `/Users/Zhuanz/Library/Developer/Xcode/DerivedData/Week7NativePreview/Logs/Test/`, and `.week7-local/evidence/ui-attachments/` | Find `.xcresult` bundles in those test directories and open them with Xcode. The Library location currently retains UI result bundles; the old transport `.xcresult` is not claimed to remain there. Its text log remains in `.week7-local/evidence/ios-transport-simulator-final.log`. |
+| Disposable test certificates/private keys | `.week7-local/Week7FixturePKI/` and its copied resources in `.week7-local/PreviewDerivedData/Build/Products/` | Twelve fixture directories contain test-only `ca.pem`, `server.pem` and `server.key`. Issuer private keys were deleted by the generator. These keys belong only to local test peers; they are not the live Week 7 authority or server key. Regeneration uses `ios-visualizer/NativePreview/tools/generate_test_pki.py`. |
+| Actual Phone screen observations | This task's iPhone Mirroring tool outputs | The live gesture/status/count screenshots are in the private task history. No standalone file or complete Phone result-ID trace was saved for those observations; simulator attachments are different evidence. |
+| Detailed local artifact index | `.week7-local/evidence/local-artifact-index.json` | Records 173 evidence, credential-record, connection-helper/public-setup, test-PKI and signing-backup file paths and sizes at this checkpoint, without file contents. It excludes generated build/dependency caches, which are located by directory above; later files may not appear in this snapshot. |
+| Earlier Windows/iSH evidence and unsanitized original import | `D:\LetThemCook-builds\` on the earlier Windows machine; original import at `D:\LetThemCook-builds\ios-visualizer-import-20260914\original-unity` | Exact historical bundles are listed in the [September 6 report](week7-continuation-report-2026-09-06.md), [September 7–9 report](week7-continuation-report-2026-09-07.md), and historical import section below. They are not automatically present on this Mac or fetched by Git. |
+
+List the local evidence filenames, including ignored PEM files, without printing
+their contents:
+
+```sh
+cd /Users/Zhuanz/Documents/Let-Them-Cook
+rg --files --hidden --no-ignore .week7-local/evidence .week7-local/physical-connection
+shasum -a 256 .week7-local/signing-backup/project.pbxproj
+```
+
+The `.week7-local/`, Keychain, provisioning, app/container and historical private
+artifacts stay outside the published commits. Only this location inventory and
+summarized evidence are pushed. The local project diff is preserved separately;
+merging the committed feature branch does not publish that unstaged selection.
 
 ## Exact next human actions
 
