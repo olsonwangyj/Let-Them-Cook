@@ -9,7 +9,7 @@ scene's existing TextMeshPro label. The old inbound TLS receiver is disabled.
 The reusable implementation, tests and reproducible export scripts are in
 [the native integration guide](../ios-visualizer/NATIVE-INTEGRATION.md).
 
-**Verified:** full unsigned arm64 Unity Debug and Release builds; 54 Swift tests; 246 Python
+**Baseline verified:** full unsigned arm64 Unity Debug and Release builds; 54 Swift tests; 246 Python
 tests (4 platform-dependent skips, 49 subtests); 26 transport/trust tests executed
 inside the iOS simulator in addition to the shared native UI test; 100-result
 interoperability with the actual Python board server over
@@ -21,7 +21,15 @@ received results** from synthetic Mac input. All 100 sender ACK IDs matched the
 board acceptance log. This proves a physical Phone connection and count-level
 delivery; it is not a durable trace of every Phone result ID. A repeat delivered
 only 56 of 100 to the Phone when started during reconnect, and later explicit
-logins were rejected, including after a VPN reconnect. Recovery is unresolved.
+logins were rejected. On September 16, a corrected fresh login again reached
+**Subscribed**, followed by a clean **100/100** Phone count test with 100 matching
+ACK/board IDs, sender exit 0 and zero reported sender errors or drops.
+The subsequent update adds hop-specific authentication diagnostics and password
+visibility controls. Its signed build, simulator UI check, physical install and
+launch passed; a new login/result test on that final binary is awaiting an
+operator Connect click after the Mirroring click tool failed. The operator
+reported fixing the keyboard, and the agent entered both credentials in the
+secure app form.
 **Not verified:** complete physical Unity/ARKit behavior, the actual Windows
 BLE/ESP32 chain, all four labels on the physical screen, or physical
 lock/background recovery. Historical iSH acceptance below remains separate.
@@ -36,9 +44,10 @@ was pushed to [the feature branch](https://github.com/olsonwangyj/Let-Them-Cook/
 An independent `git ls-remote` check confirmed that exact remote commit and
 unchanged `main` at `bf38f83d9ca3d621258ac32b8de9f3d789042651`. Staged whitespace
 and credential checks passed; the working tree was clean after the implementation
-commit. This publication record is a documentation-only follow-up. All available
-Mac implementation, build, testing and review work is complete; the remaining
-physical/account steps are listed below.
+commit. That was the initial implementation publication. Later checkpoints were also
+published on the same feature branch, most recently `912713945142eb914fdd7702f435dbd82af3339d`
+before the September 16 authentication/input follow-up described below. Remaining
+physical actions are listed below.
 
 After the user requested continuation, device/signing discovery again returned
 no physical device and zero valid identities. One further runtime check
@@ -142,8 +151,8 @@ unavailable from the Mac, so this observation cannot certify live ARKit/camera
 behavior. No camera permission or protection was changed.
 
 The first submitted app login returned **SSH password authentication rejected**.
-The error currently does not distinguish SSH hops or a rejected password from
-a server that excludes password authentication. A bounded board auth-log read
+That installed version's error did not distinguish SSH hops or a rejected
+password from a server that excludes password authentication. A bounded board auth-log read
 showed the successful Mac login but no later Phone board attempt, consistent
 with failure at the jump hop. A corrected keyboard-entry retry was prepared but
 not submitted: Mirroring disconnected while typing and returned to its Mac
@@ -165,6 +174,7 @@ with a fresh boot ID, using the real ingestion protocol and public CA.
 | --- | --- | --- | --- |
 | First, September 15 at 15:46 UTC | 100 accepted ACKs and exactly matching board IDs `1:2250398211:0` through `1:2250398211:99` | **Subscribed**, live **REST**, ID `1:2250398211:80`, confidence 1.0 at count 81; subsequently **Received: 100** | Physical subscription, live rendering and 100-result count established. The local reporting helper raised a `TypeError` after all ACKs, exited 1 and produced no aggregate summary; this failure is retained. |
 | Repeat with reporting fix | 100 accepted ACKs, 100 matching board IDs for boot `1075570325`, process exit 0; all reported error/drop/duplicate counters zero | Count increased from 100 to **156**, with live **POINT**, ID `1:1075570325:91`, confidence 1.0 at count 148 | Sender passed, but Phone delivery was only **56/100**. Input started while the Phone was reconnecting; the 44-result shortfall is consistent with that startup timing and is not a passing delivery repeat. |
+| Fresh login, September 16 local time | 100 accepted ACKs and exactly matching board IDs `1:2744570014:0` through `1:2744570014:99`; sender exit 0, all reported error/drop/duplicate counters zero | Fresh **Subscribed / Received: 0**, live **POINT**, ID `1:2744570014:55`, confidence 1.0 at count 56; final **Subscribed / Received: 100** | Clean physical count-level repeat passed after verified credential entry. |
 
 The helper's reporting fix renamed its observation timing field so it no
 longer collided with `elapsed_seconds` in the bridge summary. It changed only
@@ -172,7 +182,9 @@ the ignored local test helper, not the app or board. Original failed-run logs
 remain intact. Evidence is under `.week7-local/physical-connection/`:
 `physical100-sender.jsonl`, `physical100-board.log`,
 `physical100-correlation.json`, `physical100-repeat-sender.jsonl`,
-`physical100-repeat-board.log` and `physical100-repeat-correlation.json`.
+`physical100-repeat-board.log`, `physical100-repeat-correlation.json`,
+`physical100-final-sender.jsonl`, `physical100-final-board.log` and
+`physical100-final-correlation.json`.
 Phone screen observations are captured in the task's Mirroring tool output;
 the app retains a latest result and unique count, not a complete result history.
 Consequently the 100-ID sender/board match must not be described as a saved
@@ -184,12 +196,56 @@ its established-stream idle reconnect behavior. A bounded board authentication
 log read showed repeated successful Phone logins and closures consistent with
 that behavior. Later explicit credential re-entry attempts, including a fresh
 app launch and the operator's VPN reconnect, returned **SSH password
-authentication rejected** with count zero. The error does not identify the
-SSH hop or distinguish wrong input from unavailable password authentication.
-Mirroring input was unreliable during these retries, but the cause is not
-proven. Further blind retries were stopped; direct entry on the physical
-iPhone was requested to isolate input from transport failure. A clean new
-100-result repeat and explicit reconnect acceptance remain pending.
+authentication rejected** with count zero. That version's error did not identify
+the SSH hop or distinguish wrong input from unavailable password authentication.
+Mirroring input was unreliable during these retries; their individual causes
+were not established. Direct physical entry was initially requested, but the operator asked
+the agent to complete the login instead. After restoring Mirroring, the agent
+found an incorrect unsaved board username in the reopened form, replaced it,
+visually verified board user `xilinx` and jump user `yanjie`, and entered the
+supplied passwords into their separate secure fields. The app immediately
+reached **Subscribed** and the fresh test above passed. This resolved that
+login and repeat test; it does not establish the cause of every earlier failed
+attempt or physical network-fault/lock recovery.
+
+The diagnostic review found that four distinct authentication failures shared
+one misleading message. A small follow-up now identifies the SSH hop and
+distinguishes a server that does not offer password authentication, an unaccepted
+password offer, unavailable credentials and an empty password. Password
+failures remain terminal; trust validation, credential storage and retry policy
+are unchanged. Eleven focused Swift tests passed, including actual two-hop
+fixture rejection at each hop and no automatic credential retry. The clean
+physical test above used the previously installed app.
+
+A subsequent diagnostic build identified a concrete input mismatch in later
+Mirroring retries: an exclamation mark arrived as full-width Unicode `U+FF01`
+instead of ASCII `U+0021`. A temporary local probe recorded only encoding
+metadata, not the complete password. This explains those observed jump-hop
+failures; it does not retrospectively establish every earlier failure's cause.
+The probe was removed from production source and from the final rebuilt app.
+No password trimming, normalization or substitution was added.
+
+The setup form now offers accessible Show/Hide controls for each password,
+preserving the exact text and caret selection. Password fields request an
+ASCII-capable keyboard with smart substitutions disabled. These are input
+hints, not a guarantee about external keyboard conversion. Clearing a field
+also re-masks it, including on dismissal, deactivation and successful Connect;
+disabling the jump host clears and disables its password control.
+
+The final signed Unity Debug build passed, strict deep signature verification
+passed, and the updated app installed and launched on the actual iPhone. The
+existing simulator setup/background-clearing UI test also passed with the new
+controls. The operator subsequently reported fixing the keyboard. A new
+physical login and result test on this final binary remains pending at this
+checkpoint because Mirroring's click tool returned `noWindowsAvailable` even
+while screenshot and keyboard input continued to work. Credential entry used
+the secure app fields; no passwords were stored in project files.
+
+Ignored evidence includes `evidence/xcode-password-entry-final-private.log`,
+`evidence/ios-ui-password-entry-private.log`,
+`evidence/physical-password-entry-final-install-private.json` and
+`evidence/physical-password-entry-final-launch-private.json`, all under
+`.week7-local/`. Personal signing/device metadata remains local.
 
 With Mac and iPhone alone, synthetic input can test the real Phone result path.
 It does not establish ESP32/BLE acceptance.
@@ -289,9 +345,12 @@ warnings; the original vendor files were not broadly refactored.
    Its SHA-256 is
    `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`.
    The app displayed the verified CA, subscribed and counted 100 synthetic
-   results. The current reconnect is rejected: with Phone VPN connected, open
-   **Week 7 Settings**, clear and enter both passwords directly on the iPhone,
-   then Connect. After a fresh **Subscribed / Received: 0**, start the mock
+   results; a fresh September 16 login and clean 100-result repeat also passed.
+   **Current checkpoint:** both passwords are entered in the final updated app;
+   scroll down and tap **Connect** because the agent click tool is unavailable.
+   For a later reconnect, open **Week 7 Settings**, verify board user `xilinx`
+   and jump user `yanjie`, enter the passwords, and Connect. After a fresh
+   **Subscribed / Received: 0**, start the mock
    immediately within the 30-second initial grace. Capture a clean repeat;
    do not start while Connecting. For future devices, Files import remains
    the normal setup path.
@@ -312,7 +371,8 @@ warnings; the original vendor files were not broadly refactored.
 
 These are the remaining physical/account/private-input actions. No routine
 coding approval is pending. App-owned campus authentication and real Phone TLS
-have now succeeded once. Reconnect reliability, camera/ARKit behavior and
+have now succeeded on two explicit sessions. Physical network-fault/lock
+recovery, camera/ARKit behavior and
 complete ESP32→BLE→Windows→Ultra96→iPhone acceptance remain unverified.
 
 ## Historical import and Mac handoff

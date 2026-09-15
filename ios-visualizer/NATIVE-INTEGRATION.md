@@ -97,6 +97,21 @@ removed from the imported UnityRuntime and MediaPipeUnity framework roots.
    or locking the Phone stops reception. On returning, tap Connect and enter
    passwords again. No background-session survival is claimed.
 
+Use each password field's eye button to show or hide the entered text. Toggling
+preserves its exact value and selection; the app does not trim or normalize
+passwords. Password fields request an ASCII-capable keyboard with smart
+substitutions disabled. Clearing a password also hides it again, including on
+leaving the app, dismissing setup, connecting or disconnecting. Disabling the
+jump host clears and hides its password.
+
+Authentication errors identify **Board** or **Jump host**. “Does not offer
+password authentication” means that hop's advertised methods exclude passwords;
+“did not accept password authentication” means its credential offer was not
+accepted. “Credentials are unavailable” means the in-memory credential is
+absent or cleared, while “password is empty” identifies an empty value. Correct
+the indicated setup and Connect again; these failures do not retry credentials
+automatically.
+
 Both documented Ed25519 SSH host keys are pinned. The iPhone owns jump SSH,
 board SSH and a `direct-tcpip` stream to board **127.0.0.1:9999**. Both SSH
 endpoints use **TCP22**. TLS >=1.2 inside that stream trusts only the supplied
@@ -167,7 +182,17 @@ Simulator results establish native iOS UI/transport behavior against local test
 peers. They do not establish the delivered Unity scene on a physical Phone,
 institutional VPN authentication, BLE hardware, or physical lock recovery.
 
-## Physical acceptance still required
+## Physical results and remaining acceptance
+
+The signed Unity app has reached **Subscribed** on the physical iPhone and
+counted 100 results from synthetic Mac input, with matching sender ACK and board
+acceptance IDs. This establishes count-level delivery and live rendering, not a
+saved history of every Phone ID. The latest update with authentication
+diagnostics and password visibility controls is installed; a new 100-result run
+on that version is not yet confirmed. Full ARKit, ESP32/BLE and physical
+network-fault/lock recovery remain unverified. See the
+[continuation report](../docs/week7-continuation-report-2026-09-14.md) for separate
+run outcomes and evidence.
 
 With only a Mac and iPhone available, first verify the actual Phone reaches
 **Subscribed** through its own SSH and verified TLS connection. The existing

@@ -38,12 +38,30 @@ struct TransportOptions {
     var retryMaximum = TimeAmount.seconds(5)
 }
 
+enum SSHAuthenticationHop: String {
+    case board = "Board"
+    case jump = "Jump host"
+}
+
+enum PasswordFailureReason {
+    case methodUnavailable, rejected, credentialsUnavailable, empty
+    var status: String {
+        switch self {
+        case .methodUnavailable: return "does not offer password authentication"
+        case .rejected: return "did not accept password authentication"
+        case .credentialsUnavailable: return "credentials are unavailable"
+        case .empty: return "password is empty"
+        }
+    }
+}
+
 enum TransportFailure: Error {
-    case hostKey, password, invalidData, invalidConfiguration, deadline, frameDeadline, disconnected
+    case hostKey, invalidData, invalidConfiguration, deadline, frameDeadline, disconnected
+    case password(hop: SSHAuthenticationHop, reason: PasswordFailureReason)
     var status: String {
         switch self {
         case .hostKey: return "SSH host key rejected"
-        case .password: return "SSH password authentication rejected"
+        case .password(let hop, let reason): return "\(hop.rawValue) \(reason.status)"
         case .invalidData: return "invalid SSH stream data"
         case .invalidConfiguration: return "invalid connection configuration"
         case .deadline: return "connection deadline exceeded"

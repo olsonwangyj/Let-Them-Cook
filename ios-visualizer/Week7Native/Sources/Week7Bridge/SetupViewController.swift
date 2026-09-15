@@ -57,6 +57,19 @@ final class SetupViewController: UIViewController, UIDocumentPickerDelegate {
             field.autocapitalizationType = .none; field.spellCheckingType = .no
             field.textContentType = secret ? .password : .username
             field.accessibilityLabel = name; field.accessibilityIdentifier = "week7." + name.replacingOccurrences(of: " ", with: "")
+            if secret {
+                field.keyboardType = .asciiCapable
+                field.smartInsertDeleteType = .no; field.smartQuotesType = .no; field.smartDashesType = .no
+                let visibility = UIButton(type: .system)
+                visibility.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+                visibility.accessibilityIdentifier = field.accessibilityIdentifier! + ".visibility"
+                visibility.addAction(UIAction { [weak self, weak field] _ in
+                    guard let field else { return }
+                    self?.setPasswordVisible(field.isSecureTextEntry, field: field)
+                }, for: .touchUpInside)
+                field.rightView = visibility; field.rightViewMode = .always
+                setPasswordVisible(false, field: field)
+            }
             field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
             stack.addArrangedSubview(field)
         }
@@ -90,11 +103,37 @@ final class SetupViewController: UIViewController, UIDocumentPickerDelegate {
 
     @objc private func updateJump() {
         jumpUser.isEnabled = useJump.isOn; jumpPassword.isEnabled = useJump.isOn
-        if !useJump.isOn { jumpPassword.text = nil }
+        jumpPassword.rightView?.isUserInteractionEnabled = useJump.isOn
+        if !useJump.isOn { clearPassword(jumpPassword) }
     }
     @objc private func done() { clearPasswords(); dismiss(animated: true) }
-    func clearPasswords() { boardPassword.text = nil; jumpPassword.text = nil }
+    func clearPasswords() { clearPassword(boardPassword); clearPassword(jumpPassword) }
     override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); clearPasswords() }
+
+    private func clearPassword(_ field: UITextField) {
+        field.text = nil
+        setPasswordVisible(false, field: field)
+    }
+
+    private func setPasswordVisible(_ visible: Bool, field: UITextField) {
+        let text = field.text
+        let selection = field.selectedTextRange.map {
+            (field.offset(from: field.beginningOfDocument, to: $0.start),
+             field.offset(from: field.beginningOfDocument, to: $0.end))
+        }
+        field.isSecureTextEntry = !visible
+        // Restore the exact in-memory value and selection after UIKit changes its rendering mode.
+        field.text = text
+        if let selection,
+           let start = field.position(from: field.beginningOfDocument, offset: selection.0),
+           let end = field.position(from: field.beginningOfDocument, offset: selection.1) {
+            field.selectedTextRange = field.textRange(from: start, to: end)
+        }
+        if let button = field.rightView as? UIButton {
+            button.setImage(UIImage(systemName: visible ? "eye.slash" : "eye"), for: .normal)
+            button.accessibilityLabel = "\(visible ? "Hide" : "Show") \(field.accessibilityLabel ?? "password")"
+        }
+    }
 
     private func updateCertificate() {
         certificate.text = caPEM == nil ? "CA not imported. Only the enrolled public Week 7 CA is accepted." : "Verified Week 7 CA imported.\nSHA-256: \(EnrolledTrust.caSHA256)"

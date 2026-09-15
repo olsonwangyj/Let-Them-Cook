@@ -19,7 +19,15 @@ final class PasswordAuthentication: NIOSSHClientUserAuthenticationDelegate {
         self.username = username; self.credentials = credentials; self.jumpHop = jumpHop
     }
     func nextAuthenticationType(availableMethods: NIOSSHAvailableUserAuthenticationMethods, nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>) {
-        guard !offered, availableMethods.contains(.password), let password = credentials.password(jumpHop: jumpHop), !password.isEmpty else { nextChallengePromise.fail(TransportFailure.password); return }
+        func fail(_ reason: PasswordFailureReason) {
+            nextChallengePromise.fail(TransportFailure.password(hop: jumpHop ? .jump : .board, reason: reason))
+        }
+        // NIOSSH initially supplies .all; the server's actual methods arrive after
+        // an unsuccessful offer. Do not mistake an unavailable method for a bad password.
+        guard availableMethods.contains(.password) else { fail(.methodUnavailable); return }
+        guard !offered else { fail(.rejected); return }
+        guard let password = credentials.password(jumpHop: jumpHop) else { fail(.credentialsUnavailable); return }
+        guard !password.isEmpty else { fail(.empty); return }
         offered = true
         nextChallengePromise.succeed(.init(username: username, serviceName: "", offer: .password(.init(password: password))))
     }

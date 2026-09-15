@@ -104,6 +104,32 @@ final class TransportTests: XCTestCase {
         XCTAssertEqual(peers.subscriptionCount, 0)
     }
 
+    func testWrongPasswordIdentifiesEachHopAndDoesNotAutomaticallyRetry() throws {
+        for jumpHop in [false, true] {
+            let peers = try LocalPeers(pki: Self.pki)
+            let normal = peers.route()
+            let jump = try XCTUnwrap(normal.jump)
+            let route = SSHRoute(boardHost: normal.boardHost, boardUser: normal.boardUser,
+                                 boardPassword: jumpHop ? normal.boardPassword : "rejected-fixture-password", boardHostKey: normal.boardHostKey,
+                                 jump: .init(host: jump.host, user: jump.user,
+                                             password: jumpHop ? "rejected-fixture-password" : jump.password, hostKey: jump.hostKey), caPEM: normal.caPEM)
+            let rejected = expectation(description: "identified terminal rejection")
+            let repeated = expectation(description: "credentials retried"); repeated.isInverted = true; repeated.assertForOverFulfill = false
+            let lock = NSLock(); var rejectedOnce = false
+            let client = Week7Client(route: route, session: "week7-demo", options: peers.options, onStatus: { status in
+                lock.lock(); defer { lock.unlock() }
+                if rejectedOnce { repeated.fulfill() }
+                else if status.hasPrefix("Disconnected") {
+                    XCTAssertEqual(status, "Disconnected: \(jumpHop ? "Jump host" : "Board") did not accept password authentication; correct setup and reconnect")
+                    rejectedOnce = true; rejected.fulfill()
+                }
+            }, onResult: { _ in XCTFail("Rejected authentication delivered a result") })
+            client.start(); wait(for: [rejected], timeout: 4)
+            wait(for: [repeated], timeout: 0.3); client.stop()
+            XCTAssertEqual(peers.subscriptionCount, 0)
+        }
+    }
+
     func testAuthenticationAndTrustFailuresDoNotAutomaticallyRetryCredentials() throws {
         let unrelated = try TestPKI()
         let peers = try LocalPeers(pki: Self.pki)

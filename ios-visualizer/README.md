@@ -1,8 +1,10 @@
 # iOS visualizer delivery
 
 Jieling's Week 7 delivery, imported on 2026-09-14 from the former root `unity/`
-folder. **Native integration is implemented in this branch; physical iPhone acceptance
-remains pending. This is an Xcode export, not the original Unity Editor project.**
+folder. **Native integration is implemented in this branch. The signed Unity app
+has subscribed on a physical iPhone and counted 100 synthetic results; full
+ARKit, ESP32/BLE and physical lifecycle acceptance remain unverified. This is an
+Xcode export, not the original Unity Editor project.**
 See [native build, setup and verification](NATIVE-INTEGRATION.md). The original
 receiver remains incompatible as reference; the actual export uses native client
 hooks. Start the Mac work with the
@@ -64,9 +66,10 @@ adapter. See
 
 Automatic signing remains configured. The original eight teammate build settings
 and two remaining target-level team attributes were cleared. Xcode 26.2 and its
-iOS SDK successfully built the actual app in Debug and Release. This Mac has no
-valid signing identity or attached physical iPhone, so signing/install/device
-trust remain pending. The existing bundle
+iOS SDK successfully built the actual app in Debug and Release. Signing,
+installation and developer trust completed on the physical iPhone. The latest
+update with authentication diagnostics and password visibility controls is also
+installed; its new 100-result run is not yet confirmed. The existing bundle
 identifier is `com.CookingCompany.unityTutorial`; select a suitable user-owned
 identifier during provisioning. Nineteen script/native-tool executable bits are
 stored in Git for macOS checkout.
@@ -117,5 +120,5 @@ setup; generate separate temporary PKI for local tests. No private key is needed
 in a Phone TLS client.
 
 Read the [current continuation report](../docs/week7-continuation-report-2026-09-14.md)
-for import verification and the distinction between historical iSH results and
-unverified Unity app acceptance.
+for import verification, observed Unity Phone results, remaining physical checks
+and the separate historical iSH evidence.
