@@ -13,8 +13,11 @@ The reusable implementation, tests and reproducible export scripts are in
 tests (4 platform-dependent skips, 49 subtests); 26 transport/trust tests executed
 inside the iOS simulator in addition to the shared native UI test; 100-result
 interoperability with the actual Python board server over
-two real local SSH hops. **Not verified:** signed install or execution of the
-Unity app on a physical iPhone, campus VPN/account access from this app, actual
+two real local SSH hops. On September 15, the actual signed Unity app also
+installed and launched on the connected iPhone after the operator trusted the
+developer profile; the operator confirmed **Week 7 Connect** is visible.
+**Not verified:** complete physical Unity/ARKit behavior,
+campus VPN/account access from this app, actual
 Windows BLE/ESP32 chain, or physical lock/background recovery. Historical iSH
 acceptance below remains separate.
 
@@ -42,8 +45,91 @@ acceptance. Production app source and the Unity export did not change.
 The setup UI test also passed again using the new simulator build location.
 Follow-up commit `cbbc212b5d30f2f2725fc083ce93b3b27e154802` was pushed to the
 same branch and independently confirmed with `git ls-remote`; main remained
-unchanged. The remaining actions still require a physical device, accounts or
+unchanged. The remaining actions at that point still required a physical device, accounts or
 the existing live hardware/private setup.
+
+## Physical setup continuation — September 15
+
+The operator supplied a connected iPhone Air (`iPhone18,4`, iOS 26.6.1), signed
+into their own Apple account in Xcode, selected their Personal Team and enabled
+Developer Mode. Their project signing changes remain local and are preserved;
+no personal team, signing identity or device identifier is included in this
+publication. The available laptop is now this Mac; Windows and ESP32 hardware
+are unavailable for this session.
+
+The actual Unity Debug build succeeded with automatic development provisioning
+using Xcode's standard `~/Library/Developer/Xcode/DerivedData/Week7UnityDevice`
+directory. Strict deep signature verification passed. The provisioning profile
+matches the app, includes the connected device, enables development debugging
+and expires September 22, 2026. Installation via `devicectl` succeeded. The first
+launch was denied by iOS security; after the operator completed developer trust,
+`devicectl` reported a successful launch and a separate process query confirmed
+the Unity app running. The operator then confirmed **Week 7 Connect** is visible
+on the actual phone. This establishes installation, startup and the setup entry
+point; complete Unity/ARKit behavior and live result rendering remain unverified.
+
+The first signed build failed because Finder metadata was attached to framework
+directories under the Documents checkout. Only `com.apple.FinderInfo` on the
+two imported framework roots was removed after saving a local attribute backup.
+Other attributes and framework contents were preserved. Building generated
+products in Library then passed; no signing check was bypassed. The three
+compiler-generated diagnostic rewrites were restored after building.
+
+Private local evidence is in `.week7-local/evidence/`: the signed build log
+`xcode-signed-device-library-private.log`, `physical-install-private.json`,
+`physical-console-private.log` (initial denied launch),
+`physical-console-trusted-private.log` and `physical-processes-private.json`.
+These files may contain personal signing/device metadata and remain ignored.
+
+The Mac reached `stujump.comp.nus.edu.sg:22` without an active VPN and received
+an SSH banner. A subsequent SSH handshake matched the enrolled Ed25519 host key,
+but the server advertised only `publickey` authentication and refused the
+unauthenticated probe. That initial two-hop attempt therefore did not reach an
+authenticated board connection. After the operator connected the Mac VPN,
+both pinned hosts accepted password authentication and the public archive was
+retrieved successfully. Passwords were entered only into SSH's terminal prompts;
+they were not written to local credential files or included in project changes.
+The failed attempt's owned empty socket directory and pending record were
+cleaned up without changing any host or authentication policy.
+The ignored local helper at `.week7-local/physical-connection/retrieve-ca.command`
+downloads the exact
+historical public archive from the [SSH import guide](week7-iphone-ssh-import.md),
+enforces both enrolled Ed25519 keys, verifies the ZIP hash and exact five entries,
+then extracts only the CA after its DER fingerprint matches enrollment.
+The retrieved archive passed its exact SHA-256, five-entry allowlist and CRC
+checks; its sole CA matched the enrolled DER fingerprint. The public CA and
+documented usernames were copied over USB into the actual app's previously
+absent `Library/Application Support/Week7` directory. Reading the CA back from
+the phone confirmed byte-for-byte equality and the enrolled DER fingerprint.
+No password, private key or system-wide trust profile was transferred. The app's
+normal `loadCA()` still validates the enrollment before displaying the setup.
+This establishes verified transfer; it does not establish use of the Files
+picker or a live iPhone connection. The operator must reopen the setup form to
+load the file and connect their Phone VPN independently of the Mac.
+
+The existing `xilinx`-owned Ultra96 process is running the documented server
+from `/var/tmp/cg4002-week7-yanjie-20260907/source-db6769a`, bound only to
+`127.0.0.1:8888` and `127.0.0.1:9999`. Its public certificate identifies
+`ultra96.week7.internal` and is valid through October 6, 2026. No restart or
+server configuration change was needed. A temporary pinned Mac SSH master and
+loopback-only `18888 → 127.0.0.1:8888` forward are prepared for synthetic input;
+no Mac result subscriber was started. Actual Phone subscription and delivery
+remain pending at this checkpoint.
+
+Local ignored evidence under `.week7-local/physical-connection` includes
+`retrieval-wmlcmdvp/week7-iphone-setup.zip.verified.json`, `board-preflight.txt`
+and `board-log-baseline.json`. The `.week7-local/evidence` directory contains
+`jump-reachability-private.log`, `phone-public-setup-copy-private.json` and
+`phone-ca-readback-private.json`. No password is included. The operator has
+also confirmed the iPhone VPN is connected; the app was brought back to the
+foreground for its own SSH login.
+
+With Mac and iPhone alone, the next useful test is the Phone's own
+SSH → TLS → SUBSCRIBE path to Ultra96. Once subscribed, Mac `laptop.bridge --mock`
+can supply synthetic sensor packets through the existing board ingestion path
+to test real Phone result delivery. It does not establish ESP32/BLE acceptance.
+The protected physical bridge currently depends on Windows authenticated-pairing
+checks; do not disable those checks to substitute Mac BLE.
 
 ## Mac decisions and reasons
 
@@ -128,14 +214,16 @@ warnings; the original vendor files were not broadly refactored.
 
 ## Exact next human actions
 
-1. Open `ios-visualizer/xcode-export/Unity-iPhone.xcodeproj`. Select your Apple
-   development team and an available app bundle ID; connect/unlock/trust the
-   iPhone and enable Developer Mode. Run the Unity-iPhone scheme. Expected:
-   Unity scene plus **Week 7 Connect**, with no attempt to load `server.pfx`.
-2. Transfer the existing **public** Week 7 CA to Files. Its SHA-256 must be
+1. **Completed September 15:** Apple sign-in/team selection, device pairing,
+   Developer Mode, signing, installation and developer trust. The actual app
+   launched and the operator confirmed **Week 7 Connect** is visible.
+2. **Retrieval and USB transfer completed September 15:** the existing public
+   Week 7 CA is in the actual app's storage and passed phone readback verification.
+   Its SHA-256 is
    `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`.
-   Import it in the app, enable the required Phone VPN, enter board/jump
-   usernames and passwords, and Connect. Expected: **Subscribed**.
+   Reopen **Week 7 Connect**, confirm the verified CA, enter board/jump passwords
+   and Connect. The operator confirmed the Phone VPN is connected. Expected:
+   **Subscribed**. For future devices, Files import remains the normal setup path.
 3. Stop competing subscribers. Start the existing board service and Windows BLE
    bridge per the [Week 7 runbook](week7-runbook.md), then power/pair the ESP32
    dummy firmware. After Subscribed, capture 100 unique results. Pass: app count,

@@ -58,6 +58,24 @@ Developer Mode yourself, then Run. No provisioning or signing-control bypass is
 provided. The supplied Unity/MediaPipe/ARKit binaries are arm64 device inputs;
 this export does not establish Unity simulator support.
 
+For a signed CLI build, use
+`~/Library/Developer/Xcode/DerivedData/Week7UnityDevice` as DerivedData, select the
+connected device as the destination and allow automatic provisioning with your
+own development team. The September 15 build, installation and process launch
+passed on the physical iPhone after developer trust. If iOS initially denies
+launch, open Settings → General → VPN & Device Management on the iPhone and
+trust your own Developer App profile, then retry. See
+[Apple's developer-trust instructions](https://help.apple.com/xcode/mac/current/en.lproj/dev96a12fb84.html).
+
+If signing reports “resource fork, Finder information, or similar detritus,”
+inspect the failing bundle with `xattr -lr`. A Documents/File Provider checkout
+can attach Finder metadata to framework directories. Back up and remove only
+the reported `com.apple.FinderInfo` or `com.apple.ResourceFork` attributes on
+the affected inputs, then rebuild in the Library directory above. Preserve
+other attributes and framework bytes. The observed build needed FinderInfo
+removed from the imported UnityRuntime and MediaPipeUnity framework roots.
+[Apple documents this signing restriction](https://developer.apple.com/library/archive/qa/qa1940/_index.html).
+
 ## Configure the Phone
 
 1. Obtain the **public** Week 7 `ca-cert.pem` from the existing private setup.
@@ -150,6 +168,15 @@ peers. They do not establish the delivered Unity scene on a physical Phone,
 institutional VPN authentication, BLE hardware, or physical lock recovery.
 
 ## Physical acceptance still required
+
+With only a Mac and iPhone available, first verify the actual Phone reaches
+**Subscribed** through its own SSH and verified TLS connection. The existing
+public CA archive can be retrieved from Ultra96 using the pinned route in the
+[SSH import guide](../docs/week7-iphone-ssh-import.md). After subscription, the
+Mac can run `laptop.bridge --mock` through a loopback ingestion forward to send
+synthetic packets and check real board-to-Phone result delivery. This is separate
+from the ESP32/BLE test: the protected physical bridge uses Windows pairing
+checks, and unprotected diagnostic mode is not a replacement.
 
 Stop competing Phone simulators/subscribers (the newest subscriber replaces the
 old owner). Start the existing board service and Windows BLE bridge using their
