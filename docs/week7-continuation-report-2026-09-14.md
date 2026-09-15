@@ -114,7 +114,10 @@ from `/var/tmp/cg4002-week7-yanjie-20260907/source-db6769a`, bound only to
 server configuration change was needed. A temporary pinned Mac SSH master and
 loopback-only `18888 → 127.0.0.1:8888` forward are prepared for synthetic input;
 no Mac result subscriber was started. Actual Phone subscription and delivery
-remain pending at this checkpoint.
+remain pending at this checkpoint. The idle Mac master later expired while
+Mirroring needed operator input; its stale record and owned empty socket
+directory were cleaned up. Re-establish that scoped master and forward before
+the synthetic sender test.
 
 Local ignored evidence under `.week7-local/physical-connection` includes
 `retrieval-wmlcmdvp/week7-iphone-setup.zip.verified.json`, `board-preflight.txt`
@@ -123,6 +126,25 @@ and `board-log-baseline.json`. The `.week7-local/evidence` directory contains
 `phone-ca-readback-private.json`. No password is included. The operator has
 also confirmed the iPhone VPN is connected; the app was brought back to the
 foreground for its own SSH login.
+
+The operator authorized entry of the supplied SSH passwords through iPhone
+Mirroring. After the operator unlocked Mirroring and locked the phone, the
+actual app visibly displayed its Unity status label and **Verified Week 7 CA
+imported** with the enrolled fingerprint. Settings also showed **Connected**
+for the selected **NUS VPN For Student** profile. Mirroring reports the camera
+unavailable from the Mac, so this observation cannot certify live ARKit/camera
+behavior. No camera permission or protection was changed.
+
+The first submitted app login returned **SSH password authentication rejected**.
+The error currently does not distinguish SSH hops or a rejected password from
+a server that excludes password authentication. A bounded board auth-log read
+showed the successful Mac login but no later Phone board attempt, consistent
+with failure at the jump hop. A corrected keyboard-entry retry was prepared but
+not submitted: Mirroring disconnected while typing and returned to its Mac
+login screen. No Phone subscription or gesture delivery is claimed. Local
+`physical-connection/phone-mirroring-checkpoint.json` records these observations
+without passwords. Resume after the operator unlocks Mirroring again, verify
+the input fields, and submit one corrected login before any sender run.
 
 With Mac and iPhone alone, the next useful test is the Phone's own
 SSH → TLS → SUBSCRIBE path to Ultra96. Once subscribed, Mac `laptop.bridge --mock`
