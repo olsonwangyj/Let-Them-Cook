@@ -3,8 +3,9 @@
 Jieling's Week 7 delivery, imported on 2026-09-14 from the former root `unity/`
 folder. **Native integration is implemented in this branch. The signed Unity app
 has subscribed on a physical iPhone, counted 100 synthetic results, and shown
-all four dummy labels across physical runs; full ARKit, ESP32/BLE and physical
-lifecycle acceptance remain unverified. This is an Xcode export, not the original
+all four dummy labels across physical runs. Full ARKit, physical lifecycle and
+the complete ESP32/BLE chain ending in this new Unity app remain unverified;
+the earlier ESP32/Windows BLE chain ending in Python/iSH was already tested. This is an Xcode export, not the original
 Unity Editor project.**
 See [native build, setup and verification](NATIVE-INTEGRATION.md). The original
 receiver remains incompatible as reference; the actual export uses native client

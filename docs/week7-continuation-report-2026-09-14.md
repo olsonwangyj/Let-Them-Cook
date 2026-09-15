@@ -32,9 +32,16 @@ including a live **OPEN** gesture. Its 100 ordered ACK IDs exactly matched the
 board log, with sender exit 0 and all error/drop counters zero. A separate
 20-result visual check then displayed **FIST**; all four dummy labels have now
 been observed across physical Phone runs.
-**Not verified:** complete physical Unity/ARKit behavior, the actual Windows
-BLE/ESP32 chain or physical lock/background recovery. Historical iSH acceptance
-below remains separate.
+**Previously verified hardware:** the real protected ESP32 → BLE → Windows →
+Ultra96 → iPhone path already delivered 100 and 6,100 exact matching results
+using the Python/iSH receiver. See the [September 8 hardware evidence](week7-continuation-report-2026-09-07.md#fresh-replacement-phone-100-result-capture);
+the original counter qualifications remain there. These tests used dummy values
+generated on the real ESP32, not Laptop mock input.
+**Not yet verified with the new Unity app:** the complete existing hardware chain
+ending in this native subscriber, full physical camera/ARKit behavior, and
+physical lock/background recovery. The earlier ESP32/Windows BLE tests remain
+completed; the remaining hardware run is an integration regression for the new
+Phone app.
 
 Work began on a clean `main` at `bf38f83`, equal to fetched `origin/main`, and
 continues on **`codex/ios-visualizer-week7-native`**. No merge to main or PDF was
@@ -268,9 +275,12 @@ Ignored evidence includes `evidence/xcode-password-entry-final-private.log`,
 `.week7-local/`. Personal signing/device metadata remains local.
 
 With Mac and iPhone alone, synthetic input can test the real Phone result path.
-It does not establish ESP32/BLE acceptance.
-The protected physical bridge currently depends on Windows authenticated-pairing
-checks; do not disable those checks to substitute Mac BLE.
+This session used Laptop mock input and does not re-test the already verified
+ESP32/Windows BLE path. The remaining combined run should feed that existing
+hardware path into the new Unity app. Retaining Windows for BLE needs no Mac BLE
+port; the Mac can remain the Xcode/build machine. Mac BLE implementation and
+physical verification are needed only if the operator chooses to replace the
+Windows bridge. Existing authenticated-pairing checks must be preserved.
 
 ## Mac decisions and reasons
 
@@ -375,8 +385,9 @@ warnings; the original vendor files were not broadly refactored.
    immediately within the 30-second initial grace. Capture a clean repeat;
    do not start while Connecting. For future devices, Files import remains
    the normal setup path.
-3. When Windows and ESP32 are available, stop competing subscribers. Check the
-   existing board service and start the Windows BLE
+3. **New Unity integration regression, not first-time BLE acceptance:** when
+   Windows and ESP32 are available, stop competing subscribers. Use the existing
+   board service and start the already tested Windows BLE
    bridge per the [Week 7 runbook](week7-runbook.md), then power/pair the ESP32
    dummy firmware. After Subscribed, capture 100 unique results. Pass: app count,
    board/Windows trace IDs and REST/FIST/OPEN/POINT mapping agree; no malformed
@@ -395,7 +406,8 @@ coding approval is pending. App-owned campus authentication and real Phone TLS
 have now succeeded on multiple explicit sessions, including the final updated
 app. Physical network-fault/lock
 recovery, camera/ARKit behavior and
-complete ESP32→BLE→Windows→Ultra96→iPhone acceptance remain unverified.
+the complete ESP32→BLE→Windows→Ultra96 path feeding the **new Unity iPhone app**
+remain unverified. The earlier hardware chain ending in Python/iSH passed.
 
 ## Historical import and Mac handoff
 

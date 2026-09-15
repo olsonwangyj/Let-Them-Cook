@@ -191,8 +191,13 @@ saved history of every Phone ID. The latest update with authentication
 diagnostics and password visibility controls is installed and also passed a
 fresh 100-result physical count test after keyboard input was corrected. All
 four dummy labels have been observed across physical runs; a separate FIST
-capture added 20 results after that test. Full ARKit, ESP32/BLE and physical
-network-fault/lock recovery remain unverified. See the
+capture added 20 results after that test. Full ARKit, physical network-fault/lock
+recovery and the complete ESP32/BLE chain ending in this new Unity app remain
+unverified. The existing protected ESP32 → Windows → Ultra96 → iPhone Python/iSH
+path already has 100-result and 6,100-result hardware evidence. The remaining
+combined run verifies the new Unity subscriber; it does not require redoing the
+BLE implementation. Mac BLE support is needed only if replacing Windows as the
+BLE bridge. See the
 [continuation report](../docs/week7-continuation-report-2026-09-14.md) for separate
 run outcomes and evidence.
 
