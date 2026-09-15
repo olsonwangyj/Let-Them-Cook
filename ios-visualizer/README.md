@@ -2,9 +2,10 @@
 
 Jieling's Week 7 delivery, imported on 2026-09-14 from the former root `unity/`
 folder. **Native integration is implemented in this branch. The signed Unity app
-has subscribed on a physical iPhone and counted 100 synthetic results; full
-ARKit, ESP32/BLE and physical lifecycle acceptance remain unverified. This is an
-Xcode export, not the original Unity Editor project.**
+has subscribed on a physical iPhone, counted 100 synthetic results, and shown
+all four dummy labels across physical runs; full ARKit, ESP32/BLE and physical
+lifecycle acceptance remain unverified. This is an Xcode export, not the original
+Unity Editor project.**
 See [native build, setup and verification](NATIVE-INTEGRATION.md). The original
 receiver remains incompatible as reference; the actual export uses native client
 hooks. Start the Mac work with the
@@ -69,7 +70,7 @@ and two remaining target-level team attributes were cleared. Xcode 26.2 and its
 iOS SDK successfully built the actual app in Debug and Release. Signing,
 installation and developer trust completed on the physical iPhone. The latest
 update with authentication diagnostics and password visibility controls is also
-installed; its new 100-result run is not yet confirmed. The existing bundle
+installed and passed a fresh 100-result physical count test. The existing bundle
 identifier is `com.CookingCompany.unityTutorial`; select a suitable user-owned
 identifier during provisioning. Nineteen script/native-tool executable bits are
 stored in Git for macOS checkout.

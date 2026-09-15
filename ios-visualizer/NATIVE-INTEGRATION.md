@@ -188,8 +188,10 @@ The signed Unity app has reached **Subscribed** on the physical iPhone and
 counted 100 results from synthetic Mac input, with matching sender ACK and board
 acceptance IDs. This establishes count-level delivery and live rendering, not a
 saved history of every Phone ID. The latest update with authentication
-diagnostics and password visibility controls is installed; a new 100-result run
-on that version is not yet confirmed. Full ARKit, ESP32/BLE and physical
+diagnostics and password visibility controls is installed and also passed a
+fresh 100-result physical count test after keyboard input was corrected. All
+four dummy labels have been observed across physical runs; a separate FIST
+capture added 20 results after that test. Full ARKit, ESP32/BLE and physical
 network-fault/lock recovery remain unverified. See the
 [continuation report](../docs/week7-continuation-report-2026-09-14.md) for separate
 run outcomes and evidence.

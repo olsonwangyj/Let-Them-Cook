@@ -26,13 +26,15 @@ logins were rejected. On September 16, a corrected fresh login again reached
 ACK/board IDs, sender exit 0 and zero reported sender errors or drops.
 The subsequent update adds hop-specific authentication diagnostics and password
 visibility controls. Its signed build, simulator UI check, physical install and
-launch passed; a new login/result test on that final binary is awaiting an
-operator Connect click after the Mirroring click tool failed. The operator
-reported fixing the keyboard, and the agent entered both credentials in the
-secure app form.
+launch passed. After the operator fixed keyboard input and clicked Connect,
+that final binary also reached **Subscribed** and received **100/100** results,
+including a live **OPEN** gesture. Its 100 ordered ACK IDs exactly matched the
+board log, with sender exit 0 and all error/drop counters zero. A separate
+20-result visual check then displayed **FIST**; all four dummy labels have now
+been observed across physical Phone runs.
 **Not verified:** complete physical Unity/ARKit behavior, the actual Windows
-BLE/ESP32 chain, all four labels on the physical screen, or physical
-lock/background recovery. Historical iSH acceptance below remains separate.
+BLE/ESP32 chain or physical lock/background recovery. Historical iSH acceptance
+below remains separate.
 
 Work began on a clean `main` at `bf38f83`, equal to fetched `origin/main`, and
 continues on **`codex/ios-visualizer-week7-native`**. No merge to main or PDF was
@@ -46,7 +48,9 @@ unchanged `main` at `bf38f83d9ca3d621258ac32b8de9f3d789042651`. Staged whitespac
 and credential checks passed; the working tree was clean after the implementation
 commit. That was the initial implementation publication. Later checkpoints were also
 published on the same feature branch, most recently `912713945142eb914fdd7702f435dbd82af3339d`
-before the September 16 authentication/input follow-up described below. Remaining
+before the September 16 authentication/input follow-up. That follow-up was
+published as `2643c8e5d73139fac1b96c4f31b04cf5efe65883`; an independent remote check
+confirmed its exact feature-branch head and unchanged main. Remaining
 physical actions are listed below.
 
 After the user requested continuation, device/signing discovery again returned
@@ -175,6 +179,7 @@ with a fresh boot ID, using the real ingestion protocol and public CA.
 | First, September 15 at 15:46 UTC | 100 accepted ACKs and exactly matching board IDs `1:2250398211:0` through `1:2250398211:99` | **Subscribed**, live **REST**, ID `1:2250398211:80`, confidence 1.0 at count 81; subsequently **Received: 100** | Physical subscription, live rendering and 100-result count established. The local reporting helper raised a `TypeError` after all ACKs, exited 1 and produced no aggregate summary; this failure is retained. |
 | Repeat with reporting fix | 100 accepted ACKs, 100 matching board IDs for boot `1075570325`, process exit 0; all reported error/drop/duplicate counters zero | Count increased from 100 to **156**, with live **POINT**, ID `1:1075570325:91`, confidence 1.0 at count 148 | Sender passed, but Phone delivery was only **56/100**. Input started while the Phone was reconnecting; the 44-result shortfall is consistent with that startup timing and is not a passing delivery repeat. |
 | Fresh login, September 16 local time | 100 accepted ACKs and exactly matching board IDs `1:2744570014:0` through `1:2744570014:99`; sender exit 0, all reported error/drop/duplicate counters zero | Fresh **Subscribed / Received: 0**, live **POINT**, ID `1:2744570014:55`, confidence 1.0 at count 56; final **Subscribed / Received: 100** | Clean physical count-level repeat passed after verified credential entry. |
+| Final updated app, September 16 at 01:29 local time | 100 accepted ACKs and exactly matching ordered board IDs `1:4029935889:0` through `1:4029935889:99`; sender exit 0, all 14 reported error/drop/duplicate counters zero | Fresh **Subscribed / Received: 0**, live **OPEN**, ID `1:4029935889:82`, confidence 1.0 at count 83; final **Subscribed / Received: 100** | Final binary with hop-specific errors and password visibility controls passed the physical count-level test after the operator fixed keyboard input. |
 
 The helper's reporting fix renamed its observation timing field so it no
 longer collided with `elapsed_seconds` in the bridge summary. It changed only
@@ -184,12 +189,24 @@ remain intact. Evidence is under `.week7-local/physical-connection/`:
 `physical100-correlation.json`, `physical100-repeat-sender.jsonl`,
 `physical100-repeat-board.log`, `physical100-repeat-correlation.json`,
 `physical100-final-sender.jsonl`, `physical100-final-board.log` and
-`physical100-final-correlation.json`.
+`physical100-final-correlation.json`, `physical100-updated-sender.jsonl`,
+`physical100-updated-board.log` and `physical100-updated-correlation.json`.
 Phone screen observations are captured in the task's Mirroring tool output;
 the app retains a latest result and unique count, not a complete result history.
 Consequently the 100-ID sender/board match must not be described as a saved
-100-ID Phone trace. REST and POINT were observed; physical FIST/OPEN observation
-remains pending.
+100-ID Phone trace. REST and POINT were observed on earlier runs, and OPEN and
+FIST on the final updated app.
+
+A separate visual check sent 20 valid FIST packets for boot `3878925323`, using
+sequence numbers `1, 5, …, 77` so each result kept the FIST label visible. The
+Phone displayed **FIST**, ID `1:3878925323:57`, confidence 1.0 at count 115; its
+count rose from **100 to 120**, ending **Subscribed**. All 20 accepted ACK IDs
+exactly matched the board log and the sender exited 0. The 57 sequence gaps were
+intentional in this visual fixture; this is separate from the clean consecutive
+100-result gate and is not a zero-gap run. Other sender error/drop counters
+were zero. Evidence is `physical-fist-sender.jsonl`, `physical-fist-board.log`
+and `physical-fist-correlation.json` in the same ignored local directory. This
+completes observation of all four dummy labels across physical Phone runs.
 
 During the quiet interval, the live result cleared and the app cycled through
 its established-stream idle reconnect behavior. A bounded board authentication
@@ -215,7 +232,7 @@ password offer, unavailable credentials and an empty password. Password
 failures remain terminal; trust validation, credential storage and retry policy
 are unchanged. Eleven focused Swift tests passed, including actual two-hop
 fixture rejection at each hop and no automatic credential retry. The clean
-physical test above used the previously installed app.
+physical run for boot `2744570014` used the previously installed app.
 
 A subsequent diagnostic build identified a concrete input mismatch in later
 Mirroring retries: an exclamation mark arrived as full-width Unicode `U+FF01`
@@ -235,11 +252,14 @@ disabling the jump host clears and disables its password control.
 The final signed Unity Debug build passed, strict deep signature verification
 passed, and the updated app installed and launched on the actual iPhone. The
 existing simulator setup/background-clearing UI test also passed with the new
-controls. The operator subsequently reported fixing the keyboard. A new
-physical login and result test on this final binary remains pending at this
-checkpoint because Mirroring's click tool returned `noWindowsAvailable` even
-while screenshot and keyboard input continued to work. Credential entry used
-the secure app fields; no passwords were stored in project files.
+controls. The operator subsequently reported fixing the keyboard. Mirroring's
+click tool returned `noWindowsAvailable` even while screenshots and keyboard
+input worked, so the operator selected the board password field and later
+clicked Connect; the agent entered both supplied passwords using the secure app
+fields and Tab navigation. No passwords were stored in project files. The final
+app reached **Subscribed** and passed the new 100-result run above. Independent
+review confirmed all 100 ordered ACK/board IDs and the zero-error sender summary.
+The operator offered to handle subsequent scrolling and field selection.
 
 Ignored evidence includes `evidence/xcode-password-entry-final-private.log`,
 `evidence/ios-ui-password-entry-private.log`,
@@ -346,9 +366,10 @@ warnings; the original vendor files were not broadly refactored.
    `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`.
    The app displayed the verified CA, subscribed and counted 100 synthetic
    results; a fresh September 16 login and clean 100-result repeat also passed.
-   **Current checkpoint:** both passwords are entered in the final updated app;
-   scroll down and tap **Connect** because the agent click tool is unavailable.
-   For a later reconnect, open **Week 7 Settings**, verify board user `xilinx`
+   **Final updated app also verified September 16:** after the operator fixed
+   keyboard input and clicked Connect, the app subscribed and received all 100
+   results, including a live OPEN label. For a later reconnect, open **Week 7
+   Settings**, verify board user `xilinx`
    and jump user `yanjie`, enter the passwords, and Connect. After a fresh
    **Subscribed / Received: 0**, start the mock
    immediately within the 30-second initial grace. Capture a clean repeat;
@@ -371,7 +392,8 @@ warnings; the original vendor files were not broadly refactored.
 
 These are the remaining physical/account/private-input actions. No routine
 coding approval is pending. App-owned campus authentication and real Phone TLS
-have now succeeded on two explicit sessions. Physical network-fault/lock
+have now succeeded on multiple explicit sessions, including the final updated
+app. Physical network-fault/lock
 recovery, camera/ARKit behavior and
 complete ESP32→BLE→Windows→Ultra96→iPhone acceptance remain unverified.
 
