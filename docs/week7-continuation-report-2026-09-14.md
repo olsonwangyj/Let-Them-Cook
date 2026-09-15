@@ -15,11 +15,16 @@ inside the iOS simulator in addition to the shared native UI test; 100-result
 interoperability with the actual Python board server over
 two real local SSH hops. On September 15, the actual signed Unity app also
 installed and launched on the connected iPhone after the operator trusted the
-developer profile; the operator confirmed **Week 7 Connect** is visible.
-**Not verified:** complete physical Unity/ARKit behavior,
-campus VPN/account access from this app, actual
-Windows BLE/ESP32 chain, or physical lock/background recovery. Historical iSH
-acceptance below remains separate.
+developer profile. The actual app subsequently reached **Subscribed** through
+the campus jump host and Ultra96, displayed a live result, and counted **100
+received results** from synthetic Mac input. All 100 sender ACK IDs matched the
+board acceptance log. This proves a physical Phone connection and count-level
+delivery; it is not a durable trace of every Phone result ID. A repeat delivered
+only 56 of 100 to the Phone when started during reconnect, and later explicit
+logins were rejected, including after a VPN reconnect. Recovery is unresolved.
+**Not verified:** complete physical Unity/ARKit behavior, the actual Windows
+BLE/ESP32 chain, all four labels on the physical screen, or physical
+lock/background recovery. Historical iSH acceptance below remains separate.
 
 Work began on a clean `main` at `bf38f83`, equal to fetched `origin/main`, and
 continues on **`codex/ios-visualizer-week7-native`**. No merge to main or PDF was
@@ -66,7 +71,8 @@ launch was denied by iOS security; after the operator completed developer trust,
 `devicectl` reported a successful launch and a separate process query confirmed
 the Unity app running. The operator then confirmed **Week 7 Connect** is visible
 on the actual phone. This establishes installation, startup and the setup entry
-point; complete Unity/ARKit behavior and live result rendering remain unverified.
+point; later live result rendering is recorded below. Complete Unity/ARKit
+behavior remains unverified.
 
 The first signed build failed because Finder metadata was attached to framework
 directories under the Documents checkout. Only `com.apple.FinderInfo` on the
@@ -87,7 +93,7 @@ but the server advertised only `publickey` authentication and refused the
 unauthenticated probe. That initial two-hop attempt therefore did not reach an
 authenticated board connection. After the operator connected the Mac VPN,
 both pinned hosts accepted password authentication and the public archive was
-retrieved successfully. Passwords were entered only into SSH's terminal prompts;
+retrieved successfully. For this retrieval, passwords were entered only into SSH's terminal prompts;
 they were not written to local credential files or included in project changes.
 The failed attempt's owned empty socket directory and pending record were
 cleaned up without changing any host or authentication policy.
@@ -104,8 +110,8 @@ the phone confirmed byte-for-byte equality and the enrolled DER fingerprint.
 No password, private key or system-wide trust profile was transferred. The app's
 normal `loadCA()` still validates the enrollment before displaying the setup.
 This establishes verified transfer; it does not establish use of the Files
-picker or a live iPhone connection. The operator must reopen the setup form to
-load the file and connect their Phone VPN independently of the Mac.
+picker. The app subsequently loaded and verified the CA, and the operator
+connected the Phone VPN independently of the Mac.
 
 The existing `xilinx`-owned Ultra96 process is running the documented server
 from `/var/tmp/cg4002-week7-yanjie-20260907/source-db6769a`, bound only to
@@ -114,10 +120,10 @@ from `/var/tmp/cg4002-week7-yanjie-20260907/source-db6769a`, bound only to
 server configuration change was needed. A temporary pinned Mac SSH master and
 loopback-only `18888 → 127.0.0.1:8888` forward are prepared for synthetic input;
 no Mac result subscriber was started. Actual Phone subscription and delivery
-remain pending at this checkpoint. The idle Mac master later expired while
+were pending at that checkpoint. The idle Mac master later expired while
 Mirroring needed operator input; its stale record and owned empty socket
-directory were cleaned up. Re-establish that scoped master and forward before
-the synthetic sender test.
+directory were cleaned up. The scoped master and forward were later
+re-established for the synthetic sender tests below.
 
 Local ignored evidence under `.week7-local/physical-connection` includes
 `retrieval-wmlcmdvp/week7-iphone-setup.zip.verified.json`, `board-preflight.txt`
@@ -141,15 +147,52 @@ a server that excludes password authentication. A bounded board auth-log read
 showed the successful Mac login but no later Phone board attempt, consistent
 with failure at the jump hop. A corrected keyboard-entry retry was prepared but
 not submitted: Mirroring disconnected while typing and returned to its Mac
-login screen. No Phone subscription or gesture delivery is claimed. Local
+login screen. No Phone subscription or gesture delivery was established at
+that earlier checkpoint. Local
 `physical-connection/phone-mirroring-checkpoint.json` records these observations
-without passwords. Resume after the operator unlocks Mirroring again, verify
-the input fields, and submit one corrected login before any sender run.
+without passwords. The later successful test and subsequent failures follow.
 
-With Mac and iPhone alone, the next useful test is the Phone's own
-SSH → TLS → SUBSCRIBE path to Ultra96. Once subscribed, Mac `laptop.bridge --mock`
-can supply synthetic sensor packets through the existing board ingestion path
-to test real Phone result delivery. It does not establish ESP32/BLE acceptance.
+### Actual Phone result test — September 15–16
+
+After Mirroring was unlocked and the credentials were entered, the actual
+Unity app visibly reached **Subscribed**, with **Received: 0**. The Phone owned
+its SSH → SSH → TLS → SUBSCRIBE connection. The Mac used only the board's
+ingestion port through its separate pinned SSH forward; no Mac result subscriber
+was started. The existing `ObservedBridge` mock generated 100 synthetic packets
+with a fresh boot ID, using the real ingestion protocol and public CA.
+
+| Run | Sender and board evidence | Actual Phone observation | Assessment |
+| --- | --- | --- | --- |
+| First, September 15 at 15:46 UTC | 100 accepted ACKs and exactly matching board IDs `1:2250398211:0` through `1:2250398211:99` | **Subscribed**, live **REST**, ID `1:2250398211:80`, confidence 1.0 at count 81; subsequently **Received: 100** | Physical subscription, live rendering and 100-result count established. The local reporting helper raised a `TypeError` after all ACKs, exited 1 and produced no aggregate summary; this failure is retained. |
+| Repeat with reporting fix | 100 accepted ACKs, 100 matching board IDs for boot `1075570325`, process exit 0; all reported error/drop/duplicate counters zero | Count increased from 100 to **156**, with live **POINT**, ID `1:1075570325:91`, confidence 1.0 at count 148 | Sender passed, but Phone delivery was only **56/100**. Input started while the Phone was reconnecting; the 44-result shortfall is consistent with that startup timing and is not a passing delivery repeat. |
+
+The helper's reporting fix renamed its observation timing field so it no
+longer collided with `elapsed_seconds` in the bridge summary. It changed only
+the ignored local test helper, not the app or board. Original failed-run logs
+remain intact. Evidence is under `.week7-local/physical-connection/`:
+`physical100-sender.jsonl`, `physical100-board.log`,
+`physical100-correlation.json`, `physical100-repeat-sender.jsonl`,
+`physical100-repeat-board.log` and `physical100-repeat-correlation.json`.
+Phone screen observations are captured in the task's Mirroring tool output;
+the app retains a latest result and unique count, not a complete result history.
+Consequently the 100-ID sender/board match must not be described as a saved
+100-ID Phone trace. REST and POINT were observed; physical FIST/OPEN observation
+remains pending.
+
+During the quiet interval, the live result cleared and the app cycled through
+its established-stream idle reconnect behavior. A bounded board authentication
+log read showed repeated successful Phone logins and closures consistent with
+that behavior. Later explicit credential re-entry attempts, including a fresh
+app launch and the operator's VPN reconnect, returned **SSH password
+authentication rejected** with count zero. The error does not identify the
+SSH hop or distinguish wrong input from unavailable password authentication.
+Mirroring input was unreliable during these retries, but the cause is not
+proven. Further blind retries were stopped; direct entry on the physical
+iPhone was requested to isolate input from transport failure. A clean new
+100-result repeat and explicit reconnect acceptance remain pending.
+
+With Mac and iPhone alone, synthetic input can test the real Phone result path.
+It does not establish ESP32/BLE acceptance.
 The protected physical bridge currently depends on Windows authenticated-pairing
 checks; do not disable those checks to substitute Mac BLE.
 
@@ -207,7 +250,9 @@ Toolchain: macOS 26.5.1/arm64, Xcode 26.2 (17C52), Swift 6.2.3, iPhoneOS 26.2 SD
 iOS 26.3.1 simulator runtime, Git LFS 3.8.0. Python tests use the ignored
 `.week7-local/venv` with Python 3.13; the real board rehearsal uses the available
 `python3` CLI and standard-library server. New temporary test PKI and owned
-server processes are cleaned up; no institutional accounts were contacted.
+server processes are cleaned up; those host/simulator tests contacted no
+institutional accounts. The subsequent physical tests used the operator's
+authorized campus and board accounts as recorded above.
 
 | Check | Result and evidence |
 | --- | --- |
@@ -226,7 +271,7 @@ server processes are cleaned up; no institutional accounts were contacted.
 | Fixture bundle isolation | All twelve disposable server keys reside only in the XCTest bundle under the simulator preview host's `PlugIns`; neither actual Unity Debug nor Release app contains fixture resources or test bundles. `ios-fixture-bundle-audit.json`. |
 | Final provenance/bundle audit | Exactly 3,476 baseline files unchanged and four reviewed imported source/configuration edits. Both app bundles retain the native bridge, correct display/encryption metadata and no PFX/P12. `import-final-delta.txt`, `app-verification.json`; final LFS fsck passes. |
 | Independent whole-change review | No remaining high/medium findings. Earlier callback/candidate/deadline/credential/layout/reapply findings were fixed with regression tests; a README table formatting issue was corrected. Separate follow-up fixture/generator/Xcode review found no actionable issues. |
-| Device/signing discovery | `xcrun devicectl list devices`: **No devices found**. `security find-identity -v -p codesigning`: **0 valid identities**. |
+| Initial device/signing discovery, September 14 | `xcrun devicectl list devices`: **No devices found**. `security find-identity -v -p codesigning`: **0 valid identities**. Superseded by the signed physical installation above. |
 
 Full logs and Unity builds remain in the ignored `.week7-local` directory on this
 Mac; follow-up simulator products/results are under the Library path above.
@@ -239,14 +284,19 @@ warnings; the original vendor files were not broadly refactored.
 1. **Completed September 15:** Apple sign-in/team selection, device pairing,
    Developer Mode, signing, installation and developer trust. The actual app
    launched and the operator confirmed **Week 7 Connect** is visible.
-2. **Retrieval and USB transfer completed September 15:** the existing public
+2. **CA transfer and first physical connection completed September 15:** the existing public
    Week 7 CA is in the actual app's storage and passed phone readback verification.
    Its SHA-256 is
    `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`.
-   Reopen **Week 7 Connect**, confirm the verified CA, enter board/jump passwords
-   and Connect. The operator confirmed the Phone VPN is connected. Expected:
-   **Subscribed**. For future devices, Files import remains the normal setup path.
-3. Stop competing subscribers. Start the existing board service and Windows BLE
+   The app displayed the verified CA, subscribed and counted 100 synthetic
+   results. The current reconnect is rejected: with Phone VPN connected, open
+   **Week 7 Settings**, clear and enter both passwords directly on the iPhone,
+   then Connect. After a fresh **Subscribed / Received: 0**, start the mock
+   immediately within the 30-second initial grace. Capture a clean repeat;
+   do not start while Connecting. For future devices, Files import remains
+   the normal setup path.
+3. When Windows and ESP32 are available, stop competing subscribers. Check the
+   existing board service and start the Windows BLE
    bridge per the [Week 7 runbook](week7-runbook.md), then power/pair the ESP32
    dummy firmware. After Subscribed, capture 100 unique results. Pass: app count,
    board/Windows trace IDs and REST/FIST/OPEN/POINT mapping agree; no malformed
@@ -261,9 +311,9 @@ warnings; the original vendor files were not broadly refactored.
    integration if desired; it is not required to test this native-export build.
 
 These are the remaining physical/account/private-input actions. No routine
-coding approval is pending. App-owned campus authentication, real Phone TLS,
-camera/ARKit behavior and complete ESP32→BLE→Windows→Ultra96→iPhone acceptance
-cannot be established from host tests or unsigned builds.
+coding approval is pending. App-owned campus authentication and real Phone TLS
+have now succeeded once. Reconnect reliability, camera/ARKit behavior and
+complete ESP32→BLE→Windows→Ultra96→iPhone acceptance remain unverified.
 
 ## Historical import and Mac handoff
 
