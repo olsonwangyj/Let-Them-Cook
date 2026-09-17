@@ -9,6 +9,7 @@
 #include <freertos/semphr.h>
 #include <vector>
 #include "week7_packet.h"
+#include "week7_source_stats.h"
 #include "week7_security.h"
 #include "week7_gatts_control.h"
 
@@ -33,10 +34,12 @@ constexpr char kCounterUuid[] = "6e1c0002-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr char kMtuControlUuid[] = "6e1c0003-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr char kMtuProbeUuid[] = "6e1c0004-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr char kSensorUuid[] = "6e1c0005-7a45-4dc4-b678-3f2d5a9c1001";
+constexpr char kSourceStatsUuid[] = "6e1c0006-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr size_t kMtuProbePayloadCapacity = ESP_GATT_MAX_MTU_SIZE - 3;
 
-uint32_t bootId = 0, aliveSequence = 0, notificationCounter = 0, sensorSequence = 0;
-uint32_t sensorSubmitted = 0, sensorMtuSuppressed = 0, securitySuppressed = 0;
+uint32_t bootId = 0, aliveSequence = 0, notificationCounter = 0;
+week7::SourceStats sensorStats = {};
+uint32_t sensorMtuSuppressed = 0, securitySuppressed = 0;
 uint32_t submissionErrors = 0, lastReportMs = 0, lastNotificationMs = 0;
 bool clientConnected = false, authenticated = false;
 bool notificationsEnabled = false, mtuProbeNotificationsEnabled = false;
@@ -53,6 +56,7 @@ BLEServer* server = nullptr;
 BLEAdvertising* advertising = nullptr;
 BLECharacteristic *counterCharacteristic = nullptr, *mtuProbeControlCharacteristic = nullptr;
 BLECharacteristic *mtuProbeCharacteristic = nullptr, *sensorCharacteristic = nullptr;
+BLECharacteristic* sourceStatsCharacteristic = nullptr;
 BLE2902 *counterCccd = nullptr, *mtuProbeCccd = nullptr, *sensorCccd = nullptr;
 
 // Called with the mutex held. IDF send enqueues work without waiting for receipt.
@@ -172,6 +176,20 @@ class CccdCallbacks final : public BLEDescriptorCallbacks {
     mtuProbeNotificationsEnabled = clientConnected && mtuProbeCccd->getNotifications();
     sensorNotificationsEnabled = clientConnected && sensorCccd->getNotifications();
     xSemaphoreGive(connectionStateMutex);
+  }
+};
+
+class SourceStatsCallbacks final : public BLECharacteristicCallbacks {
+  void onRead(BLECharacteristic* characteristic) override {
+    week7::SourceStats snapshot;
+    xSemaphoreTake(connectionStateMutex, portMAX_DELAY);
+    snapshot = sensorStats;
+    xSemaphoreGive(connectionStateMutex);
+
+    uint8_t payload[week7::kSourceStatsSize];
+    if (week7::serializeSourceStats(payload, sizeof(payload), kDeviceId, snapshot)) {
+      characteristic->setValue(payload, sizeof(payload));
+    }
   }
 };
 
@@ -310,6 +328,7 @@ BLECharacteristic* addNotify(BLEService* service, const char* uuid, BLE2902** de
 void setup() {
   Serial.begin(115200);
   bootId = esp_random();
+  sensorStats.bootId = bootId;
   lastReportMs = millis();
   lastNotificationMs = lastReportMs;
   connectionStateMutex = xSemaphoreCreateMutex();
@@ -325,13 +344,19 @@ void setup() {
   Serial.printf("ble_local_mtu_configured mtu=%u return_code=%d\n", ESP_GATT_MAX_MTU_SIZE, localMtuResult);
   server = BLEDevice::createServer();
   server->setCallbacks(new ServerCallbacks());
-  // Explicit headroom: service + four declarations + four values + three CCCDs.
+  // Explicit headroom: service + five declarations + five values + three CCCDs.
   BLEService* service = server->createService(BLEUUID(kServiceUuid), 24);
   counterCharacteristic = addNotify(service, kCounterUuid, &counterCccd);
   mtuProbeControlCharacteristic = service->createCharacteristic(kMtuControlUuid, BLECharacteristic::PROPERTY_WRITE);
   if (!kDiagnostic) mtuProbeControlCharacteristic->setAccessPermissions(ESP_GATT_PERM_WRITE_ENC_MITM);
   mtuProbeCharacteristic = addNotify(service, kMtuProbeUuid, &mtuProbeCccd);
   sensorCharacteristic = addNotify(service, kSensorUuid, &sensorCccd);
+  sourceStatsCharacteristic = service->createCharacteristic(
+      kSourceStatsUuid, BLECharacteristic::PROPERTY_READ);
+  if (!kDiagnostic) {
+    sourceStatsCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM);
+  }
+  sourceStatsCharacteristic->setCallbacks(new SourceStatsCallbacks());
   service->start();
   advertising = BLEDevice::getAdvertising();
   advertising->addServiceUUID(kServiceUuid);
@@ -387,11 +412,12 @@ void loop() {
       if (!week7::sensorFitsMtu(negotiatedMtu)) ++sensorMtuSuppressed;
       else {
         uint8_t payload[week7::kPacketSize];
-        week7::serializeDummyPacket(payload, sizeof(payload), kDeviceId, bootId, sensorSequence, nowMs);
-        if (submitNotification(sensorCharacteristic, payload, sizeof(payload))) {
-          ++sensorSequence;
-          ++sensorSubmitted;
-        }
+        const uint32_t sampleSequence = week7::allocateSampleSequence(sensorStats);
+        const bool serialized = week7::serializeDummyPacket(
+            payload, sizeof(payload), kDeviceId, bootId, sampleSequence, nowMs);
+        const bool submitted = serialized &&
+            submitNotification(sensorCharacteristic, payload, sizeof(payload));
+        week7::recordSensorSubmission(sensorStats, submitted);
       }
     }
   }
@@ -420,8 +446,8 @@ void loop() {
     Serial.printf("alive boot_id=%lu sequence=%lu uptime_ms=%lu\n", static_cast<unsigned long>(bootId),
         static_cast<unsigned long>(aliveSequence++), static_cast<unsigned long>(nowMs));
     Serial.printf("week7_stats protected=%u authenticated=%u sensor_submitted=%lu next_seq=%lu mtu=%u mtu_suppressed=%lu security_suppressed=%lu submission_errors=%lu\n",
-        !kDiagnostic, observedAuthenticated, static_cast<unsigned long>(sensorSubmitted),
-        static_cast<unsigned long>(sensorSequence), observedMtu, static_cast<unsigned long>(sensorMtuSuppressed),
+        !kDiagnostic, observedAuthenticated, static_cast<unsigned long>(sensorStats.submitted),
+        static_cast<unsigned long>(sensorStats.nextSequence), observedMtu, static_cast<unsigned long>(sensorMtuSuppressed),
         static_cast<unsigned long>(securitySuppressed), static_cast<unsigned long>(submissionErrors));
   }
   delay(1);

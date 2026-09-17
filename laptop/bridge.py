@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 import json
 import logging
 import math
+import secrets
 import ssl
 import threading
 import time
@@ -16,6 +17,7 @@ from typing import Any, Optional
 from common.sensor import decode_packet, dummy_values, SensorPacket, encode_packet
 from common.tls import client_context, TLS_SERVER_NAME
 from common.wire import read_frame, write_frame, ProtocolError
+from laptop.source_audit import SOURCE_STATS_UUID, SourceAudit, SourceStats, parse_source_stats
 
 SERVICE_UUID = "6e1c0001-7a45-4dc4-b678-3f2d5a9c1001"
 SENSOR_UUID = "6e1c0005-7a45-4dc4-b678-3f2d5a9c1001"
@@ -35,6 +37,8 @@ class BridgeConfig:
     connect_timeout: float = 20.0
     address: Optional[str] = None
     diagnostic_unprotected: bool = False
+    expected_device_id: Optional[int] = None
+    source_audit: bool = False
 
     def __post_init__(self):
         if self.host != "127.0.0.1":
@@ -43,6 +47,12 @@ class BridgeConfig:
             raise ValueError("port must be 1..65535")
         if type(self.queue_capacity) is not int or not 1 <= self.queue_capacity <= 4096:
             raise ValueError("queue capacity must be 1..4096")
+        if self.expected_device_id is not None and (
+                type(self.expected_device_id) is not int
+                or self.expected_device_id not in (1, 2)):
+            raise ValueError("expected device ID must be 1 or 2")
+        if self.source_audit and self.expected_device_id is None:
+            raise ValueError("source audit requires an expected device ID")
         from ultra96.protocol import validate_session
         validate_session(self.session_id)
         for value in [self.freshness, self.io_timeout, self.scan_timeout, self.connect_timeout]:
@@ -66,6 +76,7 @@ class RawInbox:
         self._event = asyncio.Event()
         self._loop = asyncio.get_running_loop()
         self._wake_pending = False
+        self._accepting = False
         self.generation = 0
         self.dropped = 0
         self.generation_dropped = 0
@@ -80,6 +91,16 @@ class RawInbox:
             self.generation_dropped += len(self._items)
             self._items.clear()
             self.generation = generation
+            self._accepting = bool(generation)
+
+    def deactivate(self, *, preserve=False):
+        """Reject later callbacks, optionally retaining an accepted tail to drain."""
+        with self._lock:
+            if not preserve:
+                self.generation_dropped += len(self._items)
+                self._items.clear()
+                self.generation = 0
+            self._accepting = False
 
     def _wake(self):
         with self._lock:
@@ -88,9 +109,9 @@ class RawInbox:
 
     def put(self, generation, data, received_at):
         with self._lock:
-            if not generation or generation != self.generation:
+            if not self._accepting or not generation or generation != self.generation:
                 self.generation_dropped += 1
-                return
+                return False
             if len(self._items) == self._capacity:
                 self._items.popleft()
                 self.dropped += 1
@@ -98,6 +119,7 @@ class RawInbox:
             if not self._wake_pending:
                 self._wake_pending = True
                 self._loop.call_soon_threadsafe(self._wake)
+            return True
 
     async def get(self):
         while True:
@@ -148,6 +170,9 @@ class Metrics:
     ble_connections: int = 0
     ble_errors: int = 0
     cleanup_errors: int = 0
+    identity_mismatches: int = 0
+    source_stats_errors: int = 0
+    disconnects: int = 0
 
 
 class Bridge:
@@ -162,6 +187,51 @@ class Bridge:
         self._read_frame, self._write_frame = read_frame, write_frame
         self._retained = set()
         self._forward_lock = asyncio.Lock()
+        self._inflight = 0
+        self.active = asyncio.Event()
+        self.source_audit = (SourceAudit(config.expected_device_id)
+                             if config.source_audit else None)
+        self.first_received_at = None
+        self.last_received_at = None
+        self.max_receive_silence = 0.0
+        self._notification_lock = threading.Lock()
+        self.callback_received = 0
+        self.last_notification_at = None
+        self._observation_active = False
+        self.observation_received = 0
+        self.observation_max_silence = 0.0
+        self._observation_last = None
+
+    def enqueue(self, generation, data):
+        received_at = self.clock()
+        if not self.inbox.put(generation, data, received_at):
+            return False
+        with self._notification_lock:
+            self.callback_received += 1
+            self.last_notification_at = received_at
+            if self._observation_active:
+                self.observation_max_silence = max(
+                    self.observation_max_silence,
+                    received_at - self._observation_last)
+                self._observation_last = received_at
+                self.observation_received += 1
+        return True
+
+    def begin_observation(self, now=None):
+        now = self.clock() if now is None else now
+        with self._notification_lock:
+            self._observation_active = True
+            self.observation_received = 0
+            self.observation_max_silence = 0.0
+            self._observation_last = now
+
+    def finish_observation(self, now=None):
+        now = self.clock() if now is None else now
+        with self._notification_lock:
+            if self._observation_active:
+                self.observation_max_silence = max(
+                    self.observation_max_silence, now - self._observation_last)
+            self._observation_active = False
 
     async def _bounded(self, awaitable, timeout):
         if sum(not task.done() for task in self._retained) >= 2:
@@ -224,56 +294,77 @@ class Bridge:
         """Single stream owner; ambiguous failed writes are never replayed."""
         async with self._forward_lock:
             item = await self.inbox.get()
-            self.metrics.received += 1
+            self._inflight += 1
             try:
-                packet = decode_packet(item.payload)
-                if tuple(packet.values) != tuple(dummy_values(packet.seq)):
-                    raise ValueError("not a Week 7 deterministic packet")
-            except (ValueError, TypeError):
-                self.metrics.malformed += 1
+                return await self._forward_one(item)
+            finally:
+                self._inflight -= 1
+
+    async def _forward_one(self, item):
+        self.metrics.received += 1
+        try:
+            packet = decode_packet(item.payload)
+            if self.source_audit is not None:
+                self.source_audit.received(packet)
+            if (self.config.expected_device_id is not None
+                    and packet.device_id != self.config.expected_device_id):
+                self.metrics.identity_mismatches += 1
                 return
-            if not self.tracker.observe(packet):
-                return
+            if tuple(packet.values) != tuple(dummy_values(packet.seq)):
+                raise ValueError("not a Week 7 deterministic packet")
+        except (ValueError, TypeError):
+            self.metrics.malformed += 1
+            return
+        if self.last_received_at is not None:
+            self.max_receive_silence = max(
+                self.max_receive_silence, item.received_at - self.last_received_at)
+        else:
+            self.first_received_at = item.received_at
+        self.last_received_at = item.received_at
+        if not self.tracker.observe(packet):
+            return
+        if item.generation != self.inbox.generation:
+            self.metrics.generation_dropped += 1
+            return
+        if self.clock() - item.received_at > self.config.freshness:
+            self.metrics.stale_dropped += 1
+            return
+        sent = False
+        try:
+            if self.writer is None:
+                self.reader, self.writer = await self._connector()
+                self.metrics.transport_connections += 1
+            # Connection/handshake may have consumed the entire freshness budget.
             if item.generation != self.inbox.generation:
                 self.metrics.generation_dropped += 1
                 return
-            if self.clock() - item.received_at > self.config.freshness:
+            remaining = self.config.freshness - (self.clock() - item.received_at)
+            if remaining <= 0:
                 self.metrics.stale_dropped += 1
                 return
-            sent = False
+            sent = True
+            await self._write_frame(self.writer, packet.to_message(self.config.session_id),
+                                    timeout=min(self.config.io_timeout, remaining))
+            self.metrics.sent += 1
             try:
-                if self.writer is None:
-                    self.reader, self.writer = await self._connector()
-                    self.metrics.transport_connections += 1
-                # Connection/handshake may have consumed the entire freshness budget.
-                if item.generation != self.inbox.generation:
-                    self.metrics.generation_dropped += 1
-                    return
-                remaining = self.config.freshness - (self.clock() - item.received_at)
-                if remaining <= 0:
-                    self.metrics.stale_dropped += 1
-                    return
-                sent = True
-                await self._write_frame(self.writer, packet.to_message(self.config.session_id),
-                                        timeout=min(self.config.io_timeout, remaining))
-                self.metrics.sent += 1
-                try:
-                    ack = await self._read_frame(self.reader, timeout=self.config.io_timeout)
-                    self._check_ack(ack, packet)
-                except (Exception,):
-                    self.metrics.ack_errors += 1
-                    raise
-                self.metrics.acked += 1
-                self.metrics.duplicate_acks += int(ack["status"] == "duplicate")
-            except asyncio.CancelledError:
-                if sent:
-                    self.metrics.ambiguous_dropped += 1
+                ack = await self._read_frame(self.reader, timeout=self.config.io_timeout)
+                self._check_ack(ack, packet)
+            except Exception:
+                self.metrics.ack_errors += 1
                 raise
-            except (OSError, ValueError, EOFError, asyncio.TimeoutError, ssl.SSLError):
-                self.metrics.transport_errors += 1
-                if sent:
-                    self.metrics.ambiguous_dropped += 1
-                await self.close_transport()
+            self.metrics.acked += 1
+            self.metrics.duplicate_acks += int(ack["status"] == "duplicate")
+            if self.source_audit is not None:
+                self.source_audit.acknowledged(packet)
+        except asyncio.CancelledError:
+            if sent:
+                self.metrics.ambiguous_dropped += 1
+            raise
+        except (OSError, ValueError, EOFError, asyncio.TimeoutError, ssl.SSLError):
+            self.metrics.transport_errors += 1
+            if sent:
+                self.metrics.ambiguous_dropped += 1
+            await self.close_transport()
 
     async def writer_loop(self):
         delay = 0.5
@@ -287,13 +378,17 @@ class Bridge:
             elif self.metrics.acked > acked_before:
                 delay = 0.5
 
-    async def ble_loop(self, *, scanner=None, client_factory=None):
+    async def ble_loop(self, *, scanner=None, client_factory=None,
+                       stop_event=None, active_event=None):
         from bleak import BleakScanner
         from laptop.ble_connection import make_ble_client
         scanner, client_factory = scanner or BleakScanner, client_factory or make_ble_client
+        active_event = active_event or self.active
         generation = 0
         delay = 0.5
         while True:
+            if stop_event is not None and stop_event.is_set():
+                return
             if any(not task.done() for task in self._retained):
                 # Do not overlap a new native BLE connection with teardown from
                 # the prior attempt. The bounded run can still stop independently.
@@ -301,6 +396,7 @@ class Bridge:
                 continue
             client = None
             subscribed = False
+            normal_stop = False
             disconnected = asyncio.Event()
             generation += 1
             current = generation
@@ -327,36 +423,91 @@ class Bridge:
                 if not self.config.diagnostic_unprotected:
                     from laptop.windows_pairing import require_authenticated_bond
                     await require_authenticated_bond(client)
+                if self.source_audit is not None:
+                    source = service.get_characteristic(SOURCE_STATS_UUID) if service else None
+                    if source is None or "read" not in source.properties:
+                        self.metrics.source_stats_errors += 1
+                        self.source_audit.mark_snapshot_error()
+                        raise ValueError("protected W7 source statistics Read characteristic missing")
+                    try:
+                        snapshot = parse_source_stats(
+                            await self._bounded(client.read_gatt_char(SOURCE_STATS_UUID),
+                                                self.config.connect_timeout),
+                            expected_device_id=self.config.expected_device_id)
+                    except Exception:
+                        self.metrics.source_stats_errors += 1
+                        self.source_audit.mark_snapshot_error()
+                        raise
+                    if self.source_audit.start_stats is None:
+                        self.source_audit.start(snapshot)
+                    else:
+                        # The original start boundary remains authoritative.
+                        self.source_audit.mark_interruption()
                 self.inbox.activate(current)
                 def notification(_sender, data, gen=current):
-                    self.inbox.put(gen, data, self.clock())
+                    self.enqueue(gen, data)
                 await self._bounded(client.start_notify(SENSOR_UUID, notification), self.config.connect_timeout)
                 subscribed = True
                 self.metrics.ble_connections += 1
                 delay = 0.5
-                await disconnected.wait()
+                active_event.set()
+                if stop_event is None:
+                    await disconnected.wait()
+                else:
+                    disconnected_wait = asyncio.create_task(disconnected.wait())
+                    stop_wait = asyncio.create_task(stop_event.wait())
+                    done, pending = await asyncio.wait(
+                        (disconnected_wait, stop_wait),
+                        return_when=asyncio.FIRST_COMPLETED)
+                    for task in pending:
+                        task.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                    normal_stop = (stop_wait in done and disconnected_wait not in done
+                                   and stop_event.is_set())
+                    if not normal_stop:
+                        self.metrics.disconnects += 1
+                        if self.source_audit is not None:
+                            self.source_audit.mark_interruption()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 self.metrics.ble_errors += 1
                 LOG.warning("BLE attempt failed: %s", exc)
             finally:
-                self.inbox.activate(0)
                 if client is not None:
                     cleanup_cancellation = None
                     deadline = self.clock() + 1.0
                     # WinRT stop_notify writes the remote CCCD and rejects an
                     # already-disconnected client. disconnect still releases
                     # local notification handlers and native service objects.
+                    stopped_notifications = False
                     if subscribed and client.is_connected:
                         try:
                             await self._bounded(client.stop_notify(SENSOR_UUID), 0.75)
+                            stopped_notifications = True
                         except (Exception, asyncio.CancelledError) as exc:
                             if isinstance(exc, asyncio.CancelledError):
                                 cleanup_cancellation = exc
                             self.metrics.cleanup_errors += 1
                             LOG.warning("BLE cleanup failed operation=stop_notify error_type=%s",
                                         type(exc).__name__)
+                    if (normal_stop and stopped_notifications
+                            and self.source_audit is not None):
+                        try:
+                            final = parse_source_stats(
+                                await self._bounded(client.read_gatt_char(SOURCE_STATS_UUID),
+                                                    self.config.connect_timeout),
+                                expected_device_id=self.config.expected_device_id)
+                            self.source_audit.finish(final)
+                        except (Exception, asyncio.CancelledError) as exc:
+                            self.metrics.source_stats_errors += 1
+                            self.source_audit.mark_snapshot_error()
+                            if isinstance(exc, asyncio.CancelledError):
+                                cleanup_cancellation = exc
+                            LOG.warning("BLE cleanup failed operation=read_source_stats error_type=%s",
+                                        type(exc).__name__)
+                    self.inbox.deactivate(preserve=normal_stop and stopped_notifications)
+                    active_event.clear()
                     try:
                         await self._bounded(client.disconnect(), max(0.001, deadline - self.clock()))
                     except (Exception, asyncio.CancelledError) as exc:
@@ -367,25 +518,73 @@ class Bridge:
                                     type(exc).__name__)
                     if cleanup_cancellation is not None:
                         raise cleanup_cancellation
-            await asyncio.sleep(delay)
+                else:
+                    self.inbox.deactivate()
+                    active_event.clear()
+            if normal_stop:
+                return
+            if stop_event is not None and stop_event.is_set():
+                return
+            if stop_event is None:
+                await asyncio.sleep(delay)
+            else:
+                try:
+                    await asyncio.wait_for(stop_event.wait(), delay)
+                    return
+                except asyncio.TimeoutError:
+                    pass
             delay = min(delay * 2, 5.0)
 
-    async def dummy_loop(self, rate=10.0):
+    async def dummy_loop(self, rate=10.0, *, stop_event=None, active_event=None):
         """Explicit local transport test source; never physical BLE evidence."""
+        if not math.isfinite(rate) or rate <= 0:
+            raise ValueError("mock rate must be positive finite")
+        active_event = active_event or self.active
         self.inbox.activate(1)
+        device_id = self.config.expected_device_id or 1
+        boot_id = secrets.randbits(32)
         seq = 0
-        while True:
-            self.inbox.put(1, encode_packet(SensorPacket(1, 0x77330001, seq,
-                (seq * 100) & 0xffffffff, dummy_values(seq))), self.clock())
-            seq = (seq + 1) & 0xffffffff
-            await asyncio.sleep(1.0 / rate)
+        if self.source_audit is not None and self.source_audit.start_stats is None:
+            self.source_audit.start(SourceStats(device_id, boot_id, 0, 0, 0))
+        active_event.set()
+        try:
+            while stop_event is None or not stop_event.is_set():
+                self.enqueue(1, encode_packet(SensorPacket(device_id, boot_id, seq,
+                    (seq * 100) & 0xffffffff, dummy_values(seq))))
+                seq = (seq + 1) & 0xffffffff
+                if stop_event is None:
+                    await asyncio.sleep(1.0 / rate)
+                else:
+                    try:
+                        await asyncio.wait_for(stop_event.wait(), 1.0 / rate)
+                    except asyncio.TimeoutError:
+                        pass
+        finally:
+            if self.source_audit is not None and self.source_audit.end_stats is None:
+                self.source_audit.finish(SourceStats(device_id, boot_id, seq, seq, 0))
+            self.inbox.deactivate(preserve=True)
+            active_event.clear()
 
     def summary(self):
+        source = self.source_audit.report() if self.source_audit is not None else None
+        source_issue = None
+        if self.source_audit is not None and self.source_audit.start_stats is None:
+            source_issue = ("source statistics unavailable or incompatible; "
+                            "install updated dual-source firmware")
+        elif self.source_audit is not None and self.source_audit.end_stats is None:
+            source_issue = "final source statistics unavailable; capture is incomplete"
         return dict(asdict(self.metrics), queue_dropped=self.inbox.dropped,
                     callback_generation_dropped=self.inbox.generation_dropped,
                     queue_size=self.inbox.size, gaps=self.tracker.gaps,
                     duplicates=self.tracker.duplicates, out_of_order=self.tracker.out_of_order,
-                    new_boots=self.tracker.new_boots)
+                    new_boots=self.tracker.new_boots, unfinished=bool(self.inbox.size or self._inflight),
+                    first_received_at=self.first_received_at,
+                    last_received_at=self.last_received_at,
+                    max_receive_silence=self.max_receive_silence,
+                    callback_received=self.callback_received,
+                    observation_received=self.observation_received,
+                    observation_max_silence=self.observation_max_silence,
+                    source=source, source_issue=source_issue)
 
     async def run(self, duration=60.0, target=0, mock=False):
         if not math.isfinite(duration) or duration <= 0 or type(target) is not int or target < 0:

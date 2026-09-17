@@ -1,5 +1,7 @@
 # Week 7 completion design — 2026-09-06
 
+> **2026-09-17 extension:** The user selected concurrent reception from two ESP32s with zero measured loss during normal connected operation. The [dual-ESP runbook](dual-esp-runbook.md) and [new design](superpowers/specs/2026-09-17-dual-esp-reception.md) extend this baseline. In updated firmware, a sample sequence is allocated before submission, and a protected source-statistics characteristic exposes generated/submitted/failed counts. This supersedes the successful-submission-only sequence rule below. The legacy single-device command remains supported; historical acceptance evidence remains single-device evidence.
+
 This selected Week 7 contract supersedes earlier Proposed/TBD/approval blockers in the architecture draft, original plan, and 2026-09-05 reports. The user's 2026-09-06 instruction explicitly authorizes autonomous decisions, implementation, tests, deployment attempts, and local commits. Historical evidence is preserved. This is a reversible demonstration contract, not a final sensor/AI or course-security certification.
 
 ## Decisions and reasoning

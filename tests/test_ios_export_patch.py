@@ -51,10 +51,11 @@ def create_export(tmp_path, baseline):
 
 def test_apply_changes_only_receiver_source_and_preserves_file_mode(tmp_path, baseline):
     export, source = create_export(tmp_path, baseline)
+    initial_mode = source.stat().st_mode & 0o777
     result = run_patch(export)
     assert result.returncode == 0, result.stderr
     assert source.read_bytes() != baseline
-    assert source.stat().st_mode & 0o777 == 0o640
+    assert source.stat().st_mode & 0o777 == initial_mode
     assert (export / "scene-untouched.bin").read_bytes() == b"keep the scene and metadata"
     assert sorted(p.relative_to(export) for p in export.rglob("*") if p.is_file()) == sorted(
         [SOURCE, Path("scene-untouched.bin")]
@@ -164,6 +165,8 @@ def configuration_export(tmp_path):
 
 def test_configure_first_apply_and_reapply_preserve_valid_complete_linkage(tmp_path):
     export = configuration_export(tmp_path)
+    symbols = export / 'process_symbols.sh'
+    initial_symbols_mode = symbols.stat().st_mode & 0o777
     result = run_patch(export, CONFIGURE)
     assert result.returncode == 0, result.stderr
     files = [p for p in export.rglob('*') if p.is_file()]
@@ -173,7 +176,7 @@ def test_configure_first_apply_and_reapply_preserve_valid_complete_linkage(tmp_p
     second = run_patch(export, CONFIGURE)
     assert second.returncode == 0, second.stderr
     assert {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in files} == before
-    assert (export / 'process_symbols.sh').stat().st_mode & 0o777 == 0o755
+    assert symbols.stat().st_mode & 0o777 == initial_symbols_mode
 
 
 @pytest.mark.parametrize('broken_edge', ['framework', 'target', 'project', 'product', 'local-path', 'symbols'])
