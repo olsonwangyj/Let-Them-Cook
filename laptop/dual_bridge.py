@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from datetime import datetime, timezone
 import json
 import logging
 import math
+from pathlib import Path
+import sys
 from typing import Optional
 
 from laptop.bridge import Bridge, BridgeConfig
+from laptop import reporting
 
 
 LOG = logging.getLogger(__name__)
@@ -43,9 +47,11 @@ class DualBridge:
                 and left.config.address.lower() == right.config.address.lower()):
             raise ValueError("physical devices require distinct BLE addresses")
 
-    async def _wait_for_start(self, active, input_tasks):
+    async def _wait_for_start(self, active, input_tasks, on_tick=None):
         async def both_active():
             while not all(event.is_set() for event in active.values()):
+                if on_tick is not None:
+                    on_tick("startup")
                 for task in input_tasks.values():
                     if task.done():
                         task.result()
@@ -55,7 +61,7 @@ class DualBridge:
         await asyncio.wait_for(both_active(), self.startup_timeout)
 
     async def run(self, duration=600.0, *, mock=False, mock_rate: Optional[float] = None,
-                  ble_options=None):
+                  ble_options=None, progress_interval=0.0, progress_callback=None):
         if not isinstance(duration, (int, float)) or isinstance(duration, bool) \
                 or not math.isfinite(duration) or duration <= 0:
             raise ValueError("duration must be positive finite seconds")
@@ -69,6 +75,10 @@ class DualBridge:
         if not isinstance(rate, (int, float)) or isinstance(rate, bool) \
                 or not math.isfinite(rate) or rate <= 0:
             raise ValueError("mock rate must be positive finite")
+        if not isinstance(progress_interval, (int, float)) \
+                or isinstance(progress_interval, bool) \
+                or not math.isfinite(progress_interval) or progress_interval < 0:
+            raise ValueError("progress interval must be zero or positive finite seconds")
         ble_options = ble_options or {}
         stop = {device: asyncio.Event() for device in self.bridges}
         active = {device: asyncio.Event() for device in self.bridges}
@@ -88,11 +98,57 @@ class DualBridge:
             inputs[device] = asyncio.create_task(coroutine, name=f"input-{device}")
 
         failures = {1: [], 2: []}
+        progress_failed = False
+        next_progress = asyncio.get_running_loop().time()
+
+        def emit_progress(phase, *, force=False):
+            nonlocal next_progress, progress_failed
+            if progress_callback is None or progress_interval == 0 or progress_failed:
+                return
+            now = asyncio.get_running_loop().time()
+            if not force and now < next_progress:
+                return
+            snapshots = []
+            for device, bridge in self.bridges.items():
+                metrics = bridge.metrics
+                drops = (bridge.inbox.dropped + metrics.stale_dropped
+                         + bridge.inbox.generation_dropped
+                         + metrics.generation_dropped + metrics.ambiguous_dropped)
+                errors = (metrics.malformed + metrics.ack_errors
+                          + metrics.transport_errors + metrics.ble_errors
+                          + metrics.cleanup_errors + metrics.identity_mismatches
+                          + metrics.source_stats_errors + metrics.disconnects
+                          + bridge.tracker.gaps + bridge.tracker.duplicates
+                          + bridge.tracker.out_of_order + bridge.tracker.new_boots)
+                if bridge.source_audit is not None:
+                    audit = bridge.source_audit
+                    errors += (audit.sequence_anomalies
+                               + audit.ack_sequence_anomalies
+                               + audit.identity_mismatches + audit.boot_mismatches
+                               + audit.interruptions + audit.snapshot_errors)
+                snapshots.append({
+                    "device_id": device,
+                    "received": bridge.callback_received,
+                    "processed": metrics.received,
+                    "acked": metrics.acked,
+                    "queue": bridge.inbox.size,
+                    "drops": drops,
+                    "errors": errors,
+                })
+            try:
+                progress_callback(
+                    phase, "synthetic" if mock else "physical", snapshots)
+            except Exception:
+                progress_failed = True
+                LOG.warning("progress output failed error_type=callback")
+            next_progress = now + float(progress_interval)
+
         startup_ok = False
         observation_start = observation_end = None
         try:
+            emit_progress("startup", force=True)
             try:
-                await self._wait_for_start(active, inputs)
+                await self._wait_for_start(active, inputs, emit_progress)
                 startup_ok = True
             except (Exception, asyncio.TimeoutError) as exc:
                 for device in self.bridges:
@@ -100,6 +156,7 @@ class DualBridge:
                         failures[device].append(f"startup:{type(exc).__name__}")
 
             if startup_ok:
+                emit_progress("observation", force=True)
                 observation_start = asyncio.get_running_loop().time()
                 for bridge in self.bridges.values():
                     bridge.begin_observation()
@@ -108,6 +165,7 @@ class DualBridge:
                     now = asyncio.get_running_loop().time()
                     if now >= deadline:
                         break
+                    emit_progress("observation")
                     for device, task in inputs.items():
                         if task.done() and not stop[device].is_set():
                             try:
@@ -135,6 +193,7 @@ class DualBridge:
             # stop-notify and its final source read independently.
             for event in stop.values():
                 event.set()
+            emit_progress("shutdown", force=True)
             done, pending = await asyncio.wait(inputs.values(), timeout=self.shutdown_timeout)
             for task in done:
                 device = int(task.get_name().rsplit("-", 1)[1])
@@ -165,6 +224,7 @@ class DualBridge:
             while (any(bridge.inbox.size or bridge._inflight
                        for bridge in self.bridges.values())
                    and asyncio.get_running_loop().time() < drain_deadline):
+                emit_progress("drain")
                 await asyncio.sleep(0.01)
             for device, bridge in self.bridges.items():
                 if bridge.inbox.size or bridge._inflight:
@@ -198,13 +258,14 @@ class DualBridge:
             for device, result in zip(self.bridges, close_results):
                 if isinstance(result, BaseException):
                     failures[device].append(f"transport_close:{type(result).__name__}")
+            emit_progress("complete", force=True)
 
         observed_duration = (observation_end - observation_start
                              if observation_start is not None and observation_end is not None
                              else 0.0)
         expected_samples = observed_duration * self.expected_rate
         devices = {}
-        clean = startup_ok
+        clean = startup_ok and not progress_failed
         anomaly_fields = (
             "malformed", "stale_dropped", "generation_dropped", "duplicate_acks",
             "ack_errors", "ambiguous_dropped", "transport_errors", "ble_errors",
@@ -242,8 +303,21 @@ class DualBridge:
             "session_id": self.bridges[1].config.session_id,
             "common_observation_seconds": observed_duration,
             "expected_rate_hz": self.expected_rate,
+            "progress_error": progress_failed,
             "devices": devices,
         }
+
+
+def _progress_interval(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(
+            "progress interval must be zero or positive finite seconds") from exc
+    if not math.isfinite(parsed) or parsed < 0:
+        raise argparse.ArgumentTypeError(
+            "progress interval must be zero or positive finite seconds")
+    return parsed
 
 
 def _parser():
@@ -259,6 +333,9 @@ def _parser():
     parser.add_argument("--expected-rate", type=float, default=10.0)
     parser.add_argument("--startup-timeout", type=float, default=30.0)
     parser.add_argument("--drain-timeout", type=float, default=10.0)
+    parser.add_argument("--progress-interval", type=_progress_interval, default=1.0,
+                        help="seconds between per-device stderr updates; 0 disables")
+    parser.add_argument("--report", help="new path for the final JSON report")
     parser.add_argument("--mock", action="store_true",
                         help="explicit two-device synthetic input, not BLE evidence")
     parser.add_argument("--diagnostic-unprotected", action="store_true")
@@ -273,6 +350,26 @@ def main():
     if (args.left_address and args.right_address
             and args.left_address.lower() == args.right_address.lower()):
         parser.error("left and right BLE addresses must be distinct")
+    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    mode = "synthetic" if args.mock else "physical"
+    run_metadata = {
+        "started_at_utc": started_at,
+        "mode": mode,
+        "requested_duration_seconds": args.duration,
+        "expected_rate_hz": args.expected_rate,
+        "session_id": args.session_id,
+        "revision": reporting.local_revision(Path(__file__).parents[1]),
+    }
+    reservation = None
+    if args.report:
+        try:
+            reservation = reporting.reserve_report(args.report, run_metadata)
+        except (OSError, ValueError, RuntimeError) as exc:
+            detail = str(exc) if isinstance(
+                exc, (FileExistsError, FileNotFoundError, NotADirectoryError)) \
+                else type(exc).__name__
+            print(f"report reservation failed: {detail}", file=sys.stderr)
+            return 2
     logging.basicConfig(level=logging.INFO)
 
     def bridge(device_id, address):
@@ -288,11 +385,39 @@ def main():
             expected_rate=args.expected_rate, startup_timeout=args.startup_timeout,
             drain_timeout=args.drain_timeout)
         return await dual.run(
-            duration=args.duration, mock=args.mock, mock_rate=args.expected_rate)
+            duration=args.duration, mock=args.mock, mock_rate=args.expected_rate,
+            progress_interval=args.progress_interval,
+            progress_callback=_write_progress)
 
     report = _run_with_bounded_loop(run())
-    print(json.dumps(report, sort_keys=True))
-    return 0 if report["clean"] else 1
+    report["run"] = dict(
+        run_metadata,
+        finished_at_utc=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    report_error = False
+    if reservation is not None:
+        report["report_saved"] = True
+        serialized = json.dumps(report, sort_keys=True) + "\n"
+        try:
+            reservation.finalize(serialized)
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            report_error = True
+            report["clean"] = False
+            report["report_saved"] = False
+            report["report_error"] = type(exc).__name__
+            print(f"report write failed: {type(exc).__name__}", file=sys.stderr)
+    serialized = json.dumps(report, sort_keys=True) + "\n"
+    print(serialized, end="")
+    return 0 if report["clean"] and not report_error else 1
+
+
+def _write_progress(phase, mode, snapshots):
+    for item in snapshots:
+        print(
+            "progress mode={mode} phase={phase} device={device_id} "
+            "received={received} processed={processed} acked={acked} "
+            "queue={queue} drops={drops} errors={errors}".format(
+                mode=mode, phase=phase, **item),
+            file=sys.stderr, flush=True)
 
 
 def _run_with_bounded_loop(coroutine, *, retirement_timeout=0.1):

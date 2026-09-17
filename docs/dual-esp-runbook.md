@@ -52,14 +52,33 @@ Enter each device's local serial passkey through the existing pairing prompt. No
 4. Run the dual command from the checkout containing this implementation:
 
 ```powershell
-python -m laptop.dual_bridge --ca '<EXISTING_WEEK7_CA_CERT_PATH>' --left-address '<LEFT_BLE_ADDRESS>' --right-address '<RIGHT_BLE_ADDRESS>' --duration 600
+python -m laptop.dual_bridge --ca '<EXISTING_WEEK7_CA_CERT_PATH>' --left-address '<LEFT_BLE_ADDRESS>' --right-address '<RIGHT_BLE_ADDRESS>' --duration 600 --report '<EXISTING_EVIDENCE_DIRECTORY>/dual-esp-test.json'
 ```
 
-The command waits for both streams before starting its common observation period. Allow the run to finish normally so it can stop notifications, read final counters, drain queued packets and close both paths. Its final JSON reports each device separately. Save that JSON and the process exit code with the firmware version and actual test conditions.
+The command waits for both streams before starting its common observation period. Allow the run to finish normally so it can stop notifications, read final counters, drain queued packets and close both paths. Its final JSON reports each device separately. Keep the saved report and process exit code with the firmware version and actual test conditions.
 
 A successful run exits with code 0 and reports `clean: true`, `mock_input: false`, and a clean entry for each device. The `--diagnostic-unprotected` option is available for diagnosis, but cannot produce a clean physical result.
 
 For a separate recovery test, use a shorter duration and interrupt only one device after both are receiving. The other device should keep progressing, and the interrupted device should reconnect. That run intentionally contains an outage and must not be presented as a clean zero-loss soak. Follow it with a new uninterrupted capture.
+
+## Live progress and saved reports
+
+The dual command shows a progress line for each device approximately once per second. It identifies synthetic or physical input and the current capture phase, with received/acknowledged counts, queue size, drops and errors. Progress goes to standard error; standard output remains one final JSON object. These are periodic totals, not a recording of every packet's sensor values.
+
+For example, these illustrative lines show both physical streams progressing:
+
+```text
+progress mode=physical phase=observation device=1 received=100 processed=100 acked=100 queue=0 drops=0 errors=0
+progress mode=physical phase=observation device=2 received=100 processed=100 acked=100 queue=0 drops=0 errors=0
+```
+
+In live progress, `received` counts admitted notification callbacks, `processed` counts packets taken from the queue, and `acked` counts validated server acknowledgements. A temporarily growing queue can therefore show continued BLE reception even while its writer is waiting. The existing final JSON's `received` field retains its processed-packet meaning; `callback_received` records notification arrivals.
+
+Use `--progress-interval 5` for five-second updates or `--progress-interval 0` to disable progress. Warnings still appear. Live counts are provisional: the final source snapshots and ACK reconciliation determine whether the completed run is clean.
+
+Use `--report '<EXISTING_EVIDENCE_DIRECTORY>/dual-esp-test.json'` to save the same final JSON printed to the terminal. Choose a new filename in an existing directory for every capture. The command refuses an existing or unusable destination before starting the device connections. Without `--report`, the final JSON is printed without creating a report file.
+
+The destination initially contains an explicit `incomplete` record, so an interrupted run cannot be mistaken for a completed test. Normal completion replaces that reservation with the final report, including both device summaries, the overall verdict, UTC timing, input mode and requested test settings. A report-write failure produces a nonzero exit code and a non-clean terminal result. An incomplete file is not passing evidence.
 
 ## What packet accounting proves
 
@@ -85,7 +104,7 @@ python -m ultra96.server --cert '<TEMP_PKI_DIRECTORY>/server-cert.pem' --key '<T
 Run two explicit synthetic sources through the same coordinator:
 
 ```powershell
-python -m laptop.dual_bridge --ca '<TEMP_PKI_DIRECTORY>/ca-cert.pem' --mock --duration 10
+python -m laptop.dual_bridge --ca '<TEMP_PKI_DIRECTORY>/ca-cert.pem' --mock --duration 10 --report '<EXISTING_EVIDENCE_DIRECTORY>/dual-esp-mock.json'
 ```
 
 Synthetic success verifies software coordination and local TLS. It does not verify the Windows Bluetooth adapter, two physical ESPs, the campus route, or the iPhone. Use the existing enrolled CA for the real deployment; temporary test PKI is only for this isolated local check.

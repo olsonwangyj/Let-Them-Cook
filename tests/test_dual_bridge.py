@@ -114,6 +114,42 @@ async def test_normal_stop_drains_tail_and_reconciles_both_mock_sources():
 
 
 @async_test
+async def test_disabled_progress_stays_quiet_and_callback_failure_still_cleans_up():
+    left, right = Bridge(config(1)), Bridge(config(2))
+    install_ack_transport(left)
+    install_ack_transport(right)
+    dual = DualBridge(left, right, expected_rate=10, startup_timeout=1, drain_timeout=1)
+
+    def must_not_run(*_args):
+        raise AssertionError("disabled progress callback ran")
+
+    quiet = await dual.run(
+        duration=0.04, mock=True, mock_rate=100,
+        progress_interval=0, progress_callback=must_not_run)
+    assert quiet["clean"] is True
+    assert quiet["progress_error"] is False
+
+    failed_left, failed_right = Bridge(config(1)), Bridge(config(2))
+    install_ack_transport(failed_left)
+    install_ack_transport(failed_right)
+
+    def fail_progress(*_args):
+        raise OSError("private logging detail")
+
+    failed = await DualBridge(
+        failed_left, failed_right, expected_rate=10,
+        startup_timeout=1, drain_timeout=1).run(
+            duration=0.04, mock=True, mock_rate=100,
+            progress_interval=0.01, progress_callback=fail_progress)
+
+    assert failed["clean"] is False
+    assert failed["progress_error"] is True
+    for device in ("1", "2"):
+        assert failed["devices"][device]["source"]["clean"] is True
+        assert failed["devices"][device]["unfinished"] is False
+
+
+@async_test
 async def test_startup_packets_do_not_count_toward_common_window_coverage():
     left, right = Bridge(config(1)), Bridge(config(2))
     install_ack_transport(left)
@@ -392,6 +428,7 @@ async def test_ble_disconnect_reconnect_is_per_device_and_keeps_fault_verdict():
 
     left_ble = Environment(1, "AA:01", disconnect_first=True)
     right_ble = Environment(2, "AA:02")
+    progress = []
     report = await DualBridge(
         left, right, expected_rate=5, startup_timeout=1,
         drain_timeout=1, shutdown_timeout=2).run(
@@ -399,7 +436,9 @@ async def test_ble_disconnect_reconnect_is_per_device_and_keeps_fault_verdict():
             ble_options={
                 1: {"scanner": left_ble, "client_factory": left_ble.client},
                 2: {"scanner": right_ble, "client_factory": right_ble.client},
-            })
+            }, progress_interval=0.05,
+            progress_callback=lambda phase, mode, snapshots:
+                progress.append((phase, mode, snapshots)))
 
     assert left_ble.connections >= 2
     assert report["devices"]["1"]["disconnects"] >= 1
@@ -409,6 +448,8 @@ async def test_ble_disconnect_reconnect_is_per_device_and_keeps_fault_verdict():
     assert report["devices"]["2"]["clean"] is False
     assert report["devices"]["1"]["clean"] is False
     assert report["clean"] is False
+    assert any(item["errors"] >= 1 for _, _, snapshots in progress
+               for item in snapshots if item["device_id"] == 1)
 
 
 def test_cli_exits_after_bounded_cleanup_when_ack_read_resists_cancellation():

@@ -2,7 +2,7 @@
 
 Week 7 implements a protected ESP32 BLE dummy stream, a bounded Windows bridge, TLS ingestion and direct result delivery on Ultra96, plus Python/Android and Unity receivers.
 
-The [dual-ESP receiver and test runbook](docs/dual-esp-runbook.md) describes the new two-glove mode: independent concurrent BLE/TLS paths, per-device source-to-ACK accounting, and separate recovery after a disconnect. It retains the current 10 Hz dummy packet format; a two-device physical soak is required before claiming hardware zero loss.
+The [dual-ESP receiver and test runbook](docs/dual-esp-runbook.md) describes the new two-glove mode: independent concurrent BLE/TLS paths, per-device source-to-ACK accounting, and separate recovery after a disconnect. It shows live progress for both streams and supports `--report` to save the final JSON. It retains the current 10 Hz dummy packet format; a two-device physical soak is required before claiming hardware zero loss.
 
 **Presenting to the teacher:** start with the [Week 7 demo pack](docs/week7-demo-pack/README.md). It includes a [printable three-page brief](docs/week7-demo-pack/teacher-brief.pdf), a talk track, exact commands, packet bytes/JSON examples, and a portable recorded 100-packet demonstration. `python -m tools.week7_demo packet` explains the fixture without hardware; `sender` displays actual protected BLE packet/ACK evidence without a subscriber; `audit` compares saved IDs, including separate Phone results. Actual Phone/Unity acceptance remains a physical test.
 
