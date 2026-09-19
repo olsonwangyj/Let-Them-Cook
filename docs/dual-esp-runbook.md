@@ -21,7 +21,13 @@ flowchart LR
 
 Each device owns its BLE connection, connection generation, packet queue, sequence accounting, TLS connection, and recovery state. A stalled ACK or BLE reconnect on one path does not hold the other's writer. Both TLS connections can use the same existing loopback SSH forward on port 18888. The Ultra96 sensor/result wire schemas remain unchanged, so the existing board server and installed native iPhone receiver remain compatible.
 
-The queue absorbs brief scheduling or network delays. Drops, excessive residence time, wrong device IDs, sequence anomalies, missing source snapshots, and incomplete drains prevent a clean capture result. Buffers remain finite; overload is reported instead of being called zero loss.
+The dual command permits up to **32 outstanding frames per device** by default. Each path has one serialized sender and one FIFO ACK reader on its own TLS connection: the sender can forward another fresh sample while earlier frames await acknowledgements. ACKs must match the pending frame order and exact session/device/boot/sequence identity. This overlaps network round trips without changing the packet format or adding server-side batching.
+
+Use `--ack-window N` to choose an integer from **1 through 64**. `--ack-window 1` selects the original stop-and-wait behavior for comparison. The legacy `laptop.bridge` command and default `BridgeConfig` retain a window of **1**; the dual command defaults to **32**. The selected window is included in the dual CLI report's run settings.
+
+The notification queue and ACK window are separately bounded. The default **two-second freshness limit is unchanged**: queued samples must still be fresh immediately before sending, including after waiting for capacity or reconnecting. The window does not authorize sending expired backlog. On an uncertain write, failed ACK or lost connection, unresolved attempted frames are counted as ambiguous and are never replayed; fresh traffic can resume on a new connection. Normal shutdown drains both accepted queued samples and outstanding acknowledgements within the configured limits.
+
+The queue and window absorb brief scheduling or network delays. Drops, excessive residence time, wrong device IDs, sequence anomalies, missing source snapshots, and incomplete drains prevent a clean capture result. A larger window does not guarantee zero loss under sustained overload or an arbitrarily long stall; buffers remain finite and failures remain visible.
 
 ## Prepare two distinct devices
 
@@ -55,7 +61,7 @@ Enter each device's local serial passkey through the existing pairing prompt. No
 python -m laptop.dual_bridge --ca '<EXISTING_WEEK7_CA_CERT_PATH>' --left-address '<LEFT_BLE_ADDRESS>' --right-address '<RIGHT_BLE_ADDRESS>' --duration 600 --report '<EXISTING_EVIDENCE_DIRECTORY>/dual-esp-test.json'
 ```
 
-The command waits for both streams before starting its common observation period. Allow the run to finish normally so it can stop notifications, read final counters, drain queued packets and close both paths. Its final JSON reports each device separately. Keep the saved report and process exit code with the firmware version and actual test conditions.
+The command waits for both streams before starting its common observation period. It uses the default 32-frame ACK window on each path; append `--ack-window 1` for a deliberate stop-and-wait comparison, or another value within 1–64. Allow the run to finish normally so it can stop notifications, read final counters, drain queued packets and pending ACKs, and close both paths. Its final JSON reports each device separately. Keep the saved report and process exit code with the firmware version and actual test conditions.
 
 A successful run exits with code 0 and reports `clean: true`, `mock_input: false`, and a clean entry for each device. The `--diagnostic-unprotected` option is available for diagnosis, but cannot produce a clean physical result.
 
@@ -72,7 +78,7 @@ progress mode=physical phase=observation device=1 received=100 processed=100 ack
 progress mode=physical phase=observation device=2 received=100 processed=100 acked=100 queue=0 drops=0 errors=0
 ```
 
-In live progress, `received` counts admitted notification callbacks, `processed` counts packets taken from the queue, and `acked` counts validated server acknowledgements. A temporarily growing queue can therefore show continued BLE reception even while its writer is waiting. The existing final JSON's `received` field retains its processed-packet meaning; `callback_received` records notification arrivals.
+In live progress, `received` counts admitted notification callbacks, `processed` counts packets taken from the queue, and `acked` counts validated server acknowledgements. A temporarily growing queue can therefore show continued BLE reception even while its writer is waiting. Queue size excludes frames already sent and awaiting ACKs, so `queue=0` alone does not establish completion. The existing final JSON's `received` field retains its processed-packet meaning; `callback_received` records notification arrivals.
 
 Use `--progress-interval 5` for five-second updates or `--progress-interval 0` to disable progress. Warnings still appear. Live counts are provisional: the final source snapshots and ACK reconciliation determine whether the completed run is clean.
 

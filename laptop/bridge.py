@@ -39,6 +39,7 @@ class BridgeConfig:
     diagnostic_unprotected: bool = False
     expected_device_id: Optional[int] = None
     source_audit: bool = False
+    ack_window: int = 1
 
     def __post_init__(self):
         if self.host != "127.0.0.1":
@@ -47,6 +48,8 @@ class BridgeConfig:
             raise ValueError("port must be 1..65535")
         if type(self.queue_capacity) is not int or not 1 <= self.queue_capacity <= 4096:
             raise ValueError("queue capacity must be 1..4096")
+        if type(self.ack_window) is not int or not 1 <= self.ack_window <= 64:
+            raise ValueError("ACK window must be 1..64")
         if self.expected_device_id is not None and (
                 type(self.expected_device_id) is not int
                 or self.expected_device_id not in (1, 2)):
@@ -175,6 +178,23 @@ class Metrics:
     disconnects: int = 0
 
 
+@dataclass
+class _PendingFrame:
+    item: Received
+    packet: SensorPacket
+    sent_at: float = 0.0
+    write_attempted: bool = False
+    epoch: int = 0
+
+
+class _PipelineTransportError(Exception):
+    """The current TLS epoch cannot safely continue."""
+
+
+class _PipelineCleanupError(RuntimeError):
+    """An epoch worker did not retire inside the cleanup bound."""
+
+
 class Bridge:
     def __init__(self, config, *, connector=None, clock=time.monotonic):
         self.config = config
@@ -186,8 +206,10 @@ class Bridge:
         self._connector = connector or self._connect_tls
         self._read_frame, self._write_frame = read_frame, write_frame
         self._retained = set()
+        self._pipeline_retained = set()
         self._forward_lock = asyncio.Lock()
         self._inflight = 0
+        self._transport_epoch = 0
         self.active = asyncio.Event()
         self.source_audit = (SourceAudit(config.expected_device_id)
                              if config.source_audit else None)
@@ -300,7 +322,7 @@ class Bridge:
             finally:
                 self._inflight -= 1
 
-    async def _forward_one(self, item):
+    def _prepare_item(self, item):
         self.metrics.received += 1
         try:
             packet = decode_packet(item.payload)
@@ -322,12 +344,18 @@ class Bridge:
             self.first_received_at = item.received_at
         self.last_received_at = item.received_at
         if not self.tracker.observe(packet):
-            return
+            return None
         if item.generation != self.inbox.generation:
             self.metrics.generation_dropped += 1
-            return
+            return None
         if self.clock() - item.received_at > self.config.freshness:
             self.metrics.stale_dropped += 1
+            return None
+        return packet
+
+    async def _forward_one(self, item):
+        packet = self._prepare_item(item)
+        if packet is None:
             return
         sent = False
         try:
@@ -366,7 +394,7 @@ class Bridge:
                 self.metrics.ambiguous_dropped += 1
             await self.close_transport()
 
-    async def writer_loop(self):
+    async def _legacy_writer_loop(self):
         delay = 0.5
         while True:
             before = self.metrics.transport_errors
@@ -377,6 +405,197 @@ class Bridge:
                 delay = min(5.0, delay * 2)
             elif self.metrics.acked > acked_before:
                 delay = 0.5
+
+    async def _retire_pipeline_epoch(self, state, pending, current, tasks):
+        """Invalidate an epoch, close it, and retire every owned frame once."""
+        state["active"] = False
+
+        # Account for frame ownership before cleanup can suspend or be
+        # cancelled. Late workers see the inactive epoch and cannot mutate it.
+        frames = len(pending)
+        ambiguous = len(pending)
+        pending.clear()
+        frame = current[0]
+        if frame is not None:
+            frames += 1
+            ambiguous += int(frame.write_attempted)
+            current[0] = None
+        self.metrics.ambiguous_dropped += ambiguous
+        self._inflight -= frames
+
+        # Observe every still-running worker immediately. This set is separate
+        # from native BLE cleanup accounting so it cannot exhaust _bounded's
+        # native-operation budget while close_transport runs.
+        for task in tasks:
+            if not task.done():
+                self._pipeline_retained.add(task)
+
+                def consume(child, *, bridge=self):
+                    bridge._pipeline_retained.discard(child)
+                    if not child.cancelled():
+                        child.exception()
+
+                task.add_done_callback(consume)
+                task.cancel()
+
+        cancellation = None
+        try:
+            await self.close_transport()
+        except asyncio.CancelledError as exc:
+            # close_transport has already aborted the old transport. Continue
+            # bounded worker observation before propagating cancellation.
+            cancellation = exc
+        _, unfinished = await asyncio.wait(tasks, timeout=0.2)
+
+        if unfinished:
+            self.metrics.cleanup_errors += 1
+        if cancellation is not None:
+            raise cancellation
+        if unfinished:
+            return False
+        return True
+
+    async def _pipeline_epoch(self):
+        """Run one owned TLS epoch with a FIFO sender and ACK reader."""
+        slots = asyncio.Semaphore(self.config.ack_window)
+        pending = deque()
+        pending_available = asyncio.Event()
+        current = [None]
+        state = {"active": True, "epoch": None}
+
+        async def sender():
+            while True:
+                await slots.acquire()
+                item = await self.inbox.get()
+                self._inflight += 1
+                frame = _PendingFrame(item=item, packet=None)
+                current[0] = frame
+                packet = self._prepare_item(item)
+                if packet is None:
+                    current[0] = None
+                    self._inflight -= 1
+                    slots.release()
+                    continue
+                frame.packet = packet
+                try:
+                    if self.writer is None:
+                        reader, writer = await self._connector()
+                        if not state["active"]:
+                            writer.close()
+                            return
+                        self.reader, self.writer = reader, writer
+                        self._transport_epoch += 1
+                        state["epoch"] = self._transport_epoch
+                        self.metrics.transport_connections += 1
+                    if item.generation != self.inbox.generation:
+                        self.metrics.generation_dropped += 1
+                        current[0] = None
+                        self._inflight -= 1
+                        slots.release()
+                        continue
+                    remaining = self.config.freshness - (self.clock() - item.received_at)
+                    if remaining <= 0:
+                        self.metrics.stale_dropped += 1
+                        current[0] = None
+                        self._inflight -= 1
+                        slots.release()
+                        continue
+                    frame.epoch = state["epoch"]
+                    frame.sent_at = self.clock()
+                    frame.write_attempted = True
+                    await self._write_frame(
+                        self.writer, packet.to_message(self.config.session_id),
+                        timeout=min(self.config.io_timeout, remaining))
+                    if not state["active"]:
+                        return
+                    self.metrics.sent += 1
+                    pending.append(frame)
+                    current[0] = None
+                    pending_available.set()
+                except asyncio.CancelledError:
+                    raise
+                except (OSError, ValueError, EOFError, asyncio.TimeoutError,
+                        ssl.SSLError) as exc:
+                    raise _PipelineTransportError() from exc
+
+        async def receiver():
+            while True:
+                while not pending:
+                    pending_available.clear()
+                    if not pending:
+                        await pending_available.wait()
+                frame = pending[0]
+                if frame.epoch != state["epoch"]:
+                    raise _PipelineCleanupError("pending frame belongs to another TLS epoch")
+                remaining = frame.sent_at + self.config.io_timeout - self.clock()
+                try:
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError()
+                    ack = await self._read_frame(self.reader, timeout=remaining)
+                    if not state["active"]:
+                        return
+                    if self.clock() > frame.sent_at + self.config.io_timeout:
+                        raise asyncio.TimeoutError()
+                    self._check_ack(ack, frame.packet)
+                except asyncio.CancelledError:
+                    raise
+                except (OSError, ValueError, EOFError, asyncio.TimeoutError,
+                        ssl.SSLError) as exc:
+                    if state["active"]:
+                        self.metrics.ack_errors += 1
+                    raise _PipelineTransportError() from exc
+                pending.popleft()
+                self.metrics.acked += 1
+                self.metrics.duplicate_acks += int(ack["status"] == "duplicate")
+                if self.source_audit is not None:
+                    self.source_audit.acknowledged(frame.packet)
+                self._inflight -= 1
+                slots.release()
+
+        workers = {
+            asyncio.create_task(sender(), name="pipeline-sender"),
+            asyncio.create_task(receiver(), name="pipeline-ack-reader"),
+        }
+        failure = None
+        cancelled = False
+        try:
+            done, _ = await asyncio.wait(workers, return_when=asyncio.FIRST_EXCEPTION)
+            for task in done:
+                error = None if task.cancelled() else task.exception()
+                if failure is None and error is not None:
+                    failure = error
+            if failure is None:
+                failure = _PipelineCleanupError("pipeline worker stopped unexpectedly")
+        except asyncio.CancelledError:
+            cancelled = True
+        cleanup_ok = await self._retire_pipeline_epoch(
+            state, pending, current, workers)
+        if not cleanup_ok:
+            raise _PipelineCleanupError("pipeline worker cleanup timed out")
+        if cancelled:
+            raise asyncio.CancelledError()
+        raise failure
+
+    async def _pipeline_writer_loop(self):
+        # The pipeline owns this bridge's socket for its whole lifetime. A
+        # concurrent public forward_one call waits instead of racing the FIFO.
+        async with self._forward_lock:
+            delay = 0.5
+            while True:
+                acked_before = self.metrics.acked
+                try:
+                    await self._pipeline_epoch()
+                except _PipelineTransportError:
+                    self.metrics.transport_errors += 1
+                    if self.metrics.acked > acked_before:
+                        delay = 0.5
+                    await asyncio.sleep(delay)
+                    delay = min(5.0, delay * 2)
+
+    async def writer_loop(self):
+        if self.config.ack_window == 1:
+            return await self._legacy_writer_loop()
+        return await self._pipeline_writer_loop()
 
     async def ble_loop(self, *, scanner=None, client_factory=None,
                        stop_event=None, active_event=None):
@@ -577,7 +796,10 @@ class Bridge:
                     callback_generation_dropped=self.inbox.generation_dropped,
                     queue_size=self.inbox.size, gaps=self.tracker.gaps,
                     duplicates=self.tracker.duplicates, out_of_order=self.tracker.out_of_order,
-                    new_boots=self.tracker.new_boots, unfinished=bool(self.inbox.size or self._inflight),
+                    new_boots=self.tracker.new_boots,
+                    unfinished=bool(self.inbox.size or self._inflight
+                                    or any(not task.done()
+                                           for task in self._pipeline_retained)),
                     first_received_at=self.first_received_at,
                     last_received_at=self.last_received_at,
                     max_receive_silence=self.max_receive_silence,

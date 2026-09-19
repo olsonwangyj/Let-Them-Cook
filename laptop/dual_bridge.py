@@ -320,6 +320,16 @@ def _progress_interval(value):
     return parsed
 
 
+def _ack_window(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("ACK window must be 1..64") from exc
+    if str(parsed) != value or not 1 <= parsed <= 64:
+        raise argparse.ArgumentTypeError("ACK window must be 1..64")
+    return parsed
+
+
 def _parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--left-address")
@@ -329,6 +339,8 @@ def _parser():
     parser.add_argument("--session-id", default="week7-demo")
     parser.add_argument("--duration", type=float, default=600.0)
     parser.add_argument("--queue-capacity", type=int, default=64)
+    parser.add_argument("--ack-window", type=_ack_window, default=32,
+                        help="maximum sent-but-unacknowledged frames per device")
     parser.add_argument("--freshness", type=float, default=2.0)
     parser.add_argument("--expected-rate", type=float, default=10.0)
     parser.add_argument("--startup-timeout", type=float, default=30.0)
@@ -357,6 +369,7 @@ def main():
         "mode": mode,
         "requested_duration_seconds": args.duration,
         "expected_rate_hz": args.expected_rate,
+        "ack_window": args.ack_window,
         "session_id": args.session_id,
         "revision": reporting.local_revision(Path(__file__).parents[1]),
     }
@@ -376,6 +389,7 @@ def main():
         return Bridge(BridgeConfig(
             ca_file=args.ca, port=args.port, session_id=args.session_id,
             queue_capacity=args.queue_capacity, freshness=args.freshness,
+            ack_window=args.ack_window,
             address=address, diagnostic_unprotected=args.diagnostic_unprotected,
             expected_device_id=device_id, source_audit=True))
 
