@@ -1,15 +1,20 @@
 # Let Them Cook — CG4002 Communications
 
-Week 7 implements a protected ESP32 BLE dummy stream, a bounded Windows bridge, TLS ingestion and direct result delivery on Ultra96, plus Python/Android and Unity receivers.
+Week 7 runs two protected ESP32 BLE dummy streams concurrently through a Windows bridge to Ultra96. Ultra96 returns ingestion acknowledgements to the laptop and sends gesture results directly to the native Unity iPhone receiver over its own SSH/TLS connection.
 
-The [dual-ESP receiver and test runbook](docs/dual-esp-runbook.md) describes the new two-glove mode: independent concurrent BLE/TLS paths, per-device source-to-ACK accounting, and separate recovery after a disconnect. It shows live progress for both streams and supports `--report` to save the final JSON. It retains the current 10 Hz dummy packet format; a two-device physical soak is required before claiming hardware zero loss.
+Start with the two current reports:
 
-**Presenting to the teacher:** start with the [Week 7 demo pack](docs/week7-demo-pack/README.md). It includes a [printable three-page brief](docs/week7-demo-pack/teacher-brief.pdf), a talk track, exact commands, packet bytes/JSON examples, and a portable recorded 100-packet demonstration. `python -m tools.week7_demo packet` explains the fixture without hardware; `sender` displays actual protected BLE packet/ACK evidence without a subscriber; `audit` compares saved IDs, including separate Phone results. Actual Phone/Unity acceptance remains a physical test.
+- [System technical report](docs/week7-system-technical-report.md): architecture, parallel processing, packet formats, code walkthroughs, and a file-by-file guide.
+- [Testing and Week 7 demo guide](docs/week7-testing-and-demo-guide.md): which commands to run on each machine, expected observations, acceptance criteria, troubleshooting, and a professor-facing demonstration.
 
-- [Current selected architecture and every Week 7 design decision](docs/week7-selected-design-2026-09-06.md)
-- [Setup, deployment, recovery and physical acceptance runbook](docs/week7-runbook.md)
+The [updated iPhone acceptance report](docs/phone-post-update-test-2026-09-21.md) records successful two-ESP tests at 10 Hz per device, including a 10-minute run with an operator-reported iPhone count of 12,003 matching the source total. These results establish observed delivery under the tested conditions; the system does not replay data across outages, and the iPhone requires manual reconnection after backgrounding or locking. The [dual-ESP runbook](docs/dual-esp-runbook.md) provides additional bridge details, live progress examples, and saved JSON reports using `--report`.
+
+**Additional presentation material:** the earlier [Week 7 demo pack](docs/week7-demo-pack/README.md) includes a [printable three-page brief](docs/week7-demo-pack/teacher-brief.pdf), packet bytes/JSON examples, and a portable recorded 100-packet demonstration. Use the new testing and demo guide for the current two-ESP/native iPhone procedure. `python -m tools.week7_demo packet` explains the fixture without hardware; `sender` displays single-ESP protected BLE packet/ACK evidence without a subscriber; `audit` compares saved IDs, including separate Phone results. Label recorded demonstrations as recorded evidence.
+
+- [Foundational Week 7 architecture and design decisions (September 6)](docs/week7-selected-design-2026-09-06.md)
+- [Earlier setup, deployment and physical acceptance runbook](docs/week7-runbook.md)
 - [Android/Unity receiver setup](docs/week7-phone-runbook.md)
-- [Latest iOS delivery, decisions and remaining work](docs/week7-continuation-report-2026-09-14.md)
+- [Historical iOS delivery and decisions as of September 14](docs/week7-continuation-report-2026-09-14.md)
 - [iOS visualizer Xcode export and Mac setup](ios-visualizer/README.md)
 - [Autonomous GPT-6 Mac execution prompt](docs/week7-mac-agent-prompt.md)
 - [Ultra96 and actual iPhone Python evidence](docs/week7-continuation-report-2026-09-07.md)
@@ -34,6 +39,6 @@ python -m tools.rehearse_week7 --pki-dir C:/week7-private/pki --target 100 --dur
 
 Add `--ble` after uploading protected firmware and pairing with `python -m laptop.windows_pairing`. Local rehearsal is explicitly separate from real Ultra96/SSH/Phone evidence.
 
-Ultra96's only externally accessible port is TCP 22, serving SSH. Deployment keeps both application services on 127.0.0.1 (8888 ingestion, 9999 Gateway), reached through independent Laptop and Phone SSH local forwards via port 22. The Laptop receives only INGEST_ACK; GESTURE_RESULT goes directly from Ultra96 to the subscribed Phone. No ESP Wi-Fi, reverse forwarding or Laptop result relay.
+The selected deployment reaches Ultra96 through SSH on TCP 22. Both application services bind to 127.0.0.1 (8888 ingestion, 9999 Gateway). The laptop uses an SSH local forward; the native iPhone opens its own nested SSH channels. The laptop receives only INGEST_ACK; GESTURE_RESULT goes directly from Ultra96 to the subscribed phone. No ESP Wi-Fi, reverse forwarding or laptop result relay is used.
 
-The real Ultra96 deployment uses the private `/var/tmp/cg4002-week7-yanjie-20260907` hierarchy. VPN-enabled PowerShell password authentication worked on both SSH hops; see the current runbook for the longer interactive login deadlines and verified deployment paths. With two actual forwards already established, `python -m tools.rehearse_remote_week7 --ca <public-CA-path> --confirmed-remote-topology --ble --target 0 --duration 600` checks exact remote correlation and sustained coverage. This receiver is an independent desktop subscriber; actual Phone acceptance remains separate.
+The real Ultra96 deployment uses the private `/var/tmp/cg4002-week7-yanjie-20260907` hierarchy. VPN-enabled PowerShell password authentication worked on both SSH hops; see the new testing guide for startup order and live process checks. `tools.rehearse_remote_week7` is an alternative remote rehearsal with a desktop subscriber, not the current two-ESP/iPhone acceptance command. Do not run its subscriber alongside the iPhone: the board permits one active result subscriber, and the newer connection replaces the older one.

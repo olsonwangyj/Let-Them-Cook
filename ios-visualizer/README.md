@@ -1,12 +1,20 @@
 # iOS visualizer delivery
 
 Jieling's Week 7 delivery, imported on 2026-09-14 from the former root `unity/`
-folder. **Native integration is implemented in this branch. The signed Unity app
-has subscribed on a physical iPhone, counted 100 synthetic results, and shown
-all four dummy labels across physical runs. Full ARKit, physical lifecycle and
-the complete ESP32/BLE chain ending in this new Unity app remain unverified;
-the earlier ESP32/Windows BLE chain ending in Python/iSH was already tested. This is an Xcode export, not the original
-Unity Editor project.**
+folder. This is an Xcode export, not the original Unity Editor project.
+
+**Current communication status (2026-09-21):** the updated native Unity iPhone
+receiver passed the recorded two-ESP tests, including a 10-minute run with an
+operator-reported iPhone count of 12,003 matching the source total. Board events
+also confirmed subscriber continuity across a 129-second quiet interval.
+Lock/background recovery uses manual Connect and password reentry.
+The [post-update acceptance report](../docs/phone-post-update-test-2026-09-21.md)
+records the evidence and limits; full ARKit and real sensor/AI behavior are
+outside this dummy-data acceptance. Use the
+[system report](../docs/week7-system-technical-report.md) and
+[testing and demo guide](../docs/week7-testing-and-demo-guide.md) for the current
+architecture and operating procedure. Import and build history below is retained
+as background.
 See [native build, setup and verification](NATIVE-INTEGRATION.md). The original
 receiver remains incompatible as reference; the actual export uses native client
 hooks. Start the Mac work with the
@@ -121,6 +129,7 @@ For live integration obtain the actual public CA through the existing private
 setup; generate separate temporary PKI for local tests. No private key is needed
 in a Phone TLS client.
 
-Read the [current continuation report](../docs/week7-continuation-report-2026-09-14.md)
-for import verification, observed Unity Phone results, remaining physical checks
-and the separate historical iSH evidence.
+Read the [September 14 continuation report](../docs/week7-continuation-report-2026-09-14.md)
+for historical import verification, early Unity Phone results and the separate
+iSH evidence. The September 21 acceptance report above supersedes its list of
+remaining communication tests.
