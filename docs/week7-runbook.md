@@ -173,6 +173,26 @@ Record the PID, exact source revision/path, command arguments, log and pidfile. 
 
 ## Two independent SSH forwards and clean remote checks
 
+For a result-count investigation, the server also accepts
+`--event-log-dir /var/tmp/cg4002-week7-yanjie-20260907/evidence/NEW_UNIQUE_DIRECTORY`.
+Use a directory that does not exist. This optional log records packet identities
+and subscriber generations, including absent subscribers, queue drops, expiry,
+abandoned results, and completed or ambiguous writes. It records no sensor
+values or credentials. A completed server write is not an iPhone receipt.
+
+The diagnostic writer has a 2,048-event queue and a 50 MiB file limit. While the
+server is running, `events.partial.jsonl` and an incomplete `status.json` are
+expected. Stop the verified owned server gracefully to finalize `events.jsonl`
+and its SHA-256 receipt. Require `complete: true` in both `status.json` and the
+server's `observation_stopped.state`, matching run ID/hash/counts, and zero lost
+events before using that log as complete evidence. A full queue, size cap,
+disk error, or close timeout explicitly makes the record incomplete. Starting a
+new capture requires a new directory. An operating-system file operation already
+in progress can finish after a close timeout; a later complete file alone does
+not establish successful bounded cleanup. The default server command does not log
+these events. See the [iPhone recovery report](phone-recovery-test-2026-09-21.md)
+for scope and actual test outcomes.
+
 On the Laptop, print the ingestion command and execute it in its own terminal:
 
 ```powershell
