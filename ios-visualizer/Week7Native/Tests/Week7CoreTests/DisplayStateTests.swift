@@ -116,29 +116,3 @@ final class DisplayStateTests: XCTestCase {
         XCTAssertEqual(state.snapshot(now: 1).result?.resultID, "1:7:42")
     }
 }
-
-final class FrameDeadlineTests: XCTestCase {
-    func testFirstResultGraceEndsOnceAtFirstByte() {
-        var deadline = FrameDeadline(now: 100, firstResult: true)
-        XCTAssertFalse(deadline.expired(at: 129.99))
-        XCTAssertTrue(deadline.receivedBytes(at: 129))
-        XCTAssertEqual(deadline.deadline, 134)
-        XCTAssertFalse(deadline.receivedBytes(at: 132), "Fragment arrivals must not renew the body deadline")
-        XCTAssertFalse(deadline.expired(at: 133.99))
-        XCTAssertTrue(deadline.expired(at: 134))
-    }
-
-    func testEstablishedFrameKeepsSinglePrefixAndBodyBudget() {
-        var deadline = FrameDeadline(now: 100, firstResult: false)
-        XCTAssertFalse(deadline.receivedBytes(at: 104))
-        XCTAssertEqual(deadline.deadline, 105)
-        XCTAssertTrue(deadline.expired(at: 105))
-    }
-
-    func testFirstByteAfterGraceCannotReviveExpiredRead() {
-        var deadline = FrameDeadline(now: 100, firstResult: true)
-        XCTAssertTrue(deadline.expired(at: 130))
-        XCTAssertFalse(deadline.receivedBytes(at: 130))
-        XCTAssertEqual(deadline.deadline, 130)
-    }
-}

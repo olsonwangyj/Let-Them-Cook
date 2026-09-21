@@ -34,7 +34,6 @@ final class PythonBoardTests: XCTestCase {
         var options = peers.options
         options.connectTimeout = .seconds(10)
         options.frameTimeout = .seconds(5)
-        options.firstResultTimeout = .seconds(30)
         let subscribed = expectation(description: "native subscriber acknowledged by Python")
         subscribed.assertForOverFulfill = true
         let received = expectation(description: "100 native validated results")

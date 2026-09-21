@@ -147,21 +147,97 @@ final class TransportTests: XCTestCase {
         }
     }
 
-    func testEstablishedFrameFirstByteDoesNotExtendItsFiveSecondDeadline() throws {
+    func testCompleteFramesMayRemainIdleAndResumeOnTheSameSubscription() throws {
         let loop = EmbeddedEventLoop()
         let channel = EmbeddedChannel(loop: loop)
         var failures = 0
-        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), firstResult: { false }, onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
+        var results: [String] = []
+        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { results.append($0.resultID) }, onFailure: { _ in failures += 1 })
         try channel.pipeline.syncOperations.addHandler(handler)
         channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
         var ack = channel.allocator.buffer(capacity: 100)
         ack.writeInteger(UInt32(LocalPeers.ack.utf8.count)); ack.writeString(LocalPeers.ack)
         _ = try channel.writeInbound(ack)
-        loop.advanceTime(by: .seconds(4))
+        loop.advanceTime(by: .seconds(60))
+        XCTAssertEqual(failures, 0, "Clean post-SUBSCRIBED silence is not an incomplete frame")
+
+        var first = channel.allocator.buffer(capacity: LocalPeers.result.utf8.count + 4)
+        first.writeInteger(UInt32(LocalPeers.result.utf8.count)); first.writeString(LocalPeers.result)
+        _ = try channel.writeInbound(first)
+        loop.advanceTime(by: .seconds(60))
+        XCTAssertEqual(failures, 0, "Clean silence after a complete result must keep the subscription")
+
+        var second = channel.allocator.buffer(capacity: LocalPeers.result.utf8.count + 4)
+        second.writeInteger(UInt32(LocalPeers.result.utf8.count)); second.writeString(LocalPeers.result)
+        _ = try channel.writeInbound(second)
+        XCTAssertEqual(results, ["1:7:42", "1:7:42"])
+        _ = try channel.finish(acceptAlreadyClosed: true)
+    }
+
+    func testIncompleteFrameGetsOneFiveSecondBudgetFromItsFirstByte() throws {
+        let loop = EmbeddedEventLoop()
+        let channel = EmbeddedChannel(loop: loop)
+        var failures = 0
+        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
+        try channel.pipeline.syncOperations.addHandler(handler)
+        channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
+        var ack = channel.allocator.buffer(capacity: 100)
+        ack.writeInteger(UInt32(LocalPeers.ack.utf8.count)); ack.writeString(LocalPeers.ack)
+        _ = try channel.writeInbound(ack)
+        loop.advanceTime(by: .seconds(60))
+        XCTAssertEqual(failures, 0, "Clean idle must not consume the partial-frame budget")
+
         var firstByte = channel.allocator.buffer(capacity: 1); firstByte.writeInteger(UInt8(0))
         _ = try channel.writeInbound(firstByte)
+        loop.advanceTime(by: .seconds(4))
+        XCTAssertEqual(failures, 0, "The first byte starts a fresh five-second budget")
+        var laterFragment = channel.allocator.buffer(capacity: 1); laterFragment.writeInteger(UInt8(0))
+        _ = try channel.writeInbound(laterFragment)
         loop.advanceTime(by: .seconds(1))
-        XCTAssertEqual(failures, 1, "The initial byte cannot restart an established frame deadline")
+        XCTAssertEqual(failures, 1, "Later fragments must not extend the frame deadline")
+        _ = try channel.finish(acceptAlreadyClosed: true)
+    }
+
+    func testCoalescedCompletedFrameAndNewPartialFrameStartsANewBudget() throws {
+        let loop = EmbeddedEventLoop()
+        let channel = EmbeddedChannel(loop: loop)
+        var failures = 0
+        var results = 0
+        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { _ in results += 1 }, onFailure: { _ in failures += 1 })
+        try channel.pipeline.syncOperations.addHandler(handler)
+        channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
+        var ack = channel.allocator.buffer(capacity: 100)
+        ack.writeInteger(UInt32(LocalPeers.ack.utf8.count)); ack.writeString(LocalPeers.ack)
+        _ = try channel.writeInbound(ack)
+
+        var frame = channel.allocator.buffer(capacity: LocalPeers.result.utf8.count + 4)
+        frame.writeInteger(UInt32(LocalPeers.result.utf8.count)); frame.writeString(LocalPeers.result)
+        let bytes = Array(frame.readableBytesView)
+        var initialPartial = channel.allocator.buffer(capacity: 5)
+        initialPartial.writeBytes(bytes.prefix(5))
+        _ = try channel.writeInbound(initialPartial)
+        loop.advanceTime(by: .seconds(4))
+
+        var completionAndNextPrefix = channel.allocator.buffer(capacity: bytes.count - 4)
+        completionAndNextPrefix.writeBytes(bytes.dropFirst(5)); completionAndNextPrefix.writeInteger(UInt8(0))
+        _ = try channel.writeInbound(completionAndNextPrefix)
+        XCTAssertEqual(results, 1)
+        loop.advanceTime(by: .seconds(4))
+        XCTAssertEqual(failures, 0, "The new coalesced frame needs a fresh budget")
+        loop.advanceTime(by: .seconds(1))
+        XCTAssertEqual(failures, 1)
+        _ = try channel.finish(acceptAlreadyClosed: true)
+    }
+
+    func testSubscribedResponseStillHasAFrameDeadline() throws {
+        let loop = EmbeddedEventLoop()
+        let channel = EmbeddedChannel(loop: loop)
+        var failures = 0
+        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
+        try channel.pipeline.syncOperations.addHandler(handler)
+        channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
+        loop.advanceTime(by: .seconds(5))
+        XCTAssertEqual(failures, 1, "A peer that never acknowledges SUBSCRIBE must not stall startup")
         _ = try channel.finish(acceptAlreadyClosed: true)
     }
 
@@ -200,20 +276,26 @@ final class TransportTests: XCTestCase {
         }
     }
 
-    func testIdleFirstResultUsesLongerGraceThenCloses() throws {
+    func testIdleSubscriptionStaysOpenUntilTheTransportFailsThenReconnects() throws {
         let peers = try LocalPeers(pki: Self.pki, behavior: .idle)
-        let subscribed = expectation(description: "subscribed")
-        let failure = expectation(description: "first result deadline")
-        let lock = NSLock(); var began: Date?; var elapsed = 0.0
+        let subscribed = expectation(description: "initial subscription")
+        let unexpectedReconnect = expectation(description: "idle reconnect"); unexpectedReconnect.isInverted = true
+        let recovered = expectation(description: "subscription after transport loss")
+        let lock = NSLock(); var count = 0; var transportFailed = false
         let client = Week7Client(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { status in
-            lock.lock(); defer { lock.unlock() }
-            if status == "Subscribed" { began = Date(); subscribed.fulfill() }
-            if status.contains("frame deadline"), let began { elapsed = Date().timeIntervalSince(began); failure.fulfill() }
+            guard status == "Subscribed" else { return }
+            lock.lock(); count += 1; let current = count; let failed = transportFailed; lock.unlock()
+            if current == 1 { subscribed.fulfill() }
+            else if failed { recovered.fulfill() }
+            else { unexpectedReconnect.fulfill() }
         }, onResult: { _ in XCTFail("idle peer delivered result") })
-        client.start(); wait(for: [subscribed, failure], timeout: 3); client.stop()
-        lock.lock(); let duration = elapsed; lock.unlock()
-        XCTAssertGreaterThan(duration, 0.45)
-        XCTAssertLessThan(duration, 1.4)
+        client.start(); wait(for: [subscribed], timeout: 3)
+        wait(for: [unexpectedReconnect], timeout: 0.8)
+        XCTAssertEqual(peers.subscriptionCount, 1)
+        lock.lock(); transportFailed = true; lock.unlock()
+        peers.closeConnections()
+        wait(for: [recovered], timeout: 4); client.stop()
+        XCTAssertEqual(peers.subscriptionCount, 2)
     }
 
     func testConnectionRecoveryResubscribesExactlyOncePerConnection() throws {
@@ -244,26 +326,6 @@ final class TransportTests: XCTestCase {
         })
         client.start(); wait(for: [got], timeout: 4); client.stop()
         XCTAssertEqual(peers.subscriptionCount, 2)
-    }
-
-    func testRepeatedSubscribedButIdleConnectionsBackOffUntilValidResult() throws {
-        let peers = try LocalPeers(pki: Self.pki, behavior: .idle)
-        var options = peers.options
-        options.firstResultTimeout = .milliseconds(40)
-        options.frameTimeout = .milliseconds(40)
-        options.retryMaximum = .milliseconds(200)
-        let subscribed = expectation(description: "four subscriptions"); subscribed.expectedFulfillmentCount = 4
-        let lock = NSLock(); var times: [Double] = []
-        let client = Week7Client(route: peers.route(), session: "week7-demo", options: options, onStatus: { status in
-            if status == "Subscribed" {
-                lock.lock(); times.append(ProcessInfo.processInfo.systemUptime); lock.unlock()
-                subscribed.fulfill()
-            }
-        }, onResult: { _ in XCTFail("idle peer returned result") })
-        client.start(); wait(for: [subscribed], timeout: 4); client.stop()
-        lock.lock(); let observed = times; lock.unlock()
-        XCTAssertEqual(observed.count, 4)
-        if observed.count == 4 { XCTAssertGreaterThanOrEqual(observed[3] - observed[2], 0.23) }
     }
 
     func testStopDuringLiveStreamClosesOwnedTwoHopConnectionAndSuppressesCallbacks() throws {

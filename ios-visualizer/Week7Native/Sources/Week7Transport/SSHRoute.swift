@@ -33,7 +33,6 @@ struct TransportOptions {
     var servicePort = 9999
     var connectTimeout = TimeAmount.seconds(10)
     var frameTimeout = TimeAmount.seconds(5)
-    var firstResultTimeout = TimeAmount.seconds(30)
     var retryMinimum = TimeAmount.milliseconds(500)
     var retryMaximum = TimeAmount.seconds(5)
 }

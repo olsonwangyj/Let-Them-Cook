@@ -132,10 +132,13 @@ SUBSCRIBED, then validates every result against the existing exact schema and
 dummy mapping. It rejects malformed UTF-8/JSON, duplicate keys, extra/missing
 fields, invalid numeric types/ranges, wrong session and wrong dummy values.
 Frames are bounded to 16,384 bytes. Partial frames get one five-second budget;
-initial first-result silence gets 30 seconds before the first byte. After any
-result has been received, established streams and subsequent reconnects retain
-five seconds. Before that first result, reconnects retain the initial grace.
-Network recovery uses capped backoff.
+later fragments cannot extend it, and a coalesced next partial frame gets a new
+budget from its own first byte. A complete SUBSCRIBED or result frame disarms
+the frame timer, so a healthy subscribed connection may remain idle without
+disconnecting. Connection setup through SUBSCRIBED remains bounded, while EOF
+and transport errors reconnect with capped backoff. No SSH or application
+heartbeat is configured, so a silent blackhole may remain undetected until the
+operating system reports transport failure.
 Authentication and trust failures require corrected setup and an explicit retry.
 
 The main-thread mailbox holds only the newest validated result, drops retired
@@ -189,6 +192,16 @@ peers. They do not establish the delivered Unity scene on a physical Phone,
 institutional VPN authentication, BLE hardware, or physical lock recovery.
 
 ## Physical results and remaining acceptance
+
+The following original acceptance notes describe the September 15 build.
+The September 21 dual-ESP run subsequently counted 12,004/12,004 results on the
+physical Unity iPhone app. A later idle-resume test reproduced 16 missing results
+while the receiver reconnected unnecessarily during quiet input. The idle-timer
+fix described above passes 54 portable Core/Transport tests, but requires a fresh
+Mac build and physical iPhone retest. See the
+[September 21 recovery report](../docs/phone-recovery-test-2026-09-21.md) for the
+exact outcomes and remaining checks; the historical notes below are not the
+current acceptance status.
 
 The signed Unity app has reached **Subscribed** on the physical iPhone and
 counted 100 results from synthetic Mac input, with matching sender ACK and board

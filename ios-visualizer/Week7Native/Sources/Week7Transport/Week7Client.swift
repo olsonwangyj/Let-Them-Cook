@@ -25,7 +25,6 @@ public final class Week7Client {
     private var attempt: ConnectionAttempt?
     private var retry: Scheduled<Void>?
     private var retryDelay: TimeAmount
-    private var hasEverReceivedResult = false
 
     public convenience init(route: SSHRoute, session: String, onStatus: @escaping (String) -> Void, onResult: @escaping (GestureResult) -> Void) {
         self.init(route: route, session: session, options: TransportOptions(), onStatus: onStatus, onResult: onResult)
@@ -141,13 +140,12 @@ public final class Week7Client {
                         child.eventLoop.makeCompletedFuture {
                             try child.pipeline.syncOperations.addHandler(SSHByteStream())
                             try child.pipeline.syncOperations.addHandler(try NIOSSLClientHandler(context: tls, serverHostname: "ultra96.week7.internal"))
-                            try child.pipeline.syncOperations.addHandler(Subscriber(session: self.session, options: self.options, firstResult: { [weak self] in !(self?.hasEverReceivedResult ?? true) }, onSubscribed: { [weak self, weak next] in
+                            try child.pipeline.syncOperations.addHandler(Subscriber(session: self.session, options: self.options, onSubscribed: { [weak self, weak next] in
                                 guard let self, let next, next.active, self.current(token) else { return }
                                 next.deadline?.cancel(); next.deadline = nil
                                 self.emitStatus("Subscribed", epoch: token)
                             }, onResult: { [weak self, weak next] result in
                                 guard let self, let next, next.active, self.current(token) else { return }
-                                self.hasEverReceivedResult = true
                                 self.retryDelay = self.options.retryMinimum
                                 self.emitResult(result, epoch: token)
                             }, onFailure: { [weak self, weak next] error in

@@ -233,7 +233,6 @@ final class LocalPeers {
         options.servicePort = servicePort
         options.connectTimeout = .seconds(3)
         options.frameTimeout = .milliseconds(180)
-        options.firstResultTimeout = .milliseconds(600)
         options.retryMinimum = .milliseconds(50)
         options.retryMaximum = .milliseconds(100)
         return options

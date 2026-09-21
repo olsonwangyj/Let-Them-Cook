@@ -113,27 +113,3 @@ public final class DisplayState: @unchecked Sendable {
         return DisplaySnapshot(generation: generation, revision: revision, status: status, result: result, receivedCount: receivedCount)
     }
 }
-
-/// A pure monotonic deadline policy. Call receivedBytes only for nonempty data.
-/// Each frame gets one five-second prefix/body budget. Only the first-ever
-/// result may wait thirty seconds for its first byte before that budget starts.
-public struct FrameDeadline {
-    public private(set) var deadline: Double
-    private var awaitingFirstByte: Bool
-
-    public init(now: Double, firstResult: Bool) {
-        deadline = now + (firstResult ? 30 : 5)
-        awaitingFirstByte = firstResult
-    }
-
-    /// Returns true when the initial grace was replaced by the frame budget.
-    @discardableResult
-    public mutating func receivedBytes(at now: Double) -> Bool {
-        guard awaitingFirstByte, !expired(at: now) else { return false }
-        awaitingFirstByte = false
-        deadline = now + 5
-        return true
-    }
-
-    public func expired(at now: Double) -> Bool { !now.isFinite || now >= deadline }
-}

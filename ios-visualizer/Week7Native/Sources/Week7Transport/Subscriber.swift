@@ -7,7 +7,6 @@ final class Subscriber: ChannelInboundHandler {
     typealias InboundIn = ByteBuffer
     private let session: String
     private let options: TransportOptions
-    private let firstResult: () -> Bool
     private let onSubscribed: () -> Void
     private let onResult: (GestureResult) -> Void
     private let onFailure: (Error) -> Void
@@ -15,12 +14,11 @@ final class Subscriber: ChannelInboundHandler {
     private var subscribed = false
     private var sentSubscribe = false
     private var partialFrame = false
-    private var firstByteGrace = false
     private var failed = false
     private var timer: Scheduled<Void>?
 
-    init(session: String, options: TransportOptions, firstResult: @escaping () -> Bool, onSubscribed: @escaping () -> Void, onResult: @escaping (GestureResult) -> Void, onFailure: @escaping (Error) -> Void) {
-        self.session = session; self.options = options; self.firstResult = firstResult
+    init(session: String, options: TransportOptions, onSubscribed: @escaping () -> Void, onResult: @escaping (GestureResult) -> Void, onFailure: @escaping (Error) -> Void) {
+        self.session = session; self.options = options
         self.onSubscribed = onSubscribed; self.onResult = onResult; self.onFailure = onFailure
     }
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
@@ -40,11 +38,9 @@ final class Subscriber: ChannelInboundHandler {
         guard !failed, sentSubscribe else { fail(context, TransportFailure.invalidData); return }
         let bytes = Array(unwrapInboundIn(data).readableBytesView)
         guard !bytes.isEmpty else { return }
-        // The first byte ends the initial grace. Later fragments never extend this timer.
-        if !partialFrame {
-            partialFrame = true
-            if firstByteGrace { firstByteGrace = false; arm(context, delay: options.frameTimeout) }
-        }
+        // Clean idle has no deadline. The first byte of each result starts one
+        // frame budget; later fragments of that frame never extend it.
+        if !partialFrame && subscribed { arm(context, delay: options.frameTimeout) }
         do {
             let frames = try decoder.feed(bytes)
             for body in frames {
@@ -53,10 +49,11 @@ final class Subscriber: ChannelInboundHandler {
                     subscribed = true; onSubscribed()
                 } else { onResult(try Week7Protocol.result(body, session: session)) }
             }
-            if !frames.isEmpty {
-                partialFrame = decoder.hasPartialFrame
-                firstByteGrace = !partialFrame && subscribed && firstResult()
-                arm(context, delay: firstByteGrace ? options.firstResultTimeout : options.frameTimeout)
+            partialFrame = decoder.hasPartialFrame
+            if !partialFrame { disarm() }
+            else if !frames.isEmpty && subscribed {
+                // A previous frame completed and this same read began another.
+                arm(context, delay: options.frameTimeout)
             }
         } catch { fail(context, error) }
     }
@@ -67,12 +64,13 @@ final class Subscriber: ChannelInboundHandler {
             self.fail(context, TransportFailure.frameDeadline)
         }
     }
+    private func disarm() { timer?.cancel(); timer = nil }
     private func fail(_ context: ChannelHandlerContext, _ error: Error) {
         guard !failed else { return }; failed = true
-        timer?.cancel(); timer = nil
+        disarm()
         onFailure(error); context.close(promise: nil)
     }
     func errorCaught(context: ChannelHandlerContext, error: Error) { fail(context, error) }
     func channelInactive(context: ChannelHandlerContext) { fail(context, TransportFailure.disconnected); context.fireChannelInactive() }
-    func handlerRemoved(context: ChannelHandlerContext) { timer?.cancel(); timer = nil }
+    func handlerRemoved(context: ChannelHandlerContext) { disarm() }
 }
