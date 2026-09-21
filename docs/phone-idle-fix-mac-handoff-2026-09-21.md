@@ -50,13 +50,18 @@ There is no need to reflash either ESP for this update.
 
 ## Verification already completed and what remains
 
+The September 21 [post-update physical report](phone-post-update-test-2026-09-21.md)
+now records successful idle/resume, manual recovery and final ten-minute checks
+on the operator's updated app. The installation steps above remain the update
+procedure; the test sequence below describes how to repeat that acceptance.
+
 The original code reproduced the idle defect in three test cases (57 tests,
 eight expected assertions). The updated portable Core/Transport suite passed
 54/54 tests on Swift 6.2.3 with all eight locked dependency revisions. Independent
 review passed. Windows cannot validate the Apple Bridge/UI/Xcode build here;
 the macOS suite and installed iPhone remain separate checks.
 
-The next physical tests are a fresh baseline, foreground idle/resume without
+The physical acceptance sequence is a fresh baseline, foreground idle/resume without
 manual Connect, VPN recovery, lock/unlock followed by explicit Connect, and a
 final continuous two-ESP run. Counts and board identities must be recorded
 separately for each run. This update does not add replay during outages or

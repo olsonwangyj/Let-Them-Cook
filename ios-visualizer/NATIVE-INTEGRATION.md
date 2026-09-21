@@ -28,7 +28,8 @@ xcodebuild -project ios-visualizer/xcode-export/Unity-iPhone.xcodeproj \
 
 This builds the actual arm64 Unity app without signing. The output is
 `.week7-local/DerivedData/Build/Products/Debug-iphoneos/unityTutorial.app`.
-Release is also verified; replace Debug with Release to build the optimized app.
+The historical continuation report includes Debug and Release build results;
+replace Debug with Release to build the optimized app.
 Use scheme-based builds with an explicit DerivedData directory; overriding only
 `CONFIGURATION_BUILD_DIR` in a target-based build broke SwiftPM module-map paths.
 
@@ -196,12 +197,16 @@ institutional VPN authentication, BLE hardware, or physical lock recovery.
 The following original acceptance notes describe the September 15 build.
 The September 21 dual-ESP run subsequently counted 12,004/12,004 results on the
 physical Unity iPhone app. A later idle-resume test reproduced 16 missing results
-while the receiver reconnected unnecessarily during quiet input. The idle-timer
-fix described above passes 54 portable Core/Transport tests, but requires a fresh
-Mac build and physical iPhone retest. See the
-[September 21 recovery report](../docs/phone-recovery-test-2026-09-21.md) for the
-exact outcomes and remaining checks; the historical notes below are not the
-current acceptance status.
+while the receiver reconnected unnecessarily during quiet input. After the
+idle-timer fix and the operator's reported app update, physical checks counted
+2,408/2,408 across a 129-second quiet interval, 621/621 after manual recovery
+following a requested VPN cycle, and 12,003/12,003 in a ten-minute run after
+lock/unlock and explicit Connect. These are operator aggregate Phone counts;
+board identities and connection continuity are audited separately. See the
+[post-update report](../docs/phone-post-update-test-2026-09-21.md) for evidence and
+limits. The earlier [recovery report](../docs/phone-recovery-test-2026-09-21.md)
+preserves the failure that motivated the fix. The historical notes below are not
+the current acceptance status.
 
 The signed Unity app has reached **Subscribed** on the physical iPhone and
 counted 100 results from synthetic Mac input, with matching sender ACK and board

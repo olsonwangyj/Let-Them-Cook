@@ -1,5 +1,10 @@
 # iPhone recovery and result diagnostics — 21 September 2026
 
+This is the diagnosis and software-fix record. The subsequent
+[updated-receiver physical report](phone-post-update-test-2026-09-21.md) records
+the completed idle/resume and manual-recovery checks, including the final
+12,003-result ten-minute run. Pending steps below describe the earlier handoff.
+
 This follow-up uses the two physical ESPs' existing generated dummy packets at
 10 Hz each. Real sensor integration is explicitly outside the requested scope.
 The earlier [full-system report](dual-esp-iphone-test-2026-09-21.md)
