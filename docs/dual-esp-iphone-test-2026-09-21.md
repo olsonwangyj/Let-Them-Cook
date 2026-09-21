@@ -128,4 +128,10 @@ The user has been asked to lock the Phone for 20 seconds, unlock it, report the 
 
 The native app deliberately stops reception and clears credentials when deactivated or locked. Returning requires explicit Connect with passwords again; background survival is not the expected behavior. Live results clear after two seconds without a fresh result. Once the session has received its first result, five seconds of input silence can trigger expected network reconnects while retaining the count. Those quiet-tail reconnects must be distinguished from faults during active sending.
 
+This paragraph describes the installed receiver build tested in this record.
+The later [recovery and diagnostics report](phone-recovery-test-2026-09-21.md)
+records a reproduced 16-result loss during an idle reconnect gap and the work
+to remove that idle timeout. The historical 109-result shortfall above remains
+unexplained by its own evidence.
+
 At this completion boundary, the foreground count-level soak and additional transport tests are complete, with owned-forward cleanup verified. The failed baseline remains unresolved; native lock/return, network recovery and camera/ARKit behavior remain unobserved, and USB screen setup is deferred. Earlier [September 19 dual-to-Ultra96 evidence](D:/LetThemCook/docs/dual-esp-physical-test-2026-09-19.md) remains separate and did not establish native-Phone delivery.
