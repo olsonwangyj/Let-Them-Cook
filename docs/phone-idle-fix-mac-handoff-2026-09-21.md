@@ -2,36 +2,28 @@
 
 The installed app disconnects during quiet input. This update keeps healthy
 subscriptions open and retains deadlines for incomplete frames and connection
-setup. It is native commit `724f3995f41120640b13711637ba8ab58f7b3ffe` on the local
-`codex/phone-reliability` branch. It has **not been pushed**; pulling the remote
-alone will not obtain it. The supplied patch contains the receiver update and
-its tests, with no ESP firmware or board-protocol change.
+setup. Native commit `724f3995f41120640b13711637ba8ab58f7b3ffe` contains the
+receiver update and its tests. This integration brings the fix and diagnostic
+reports into `main`, with no ESP firmware or board-protocol change.
 
-## Transfer and apply
+## Update from Git
 
-Copy `receiver-idle-fix-20260921.zip` from Windows to the Mac and extract it into
-Downloads. The Windows artifact is under
-`D:\LetThemCook-builds\phone-recovery-20260921`.
-
-From the Mac's existing Let-Them-Cook repository, check the patch first, then
-apply it only if the check succeeds:
+From the Mac's existing Let-Them-Cook repository:
 
 ```sh
 git status --short
-git apply --check "$HOME/Downloads/receiver-idle-fix-20260921/receiver-idle-fix.patch" &&
-git apply "$HOME/Downloads/receiver-idle-fix-20260921/receiver-idle-fix.patch"
+git switch main && git pull --ff-only origin main
+git merge-base --is-ancestor 724f3995f41120640b13711637ba8ab58f7b3ffe HEAD
 ```
 
-This preserves existing Xcode signing selections. Do not force the patch if
-Git reports a conflict or an already-applied change; keep the error for review.
-The patch was checked successfully against Windows main `cf1ad08`.
-Its SHA-256 is
-`eb91ff0d10cc208dc9c30b65420712ba4b67fbc8c6d03e15969901578806e7cc`.
-On the Mac it can be checked with:
+The last command exits successfully without output when the receiver fix is
+present. Preserve local signing selections and other uncommitted work. If Git
+reports conflicting local changes, a divergent branch, or an error, stop and
+keep the message for review; do not reset or force the update.
 
-```sh
-shasum -a 256 "$HOME/Downloads/receiver-idle-fix-20260921/receiver-idle-fix.patch"
-```
+The earlier `receiver-idle-fix-20260921.zip` remains an offline snapshot of the
+native patch. After updating from Git, do not apply that patch again. Its
+original instructions predate this integration; use this document instead.
 
 ## Build and install
 

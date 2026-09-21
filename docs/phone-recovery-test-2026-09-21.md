@@ -197,7 +197,7 @@ an Apple build or delivery by the updated app on a physical iPhone.
 ## Handoff and remaining physical checks
 
 Use the [Mac update instructions](phone-idle-fix-mac-handoff-2026-09-21.md) to
-apply the receiver patch, run the full native suite on macOS, rebuild, sign and
+pull the receiver fix, run the full native suite on macOS, rebuild, sign and
 install the Unity app. No ESP firmware update is required for this fix.
 
 After installation, run a fresh two-ESP baseline, leave Unity foregrounded
@@ -212,4 +212,7 @@ The owned laptop ingestion SSH tunnel was stopped after testing; PID 39404 and
 the 127.0.0.1:18889 listener were confirmed absent. Test containers were removed;
 the Swift image cache was retained. The Ultra96 service was left running as
 PID 84751, as verified at the last server handoff. Evidence and failed runs were
-preserved. The new receiver changes are local and have not been pushed.
+preserved. Receiver fix `724f399` and these reports are included in the `main`
+integration; the Mac must pull the update and install a newly built app before
+the physical checks can resume. The earlier ZIP remains a pre-integration
+snapshot, rather than the current Git update instructions.
