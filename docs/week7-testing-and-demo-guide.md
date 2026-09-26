@@ -1,5 +1,7 @@
 # Week 7: test the complete system and demonstrate it
 
+**Language:** English · [简体中文版](week7-testing-and-demo-guide.zh-CN.md)
+
 This is the operating guide for the current **two physical ESP32 → Windows → Ultra96 → native Unity iPhone** system. The ESPs generate approved dummy packets at **10 Hz each**. The purpose is to demonstrate communications, authentication, packet accounting and the live Phone display. Real sensors, trained inference accuracy, two-glove time alignment and ARKit behavior are separate work.
 
 Read [the current physical acceptance report](phone-post-update-test-2026-09-21.md) for the September 21 results. Older runbooks contain useful setup details, but their single-ESP commands, iSH receiver, deployment directories and historical PIDs are not the daily launch procedure below.

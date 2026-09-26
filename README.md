@@ -4,8 +4,8 @@ Week 7 runs two protected ESP32 BLE dummy streams concurrently through a Windows
 
 Start with the two current reports:
 
-- [System technical report](docs/week7-system-technical-report.md): architecture, parallel processing, packet formats, code walkthroughs, and a file-by-file guide.
-- [Testing and Week 7 demo guide](docs/week7-testing-and-demo-guide.md): which commands to run on each machine, expected observations, acceptance criteria, troubleshooting, and a professor-facing demonstration.
+- [System technical report](docs/week7-system-technical-report.md) · [简体中文版](docs/week7-system-technical-report.zh-CN.md): architecture, parallel processing, packet formats, code walkthroughs, and a file-by-file guide.
+- [Testing and Week 7 demo guide](docs/week7-testing-and-demo-guide.md) · [简体中文版](docs/week7-testing-and-demo-guide.zh-CN.md): which commands to run on each machine, expected observations, acceptance criteria, troubleshooting, and a professor-facing demonstration.
 
 The [updated iPhone acceptance report](docs/phone-post-update-test-2026-09-21.md) records successful two-ESP tests at 10 Hz per device, including a 10-minute run with an operator-reported iPhone count of 12,003 matching the source total. These results establish observed delivery under the tested conditions; the system does not replay data across outages, and the iPhone requires manual reconnection after backgrounding or locking. The [dual-ESP runbook](docs/dual-esp-runbook.md) provides additional bridge details, live progress examples, and saved JSON reports using `--report`.
 

@@ -1,5 +1,7 @@
 # Week 7 communication system: technical report
 
+**Language:** English · [简体中文版](week7-system-technical-report.zh-CN.md)
+
 **Source baseline:** `79a8c0df1693e3b21d15e8b46ed351a12db1c610`, reviewed on **21 September 2026**. This report describes the implementation and evidence at that point. For executable setup, tests and the presentation script, use the companion [testing and demo guide](week7-testing-and-demo-guide.md). Relative links below point to the implementation; named functions and selected line anchors make the explanation traceable.
 
 **Reading route:** start with [the system](#1-what-the-system-does), follow [one sample](#2-one-sample-from-generation-to-display), then study [the protocol](#3-the-protocol-byte-by-byte) and [implementation](#4-reading-the-implementation). Use [defaults and recovery](#5-defaults-resource-bounds-and-recovery), [security](#6-security-boundaries-and-credentials) and [physical evidence](#7-what-has-actually-been-demonstrated) to explain design choices. [The file map](#8-file-by-file-map), [professor questions](#9-questions-to-be-ready-to-answer) and [glossary](#10-short-glossary) are reference sections.
