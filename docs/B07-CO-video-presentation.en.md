@@ -6,7 +6,7 @@ The diagrams and annotated excerpts below support the recorded physical demonstr
 
 ## Recording scripts
 
-The existing `demo.py` handles the SSH tunnel, physical capture and report. The short scripts below provide one recording step per file and reuse those operations.
+The existing `demo.py` handles the SSH tunnel, physical capture and report. The short scripts below provide one recording step per file and reuse those operations. [D01 — Change dummy packets, rebuild and rerun](#d01) explains the second physical capture.
 
 Run from `D:\LetThemCook`. Use separate terminals where a tunnel, serial monitor or server must remain running.
 
@@ -1743,3 +1743,37 @@ python video_steps/08_service_start.py
 ```
 
 This script starts the existing Ultra96 service only after the port check succeeds and both service ports are free.
+
+---
+
+<a id="d01"></a>
+## D01 — Change dummy packets, rebuild and rerun
+
+**Baseline capture → edit fixture → rebuild and upload → independent power → new capture → compare evidence**
+
+Source: [editable fixture, line 3](../common/dummy_fixtures.json#L3) · [generated firmware table, line 9](../firmware/esp32/include/week7_fixtures.h#L9) · [generator](../tools/generate_dummy_fixtures.py#L6) · [random firmware selection](../firmware/esp32/include/week7_packet.h#L55).
+
+| Fixture | All eight channel values |
+|---|---|
+| Before editing | `[1200, -300, 850, 40, -20, 15, 600, 250]` |
+| After editing | `[1500, -300, 850, 40, -20, 15, 600, 250]` |
+
+I am changing the first channel of the second dummy fixture from twelve hundred to fifteen hundred. Each fixture still contains eight signed sixteen-bit values, and the thirty-two-byte packet format remains unchanged. The firmware will continue selecting randomly from the four fixtures.
+
+| Step | Action | Evidence to show |
+|---|---|---|
+| Edit | Save the change in `common/dummy_fixtures.json` | The actual file changes from 1200 to 1500 |
+| Rebuild and upload | Run `python video_steps/01_flash.py` with the verified left/right COM ports | Regenerated fixture header and both successful uploads |
+| Prepare the new run | Remove both laptop USB connections, restore separate power, run `python video_steps/02_pair.py` | Authenticated bonds; iPhone Subscribed; a newly recorded starting count |
+| Rerun | Run `python video_steps/04_capture.py` | New physical capture and its exact Saved in directory |
+| Review | Run `python video_steps/05_report.py` for that directory and its own phone counts; inspect its `packets.log` | Updated values from both devices, matching ACKs, passing report and phone count check |
+
+I am running the upload script again. It regenerates the firmware fixture table, rebuilds both device profiles and uploads them to the selected boards. I then remove both USB connections, restore independent power and start a new physical capture using the existing capture script.
+
+Random selection means the first displayed sample may come from another fixture. Search the new capture's saved log for the complete updated vector, then match each sensor record to its acknowledgement using device, boot and sequence. Keep the baseline and modified captures, fixture copies and phone counts separate. The fixture excerpt in C07 is a snapshot; open the actual source or saved copy to show the edit. The phone shows result events and a received count; it need not display the raw sensor value 1500.
+
+**After verifying the recorded evidence:**
+
+The earlier capture contains the original fixture starting with twelve hundred. In this new capture, both devices have transmitted the updated fixture starting with fifteen hundred. Each displayed sample has a matching Ultra96 acknowledgement. The new report passes its checks, and the phone's separately observed count increase matches this new capture.
+
+[Back to G03](#g03)

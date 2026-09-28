@@ -22,7 +22,7 @@ Set-Location D:\LetThemCook
 
 **每新开一个终端，先执行上面这一条 `Set-Location`。** 下文的短命令都从 `D:\LetThemCook` 运行。脚本标号 S00–S08 与展示稿中的脚本说明一致；不能把 S03/S06/S08 运行中的终端拿来执行下一个脚本。
 
-**最短操作路线：** 录前 S07 检查板端、VS Code 打开展示稿预览 → 摄影手机开始 → A1 用 S00 核实 COM、S01 烧录，需要时先 S06 再 S02，拔 USB 独立供电后再 S02 → A2 拍 ID/包格式代码 → A3 终端 A 运行 S03 → A4 手动连 Visualizer 并记 P0 → A5 终端 B 运行 S04 → A6 用 S05 显示本次证据、填 P0/P1 → 保存画面 → B 阶段录 Markdown 图解/代码，B7 重新用 S05 查看同次证据。
+**最短操作路线：** 录前 S07 检查板端、VS Code 打开展示稿预览 → 摄影手机开始 → A1 用 S00 核实 COM、S01 烧录，需要时先 S06 再 S02，拔 USB 独立供电后再 S02 → A2 拍 ID/包格式代码 → A3 终端 A 运行 S03 → A4 手动连 Visualizer 并记 P0 → A5 终端 B 运行 S04 → A6 用 S05 显示本次证据、填 P0/P1 → **A7 修改 dummy packets，重新编译/上传/采集，对照修改前后数据** → 保存两次画面 → B 阶段录 Markdown 图解/代码，B7 重新用 S05 查看选定那次证据。
 
 **本次使用两个主文档：**
 
@@ -45,6 +45,7 @@ A、B 可以分两次、不同时间录制。B 阶段重看 A 阶段保存的报
 | **Explain FireBeetle: Device IDs / packet types / packet format — Live + Video** | **A2：直接拍电脑打开 platformio.ini、sensor.py、control.py、protocol.py 并讲字段**；A6 对照实际日志 | B3–B4 / G03–G04 图解回顾；B5 / G05 BLE FSM |
 | Encryption walkthrough in every channel — Video only | A1 的绑定结果作为实物佐证 | B9 / G09：BLE、laptop–Ultra96、Ultra96–iPhone 三条通道源码 |
 | Laptop + Ultra96 concurrency/threading walkthrough — Video only | A5 两路进度同时增长 | B10 / G10、B11 / G11：两张框图和任务/队列源码 |
+| General：修改 dummy packets 并 recompile/rerun | **A7：现场改 JSON、重新构建/上传、独立供电后新采集、对照两台设备的更新值** | B3 回顾修改前后已保存的证据；英文展示稿 D01 提供对应说明 |
 
 General 要求放在相应段落：实际格式的多组随机 dummy 数据、可修改后重跑、FSM、并发框图、清楚的解码日志/两路颜色、无 relay laptop USB、服务器在 Ultra96、无 message broker、TCP 消息可能分段。本稿不安排 Live-only 的完整键盘 pipeline、测速/极限速率、断电/超距或鲁棒性专项考核；60 秒只是这里通信镜头的采集长度。
 
@@ -199,11 +200,7 @@ python video_steps/06_serial.py
 >
 > After decoding, the laptop sends SENSOR_BATCH JSON to Ultra96 and validates INGEST_ACK. The phone sends SUBSCRIBE, receives SUBSCRIBED, and then receives GESTURE_RESULT messages. These are distinct message types with different roles. I will show a real decoded sensor and matching acknowledgement from this capture at the end.
 
-**老师临时要求改 dummy 数据时：** 先结束采集，在 VS Code 用 Ctrl+O 打开 `D:\LetThemCook\common\dummy_fixtures.json`，例如把第二组第一项 `1200` 改为 `1500`；每组仍为八个 int16，数值 −32768..32767、总共 2–64 组。**保存后按 A1 再运行 S01**，重新生成 fixture 头、构建和上传两块板。再次拔掉两条 USB、独立供电，重复 A4–A6，记录新的 P0 和独立采集目录。
-
-在这次新显示的完整 sensor values 中找到更新值，才说明实体数据修改已生效。只改 JSON、只编译未上传、重看旧日志都不能证明 ESP 数据已更新。正常录像可解释此流程；真的执行修改时，把修改前后两次证据分开，展示稿旧快照不会自动更新。
-
-> These fixtures are editable. To change the transmitted dummy values, I edit the JSON, regenerate the firmware table, rebuild and upload both boards, remove USB and start a new BLE capture. The updated decoded values in that new capture show that the change took effect.
+**修改 dummy packets 的实际演示安排在 A7。** 先完成 A3–A6，保存修改前的真实数据；然后拍下编辑、重新编译/上传和新采集的完整过程。本稿把这项 General 要求安排为独立实操，不只口头介绍。第二组第一项 `1200 → 1500` 是可直接使用的示例；若老师指定其他值，仍保持每组八个 int16、总共 2–64 组。
 
 ### A3｜启动或展示本次 SSH 隧道
 
@@ -313,7 +310,56 @@ python video_steps/05_report.py
 
 用文件资源管理器把摄影手机的本段视频副本、P0/P1 画面及 N1/N2/E 的简短备注放入**这个目录**的 `camera-clips` 子目录。保留原始 `live.log`、`packets.jsonl`、`packets.log`、`report.json`、`report-readable.json`、`exit-code.txt` 及 S05 保存的手机人工观察信息，不覆盖失败尝试。把完整 Saved in 路径写入录像笔记，另一天录 B 时仍粘贴这个目录。
 
-至此可停止摄影手机录像。若 B 不接着做实时操作，可在本次自己运行的终端 A 按 Ctrl+C 结束隧道。不为结束录像停止共享 Ultra96 服务，也不需要让实体设备等到代码讲解录完。
+完成 A6 后继续 A7；终端 B 的采集已经结束，终端 A 的隧道暂时保留。先保存本次修改前证据，再接 USB 做下一轮 setup。
+
+### A7｜修改 dummy packets → 重新编译/上传 → 重新运行并核对
+
+**本段继续用摄影手机拍电脑和硬件。** 它对应 General Guidelines 的 “change the dummy packets … recompile/rerun”。英文投屏提示见[展示稿 D01，第 1750 行](./B07-CO-video-presentation.en.md#d01)。沿用已有脚本，不需要新增命令工具；修改和烧录由你在录制时实际执行。
+
+**A7.1 留下修改前证据，再现场编辑。** 把 A6 的准确 Saved in 目录记为“修改前”，保留该次 P0/P1。用资源管理器把当前 `common/dummy_fixtures.json` 复制到这个目录留档。在编辑器打开该次 `packets.log`，搜索完整的 `values=[1200, -300, 850, 40, -20, 15, 600, 250]`，记录对应 `device_id`、`boot_id`、`seq`；这是后面对照的基准。
+
+在 VS Code 打开 [common/dummy_fixtures.json 第 3 行](../common/dummy_fixtures.json#L3)，只把第二组第一项 **1200 改成 1500**，其他七项和其他三组保持不变，按 Ctrl+S 保存。拍清修改过程。以下是同一组修改前后的内容；不是把整份 JSON 换成单独一组：
+
+| 状态 | 第二组的完整八个 values |
+|---|---|
+| 修改前 | `[1200, -300, 850, 40, -20, 15, 600, 250]` |
+| 修改后 | `[1500, -300, 850, 40, -20, 15, 600, 250]` |
+
+**英文口播：**
+
+> I am changing the first channel of the second dummy fixture from twelve hundred to fifteen hundred. Each fixture still contains eight signed sixteen-bit values, and the thirty-two-byte packet format remains unchanged. The firmware will continue selecting randomly from the four fixtures.
+
+**A7.2 重新编译并上传，两块都要更新。** 确认 S04 已结束且串口监视已关闭；进入 USB setup，把两块板接回 laptop。COM 不确定就像 A1 一样逐块核实。终端 B 依次按下表操作；S03 隧道仍在终端 A 时，不要再启动一个。
+
+| 顺序 | 在终端 B 运行 / 操作 | 必须观察到的结果 |
+|---|---|---|
+| 1（需要时） | `python video_steps/00_ports.py` | 重新确认 left/right 实际 COM |
+| 2 | `python video_steps/01_flash.py`，输入两个实际 COM | fixture 头重新生成；left/right 构建和上传都成功；失败即停 |
+| 3 | 打开 [week7_fixtures.h 第 9 行](../firmware/esp32/include/week7_fixtures.h#L9) | 第二组出现 `{1500, -300, 850, 40, -20, 15, 600, 250}`；它是生成结果，不直接编辑它 |
+| 4 | 拔掉两条 laptop USB，恢复各自独立供电；运行 `python video_steps/02_pair.py` | 两台均 `authenticated_bond: true`；拍到真实采集前 USB 已全拔掉 |
+| 5 | Visualizer 保持前台且 Subscribed；必要时按 A4 重连，重新记录本轮 P0 | 本轮起始手机计数清楚；不要沿用修改前的 P0 |
+| 6 | `python video_steps/04_capture.py`，准备好后按 Enter | 新的 60 秒双设备采集；记录本轮新 Saved in 目录 |
+| 7 | 计数稳定后记录本轮 P1，运行 `python video_steps/05_report.py` | 输入新目录和本轮 P0/P1；检查 CAPTURE PASSED、完整对账和手机 MATCH |
+
+如果隧道此前已结束，按 A3 在终端 A 重新运行 S03；否则继续复用。绑定失败按 A1 排查，不在未认证状态下继续。这里重新构建的是两块 FireBeetle 固件；只改合法 payload 数值，不需要重编译 Ultra96 或 iPhone App。
+
+**英文口播：**
+
+> I am running the upload script again. It regenerates the firmware fixture table, rebuilds both device profiles and uploads them to the selected boards. I then remove both USB connections, restore independent power and start a new physical capture using the existing capture script.
+
+**A7.3 在新日志里证明修改已生效。** 把新 Saved in 目录记为“修改后”，用资源管理器将修改后的 JSON、生成的 `week7_fixtures.h` 及本轮 P0/P1 画面复制到该目录留档。在 VS Code 打开**新目录的 `packets.log`**，Ctrl+F 搜索完整的 `values=[1500, -300, 850, 40, -20, 15, 600, 250]`。找到 device 1 和 device 2 各至少一条 `type=sensor`、`direction=ESP->laptop`、`validation=decoded` 的记录，拍清八个 values 和该条的 boot/seq。
+
+再按各自 `device_id`、`boot_id`、`seq` 找到同一文件中的 `type=sensor_ack`、`direction=Ultra96->laptop`、`validation=accepted` 记录。可以搜索 `packets.jsonl` 中同一身份辅助定位；不能拿另一台或另一条 seq 的 ACK 配对。修改前后不要求 boot/seq 相同，重新上电会建立新的启动身份。
+
+**注意随机选择：** S05 只展示每台设备找到的首个匹配样本，那条不一定抽到第二组；终端输出也会抽样显示。用保存的 `packets.log` / `packets.jsonl` 查找，不能因首个样本没有 1500 就认定失败，也不能未找到就宣称成功。若任一设备找不到更新后的完整组，保留此次记录并排查其固件/上传/采集，确认后再录新的采集。
+
+**核对完成后才说：**
+
+> The earlier capture contains the original fixture starting with twelve hundred. In this new capture, both devices have transmitted the updated fixture starting with fifteen hundred. Each displayed sample has a matching Ultra96 acknowledgement. The new report passes its checks, and the phone's separately observed count increase matches this new capture.
+
+手机展示的是结果事件和接收数，不一定直接显示这八个 sensor values；不能要求手机出现数字 1500，也不能把随机 AI 事件变化当作 payload 已更新的证明。修改证据是新采集中的实际 sensor values，ACK 和手机计数分别说明接入及结果接收。
+
+**A7 完成后再停止摄影手机。** 保留“修改前/修改后”两套目录和各自计数；B 阶段只回看它们。展示稿 C07 是原 fixture 快照，不会自动变成 1500；讲修改时点击 Source 打开实际 JSON，并展示保存的两次日志。若之后恢复 1200，也需要重新运行 S01 烧录才能恢复硬件数据，不能只改回 JSON 就宣称两板已恢复。现在可在自己运行的终端 A 按 Ctrl+C 结束隧道，不停止共享 Ultra96 服务。
 
 ## 第二阶段 B：电脑录屏，图解、加密与并发源码
 
@@ -411,6 +457,8 @@ python video_steps/05_report.py
 
 **投屏 G03：** 用清晰图解回顾 A2 相机镜头里的 _PACKET / decode_packet，顺着 32 个 byte 的位置讲，不需要重复上传或生成数据。源码为 [sensor.py](../common/sensor.py)、[dummy_fixtures.json](../common/dummy_fixtures.json)、[week7_packet.h](../firmware/esp32/include/week7_packet.h)。
 
+**回顾 A7 修改结果：** 打开[展示稿 D01](./B07-CO-video-presentation.en.md#d01)，展示修改前后保存的 JSON 和实际日志，读其中最后一段英文结论（仅在 A7 已全部核对成功时）。此处不重新烧录或运行 S04；C07 仍是原始数据快照，1500 的依据是 A7 保存的文件和真实新采集。
+
 **要指到：** W7、v2、ID、boot、seq、uptime、八个 int16，little-endian；fixture 是随机抽取，允许连续重复，真正的 values 已保存在 A6 的解码日志。没有 custom application CRC，不把校验或加密说成不存在的 CRC 字段。
 
 ### B4 / G04｜Packet types 与 BLE control format 图解回顾
@@ -503,7 +551,7 @@ python video_steps/05_report.py
 >
 > The active state uses pipelined sending and acknowledgement reading, with up to thirty-two outstanding messages per device. This is not a stop-and-wait protocol. When the capture ends, the bridge drains pending work before producing its final source audit.
 
-**重开 A 阶段证据，明确不是重跑：** 在终端 B 再运行 `python video_steps/05_report.py`，粘贴 A6 笔记中的**准确 Saved in 目录**。先拍清输出路径与录制那次一致，再看其报告和两设备匹配数据。此处不能运行 S04，那会开始新实体采集。
+**重开 A 阶段证据，明确不是重跑：** 在终端 B 再运行 `python video_steps/05_report.py`，粘贴 A6 笔记中的**准确 Saved in 目录**。先拍清输出路径与录制那次一致，再看其报告和两设备匹配数据。若回看 A7，则明确选 A7 的新目录并输入 A7 那次 P0/P1；不要混合两次证据。此处不能运行 S04，那会开始新实体采集。
 
 S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看先前人工观察，不读取今天手机上的计数。停在同一身份的 sensor / sensor_ack，指出完整八个 values 和 accepted；找不到匹配就解释本次问题，不拼接别次记录。`demo.py` 的 `_clean_capture()` / `show_report()` 检查源端/接收/ACK；S05 补充匹配数据展示和人工计数记录，**不会读取 iPhone 屏幕**。
 
@@ -636,6 +684,7 @@ S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看�
 - [ ] A 阶段真实计数、ACK、手机结果/增量和保存目录可辨；B 阶段重看证据没有冒充新运行。
 - [ ] 三条通道的加密源码、laptop 和 Ultra96 两套并发源码均可读。
 - [ ] FSM、TCP 分段与帧边界、random fixtures、修改流程都解释过。
+- [ ] A7 实际拍到修改 JSON、重新编译/两板上传、拔 USB 后新采集；两台新日志均找到完整更新值和匹配 ACK，前后目录及 P0/P1 分开保存。
 - [ ] 两路颜色/设备标签及至少一对完整解码 sensor/ACK 可读；秘密未录入。
 
 项目已有的视频文件名约定是 `B07_CO_subsystem.mp4`；最终以实际提交页面为准。不要用旧 `tools.week7_demo packet` 的 v1 离线示例替换这次 v2 实物证据。
