@@ -18,6 +18,10 @@ def environment(monkeypatch, *, snapshots=None, answers=("", ""), fail=None):
     assert importlib.util.find_spec("flash") is not None, "Root flash.py is not implemented"
     module = importlib.import_module("flash")
     monkeypatch.setattr(module, "_pio", lambda: ["platformio"])
+    identities = iter(['38:18:2B:19:82:AE', '38:18:2B:18:9D:6A'])
+    monkeypatch.setattr(module, '_read_board_address', lambda port: next(identities))
+    monkeypatch.setattr(module, 'save_boards', lambda *args: None)
+    monkeypatch.setattr(module, 'load_boards', lambda: (('left','38:18:2B:19:82:AE'), ('right','38:18:2B:18:9D:6A')))
     snapshots = iter([[LEFT], [RIGHT]] if snapshots is None else snapshots)
     replies = iter(answers)
     commands, prompts = [], []

@@ -13,7 +13,7 @@ import uuid
 
 from tools.ssh_tunnel import tunnel_command
 from laptop.dual_bridge import _source_rate
-
+from tools.demo_boards import load_boards
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT_ROOT = ROOT / ".week7-local"
@@ -48,8 +48,8 @@ def _parser():
                          help=f"seconds; default: {seconds:g}")
         run.add_argument("--ca", type=Path, default=Path.home() / ".codex" / "private" /
                          "cg4002-week7-20260906" / "ca-cert.pem")
-        run.add_argument("--left-address", default="38:18:2B:19:82:AE")
-        run.add_argument("--right-address", default="38:18:2B:18:9D:6A")
+        run.add_argument("--left-address", help="override saved LEFT board address")
+        run.add_argument("--right-address", help="override saved RIGHT board address")
         run.add_argument("--port", type=_port, default=18889)
         run.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
         run.add_argument("--keyboard", action="store_true", default=keyboard,
@@ -277,6 +277,11 @@ def main(argv=None):
         if args.action == "tunnel":
             return run_tunnel(args)
         if args.action in ("run", "live"):
+            if args.left_address is None or args.right_address is None:
+                boards = dict(load_boards())
+                args.left_address = args.left_address or boards['left']
+                args.right_address = args.right_address or boards['right']
+            print(f'Board mapping: LEFT / ID 1 = {args.left_address}; RIGHT / ID 2 = {args.right_address}')
             return run_capture(args)
         if args.action == "service":
             from tools.demo_service import main as service_main

@@ -12,10 +12,10 @@ Set-Location D:\LetThemCook
 
 | 展示稿入口 | 在 PowerShell 运行 | 什么时候用 |
 |---|---|---|
-| [R01 Flash，第 1705 行](./B07-CO-video-presentation.en.md#r01) | `python flash.py` | 一次命令先构建两份，再提示用同一根烧录 USB 线接左板、换右板，依次检测并上传 |
-| [R02 Tunnel，第 1718 行](./B07-CO-video-presentation.en.md#r02) | `python demo.py tunnel` | 终端 A 开 SSH 隧道并保持运行 |
-| [R03 Video run，第 1729 行](./B07-CO-video-presentation.en.md#r03) | `python demo.py run` | 终端 B 默认采集 60 秒、每台 10 Hz，结束自动显示报告和匹配数据 |
-| [R04 Live，第 1740 行](./B07-CO-video-presentation.en.md#r04) | `python demo.py live` | 默认 120 秒、每台 10 Hz，开放键盘 1 / 2 命令；见后面的 Live 小节 |
+| [R01 Flash，第 1705 行](./B07-CO-video-presentation.en.md#r01) | `python flash.py` | 一次命令先构建两份；第一块定义为 LEFT / ID 1，第二块定义为 RIGHT / ID 2，自动保存地址 |
+| [R02 Tunnel，第 1720 行](./B07-CO-video-presentation.en.md#r02) | `python demo.py tunnel` | 终端 A 开 SSH 隧道并保持运行 |
+| [R03 Video run，第 1731 行](./B07-CO-video-presentation.en.md#r03) | `python demo.py run` | 终端 B 默认采集 60 秒、每台 10 Hz，结束自动显示报告和匹配数据 |
+| [R04 Live，第 1742 行](./B07-CO-video-presentation.en.md#r04) | `python demo.py live` | 默认 120 秒、每台 10 Hz，开放键盘 1 / 2 命令；见后面的 Live 小节 |
 
 **Video 用 `run`，Live 用 `live`，同一场景只选一个。** 报告自动显示；首次配对、串口监视和服务维护见文末按需功能。
 
@@ -73,7 +73,7 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 ### A0｜摆好机位与开场
 
-**画面：** 摄影手机横拍，两块带标签的 FireBeetle、电源、relay laptop 和 Visualizer iPhone 同框。Ultra96 可通过部署说明交代位置，不把笔记本说成服务器。
+**画面：** 摄影手机横拍，两块 FireBeetle、待贴的 LEFT / RIGHT 标签、电源、relay laptop 和 Visualizer iPhone 同框。Ultra96 可通过部署说明交代位置，不把笔记本说成服务器。
 
 **操作：** 电脑显示 VS Code 的展示稿预览，终端 B 已进入仓库；确认尚无采集程序运行。摄影手机开始录像，先停留 5 秒拍清各设备。此时不要切换 Visualizer iPhone 去拍其他东西。
 
@@ -89,11 +89,11 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 **本段用摄影手机拍电脑屏幕和板子；真的执行构建/上传并拍成功结果，不只展示命令。** 这是 setup 阶段，尚未运行 BLE 采集。同一台 Windows laptop 可接 USB 烧录；本段使用同一根烧录 USB 线依次连接左板和右板；末尾拍清两板均已断开 laptop USB、各自独立供电。
 
-**A1.1 打开固件项目，只确认用于烧录的左右环境。** 在编辑器按 Ctrl+O，打开 `D:\LetThemCook\firmware\esp32\platformio.ini`，Ctrl+F 搜索 `firebeetle32-left`。指出 left / right profile 分别用于贴好标签的左板/右板，确认使用正常保护配置，不选择 `firebeetle32-unprotected-diagnostic`。这里不展开设备 ID 字段或数据包结构，完整说明放到 B2–B4。
+**A1.1 打开固件项目，只确认用于烧录的左右环境。** 在编辑器按 Ctrl+O，打开 `D:\LetThemCook\firmware\esp32\platformio.ini`，Ctrl+F 搜索 `firebeetle32-left`。指出 left / right profile 分别用于本轮第一块/第二块板，确认使用正常保护配置，不选择 `firebeetle32-unprotected-diagnostic`。这里不展开设备 ID 字段或数据包结构，完整说明放到 B2–B4。
 
-> I am setting up both FireBeetle ESP32 boards. The left and right PlatformIO profiles select the firmware for the corresponding labelled boards. I will upload them in turn using one programming USB cable, then power both independently for the BLE demonstration.
+> I am setting up both FireBeetle ESP32 boards. The first board will receive the left profile, and the second board will receive the right profile. I will upload them in turn using one programming USB cable, then power both independently for the BLE demonstration.
 
-**A1.2 贴好 left / right 标签，使用一根烧录 USB 线。** 不需要同时连接两块板，也不用预先填写一对 COM。确认串口监视已退出，接线按下一步脚本提示进行；如果需要单独辨认串口，可用 `python flash.py --ports` 只读查看。
+**A1.2 准备 LEFT / RIGHT 贴纸，使用一根烧录 USB 线。** 首次设置或换新板时，任选第一块作为左手；第二块不同的板作为右手。每块上传成功后再贴对应标签。若只是修改 dummy 后重烧，按已有 LEFT → RIGHT 标签顺序接入以保留手部角色。确认串口监视已退出，接线按提示进行，不预填 COM 或 MAC 地址。
 
 **A1.3 R01：一条命令依次烧录两块板。** 在终端 B 运行：
 
@@ -104,13 +104,15 @@ python flash.py
 | 提示阶段 | 你实际做什么 | 镜头保留什么 |
 |---|---|---|
 | 生成与构建 | 等 fixture 头生成、左右环境都构建成功 | 两个 profile 的构建结果；失败就停止 |
-| 接 LEFT | 把烧录 USB 线接到标签 left 的板，按 Enter | 当前检测到的 COM、device 1 环境、左板 upload 成功 |
-| 换 RIGHT | 拔掉左板，把同一 USB 线接到 right，再按 Enter | 重新检测的 COM、device 2 环境、右板 upload 成功 |
+| 第一块 → LEFT | 接第一块板、按 Enter；上传成功后贴 LEFT / ID 1 | 自动识别的硬件地址、device 1 环境及 upload 成功 |
+| 第二块 → RIGHT | 拔第一块，用同一根线连接另一块、按 Enter；成功后贴 RIGHT / ID 2 | 第二块的地址、device 2 环境、upload 成功及 Board mapping saved |
 | 两次完成 | 拔掉右板；两块板各接独立电源 | 两板均不再连接 laptop USB |
 
-每个上传阶段都重新检测当前串口：只有一个候选时自动选择，有多个时才按提示选当前板的实际 COM。**两次可以是同一个 COM 号**，由物理 left/right 标签与脚本阶段区分；没有保存端口映射的步骤。
+每个阶段重新检测串口：一个候选自动选择，多个时才选实际 COM。**两次可以是同一 COM 号**，脚本另读硬件身份；第二次仍是第一块板时，第二次上传会被拦截。两次都成功后，地址映射写入 `D:\LetThemCook\.week7-local\boards.json`，由采集、Live 和配对共用，无需手改 MAC。烧录中途失败/取消时重新完成 `python flash.py`，普通采集会拦截尚未完成的配置。
 
-> This script regenerates the fixture table and builds both device profiles. I connect the left board, then swap it for the right board when prompted. The script detects the serial port for each upload and stops if a step fails.
+**怎么判断左右、以后怎么换板：** 看本次烧录顺序和成功后贴的标签；需要核对时才运行 `python flash.py --boards` 查看保存地址。换同型号 FireBeetle32 时重复“第一块 LEFT、第二块 RIGHT”，完成两次上传后按 A1.4 给新板首次配对即可。若使用另一台电脑，也需要把这份本地配置带过去或在那台电脑重新完成设置；它不随 Git push 上传。
+
+> This script regenerates the fixture table and builds both device profiles. The first board I program becomes the left hand with device ID one. I then connect a different board, which becomes the right hand with device ID two. The script identifies the hardware and saves both Bluetooth addresses for capture and pairing. I label each board after its upload succeeds.
 
 脚本使用本机已安装的 PlatformIO。拍清左/右 profile、各自 upload 成功以及实际换板；可以剪去构建等待，不能剪掉失败后宣称成功。
 
@@ -133,9 +135,9 @@ python flash.py
 | 右板口令/认证 | 用 `--ports` 查看当前 COM，再在串口终端运行 `--monitor 实际COM`；终端 B 运行 `python flash.py --pair right` |
 | 结束 | 退出右板 monitor，拔右板 USB，右板也换独立电源 |
 
-> This setup option uses the existing authenticated pairing tool for the selected board. I use left and right in turn during first-time setup; existing authenticated bonds are reused.
+> This setup option reads the saved board mapping and uses the existing authenticated pairing tool for the selected board. I use left and right in turn during first-time setup; existing authenticated bonds are reused.
 
-左右地址分别为 `38:18:2B:19:82:AE` 和 `38:18:2B:18:9D:6A`。成功应显示 `authenticated_bond: true`。不录 `PAIR LOCALLY`、不保存串口日志；若先运行配对才发现未开 monitor，Ctrl+C 取消后按上表重试，不猜口令。无参数的 `--pair` 会检查两板，一根烧录 USB 线的首次流程使用上面的显式 left/right，避免等待另一块尚未读取的口令。
+先完成两次烧录；配对按 `.week7-local/boards.json` 中本次保存的左右地址进行。新板需要首次配对，已有认证绑定可复用。成功应显示 `authenticated_bond: true`。不录 `PAIR LOCALLY`、不保存串口日志；若先运行配对才发现未开 monitor，Ctrl+C 取消后按上表重试，不猜口令。无参数的 `--pair` 会检查两板，一根烧录 USB 线的首次流程使用上面的显式 left/right，避免等待另一块尚未读取的口令。
 
 **A1.5 拍清两板均已独立供电。** 最后一块板烧录/必要配对后，摄影手机拍到它从 laptop USB 拔下并换独立电源；同时拍清另一块已独立供电。沿电源线拍到两个电源，laptop 的 USB 口不再连接任何 FireBeetle。此时不再运行额外配对或串口命令；A4 启动时的认证连接日志是正常检查证据。
 
@@ -250,7 +252,7 @@ python demo.py report "D:\LetThemCook\.week7-local\B07-本次目录"
 
 ### A6｜修改 dummy packets → 重新编译/上传 → 重新运行并核对
 
-**本段继续用摄影手机拍电脑和硬件。** 它对应 General Guidelines 的 “change the dummy packets … recompile/rerun”。英文投屏提示见[展示稿 D01，第 1807 行](./B07-CO-video-presentation.en.md#d01)。沿用已有脚本，不需要新增命令工具；修改和烧录由你在录制时实际执行。
+**本段继续用摄影手机拍电脑和硬件。** 它对应 General Guidelines 的 “change the dummy packets … recompile/rerun”。英文投屏提示见[展示稿 D01，第 1809 行](./B07-CO-video-presentation.en.md#d01)。沿用已有脚本，不需要新增命令工具；修改和烧录由你在录制时实际执行。
 
 **A6.1 留下修改前证据，再现场编辑。** 把 A5 的准确 Saved in 目录记为“修改前”，保留该次手机开始/结束画面。用资源管理器把当前 `common/dummy_fixtures.json` 复制到这个目录留档。在编辑器打开该次 `packets.log`，搜索完整的 `values=[1200, -300, 850, 40, -20, 15, 600, 250]`，记录对应 `device_id`、`boot_id`、`seq`；这是后面对照的基准。
 
@@ -273,7 +275,7 @@ python demo.py report "D:\LetThemCook\.week7-local\B07-本次目录"
 
 | 顺序 | 在终端 B 运行 / 操作 | 必须观察到的结果 |
 |---|---|---|
-| 1 | `python flash.py`；按提示接左板，左板成功后拔左换右 | fixture 头重新生成；左右构建和上传都成功；失败即停 |
+| 1 | `python flash.py`；按已有 LEFT → RIGHT 标签接入，保留手部角色 | fixture 头重新生成；两次上传成功，地址映射自动更新；失败即停 |
 | 2 | 打开 [week7_fixtures.h 第 9 行](../firmware/esp32/include/week7_fixtures.h#L9) | 第二组为 `{1500, -300, 850, 40, -20, 15, 600, 250}`；这是生成结果，不直接编辑 |
 | 3 | 右板上传后也拔掉 USB，确认两板均恢复独立供电 | 镜头拍清真实采集前两板均已断开 laptop USB；已有绑定不用再 pair |
 | 4 | Visualizer 保持前台且 Subscribed；必要时重连，拍本轮开始画面 | 本轮手机开始状态清楚，不借修改前那次画面 |
@@ -334,7 +336,7 @@ python demo.py report "D:\LetThemCook\.week7-local\B07-本次目录"
 
 ### B1 / G01｜系统架构：服务器和两条结果路径
 
-**文件分工：** `demo.py`（C01）的 `capture_command()` 组装双设备 bridge 的启动参数、session、ACK window 和证据路径；`flash.py` 的固件准备只作背景说明，不在此重跑。
+**文件分工：** `demo.py` 先通过 `tools/demo_boards.py` 读取本地左右地址，C01 的 `capture_command()` 再组装双设备 bridge 的启动参数、session、ACK window 和证据路径；`flash.py` 的固件准备只作背景说明，不在此重跑。
 
 **本节怎么讲：** G01 → C01：指出 `capture_command()` 和表中的原行号，再读 C01 代码下方的 **英文讲解正文**。
 
@@ -357,7 +359,7 @@ python demo.py report "D:\LetThemCook\.week7-local\B07-本次目录"
 | `demo.py tunnel` | 打开 SSH 路由并保持当前终端 |
 | `demo.py run` / `live` | 同一双设备采集；Video 默认 60 秒，Live 默认 120 秒并启用键盘 |
 | `demo.py report "准确目录"` | 重看指定采集的报告和匹配数据，无手机输入 |
-| `flash.py` | 生成 fixtures、构建两份固件，用同一根烧录线依次检测并上传左右板 |
+| `flash.py` | 生成 fixtures、构建两份固件，按第一块 LEFT / 第二块 RIGHT 上传，并保存共用的地址映射 |
 
 **合并讲解备选（不逐段展开 C 时选读；已读英文讲解正文就略过）：**
 
@@ -371,7 +373,7 @@ python demo.py report "D:\LetThemCook\.week7-local\B07-本次目录"
 
 **投屏英文旁白（与展示稿一致）：**
 
-> PlatformIO builds our Arduino firmware for the firebeetle32 board. The left profile assigns device ID one, and the right profile assigns device ID two. We use one USB cable to upload to the left board and then the right board, and disconnect the laptop USB after programming. During the BLE demonstration, each board uses its own power source. We complete authenticated pairing before streaming. The BLE address selects the physical board, while the device ID identifies its application packets.
+> PlatformIO builds our Arduino firmware for the firebeetle32 board. The first board programmed becomes the left hand with device ID one; the second becomes the right hand with device ID two. The script saves their Bluetooth addresses, and both capture and pairing use that same mapping. We use one programming USB cable and label each board after its upload succeeds. During BLE communication, both boards are disconnected from laptop USB and use independent power. The BLE address selects the physical board, while the device ID identifies its application packets.
 
 **代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
@@ -384,7 +386,7 @@ python demo.py report "D:\LetThemCook\.week7-local\B07-本次目录"
 
 **投屏 G02：** 完整说明左右 profile、device 1 / 2 和 BLE 地址的区别，再联系 A1 已录制的 setup → 独立供电过程。认证连接证据取自 A4 的已录日志，首次配对才引用 A1 的额外绑定画面；此处不重新上传。
 
-**必须指出 Device IDs：** C02 的 L21 / L26 分别是 `WEEK7_DEVICE_ID=1` / `2`，L6 / L7 是板型与 Arduino framework。left 对应 device 1 / `38:18:2B:19:82:AE`，right 对应 device 2 / `38:18:2B:18:9D:6A`。BLE 地址选择物理板，包内 device ID 标识应用数据来源；boot ID 区分启动，sequence 区分同次启动内的样本。后两项会在 B3 的包字段中继续指出。
+**必须指出 Device IDs：** C02 的 L21 / L26 分别是 `WEEK7_DEVICE_ID=1` / `2`，L6 / L7 是板型与 Arduino framework。第一块成功烧录的板对应 LEFT / device 1，第二块对应 RIGHT / device 2；实际蓝牙地址以本次 `Board mapping saved` 输出或 `flash.py --boards` 为准。BLE 地址选择物理板，包内 device ID 标识应用数据来源；boot ID 区分启动，sequence 区分同次启动内的样本。后两项会在 B3 的包字段中继续指出。
 
 **实际文件定位：** 需要核对源码时点 C02 的 Source，或 Ctrl+O 打开 `D:\LetThemCook\firmware\esp32\platformio.ini`，Ctrl+F 搜索 `WEEK7_DEVICE_ID=1` / `WEEK7_DEVICE_ID=2`。讲解仍回展示稿读 C02 的英文讲解正文；不能只报文件名而不指出字段。
 
@@ -756,10 +758,10 @@ python demo.py live
 
 | 展示稿入口 | 命令 | 什么时候用 |
 |---|---|---|
-| [R05 Report，第 1753 行](./B07-CO-video-presentation.en.md#r05) | `python demo.py report "完整 Saved in 目录"` | 可选：稍后重看明确那次报告；引号内换成本次实际路径 |
-| [R06 First pairing，第 1766 行](./B07-CO-video-presentation.en.md#r06) | `python flash.py --pair left` / `right` | 只在首次配对或绑定恢复时按当前接 USB 的那一板操作 |
-| [R07 Private serial，第 1779 行](./B07-CO-video-presentation.en.md#r07) | `python flash.py --monitor COM4` | 仅首次口令读取；COM4 是示例，换成核实的实际 COM，独立终端运行 |
-| [R08 Service maintenance，第 1792 行](./B07-CO-video-presentation.en.md#r08) | `python demo.py service`；需要启动才加 `--start` | 录前需要时检查/启动已有 Ultra96 部署；不强制重启 |
+| [R05 Report，第 1755 行](./B07-CO-video-presentation.en.md#r05) | `python demo.py report "完整 Saved in 目录"` | 可选：稍后重看明确那次报告；引号内换成本次实际路径 |
+| [R06 First pairing，第 1768 行](./B07-CO-video-presentation.en.md#r06) | `python flash.py --pair left` / `right` | 只在首次配对或绑定恢复时按当前接 USB 的那一板操作 |
+| [R07 Private serial，第 1781 行](./B07-CO-video-presentation.en.md#r07) | `python flash.py --monitor COM4` | 仅首次口令读取；COM4 是示例，换成核实的实际 COM，独立终端运行 |
+| [R08 Service maintenance，第 1794 行](./B07-CO-video-presentation.en.md#r08) | `python demo.py service`；需要启动才加 `--start` | 录前需要时检查/启动已有 Ultra96 部署；不强制重启 |
 
 ## 附录：少用维护选项，正常运行不用重复做
 

@@ -94,7 +94,7 @@ def capture_command(args, report_path):
 
 
 ```
-In demo.py, capture_command builds the command that starts the existing dual-device bridge with explicit settings. Line 74 passes the trusted CA file and ingestion port, while line 76 fixes the session name and passes the requested capture duration. The next lines set the acknowledgement window and give this capture its own report and packet-log paths. At line 79, keyboard commands are included only when enabled: run leaves them off by default, while live enables them. These saved files describe the laptop and board exchange; the iPhone screen remains separate evidence of phone reception.
+In demo.py, capture_command builds the command that starts the existing dual-device bridge with explicit settings. Line 74 passes the trusted CA file and ingestion port, while line 76 fixes the session name and passes the requested capture duration. The addresses come from the saved upload-order mapping unless explicitly overridden. The next lines set the acknowledgement window and give this capture its own report and packet-log paths. At line 79, keyboard commands are included only when enabled: run leaves them off by default, while live enables them. These saved files describe the laptop and board exchange; the iPhone screen remains separate evidence of phone reception.
 
 [Back to G01](#g01)
 
@@ -105,7 +105,7 @@ In demo.py, capture_command builds the command that starts the existing dual-dev
 
 ![FireBeetle setup and device IDs](B07-video-diagrams/G02.svg)
 
-PlatformIO builds our Arduino firmware for the firebeetle32 board. The left profile assigns device ID one, and the right profile assigns device ID two. We use one USB cable to upload to the left board and then the right board, and disconnect the laptop USB after programming. During the BLE demonstration, each board uses its own power source. We complete authenticated pairing before streaming. The BLE address selects the physical board, while the device ID identifies its application packets.
+PlatformIO builds our Arduino firmware for the firebeetle32 board. The first board programmed becomes the left hand with device ID one; the second becomes the right hand with device ID two. The script saves their Bluetooth addresses, and both capture and pairing use that same mapping. We use one programming USB cable and label each board after its upload succeeds. During BLE communication, both boards are disconnected from laptop USB and use independent power. The BLE address selects the physical board, while the device ID identifies its application packets.
 
 **Code:** [C02 Board + IDs](#c02) · [C03 Boot setup](#c03) · [C04 Pairing](#c04)
 
@@ -1710,9 +1710,11 @@ File: [flash.py](../flash.py)
 python flash.py
 ```
 
-This script regenerates the fixture table and builds both device profiles. I connect the left board, then swap it for the right board when prompted. The script detects the serial port for each upload and stops if a step fails.
+This script regenerates the fixture table and builds both device profiles. The first board I program becomes the left hand with device ID one. I then connect a different board, which becomes the right hand with device ID two. The script identifies the hardware and saves both Bluetooth addresses for capture and pairing. I label each board after its upload succeeds.
 
-At each board prompt, confirm the physical left/right label and press Enter. One detected serial port is selected automatically; if several are listed, choose the connected board explicitly. Windows assigns COM numbers to connected serial devices, so the two uploads may use the same COM number. `--ports` only lists ports when needed for first-time setup.
+At the first prompt, connect whichever board you want to use for the left hand. After its upload succeeds, attach a LEFT / ID 1 label. Replace it with another board at the second prompt, then label that board RIGHT / ID 2 after success. Connecting the first board again is rejected before the second upload. COM numbers select the current serial port; the script identifies the physical board separately, so the same COM number may be reused.
+
+Both successful uploads publish `.week7-local/boards.json`. `demo.py run`, `demo.py live` and the pairing options read this same local mapping automatically. `python flash.py --boards` shows it when needed. If flashing stops midway, the saved setup remains incomplete and ordinary capture is blocked until both uploads finish. For replacement FireBeetle32 boards, repeat the same two-board flow and pair the new boards. To retain existing hand labels when changing dummy data, connect the labelled LEFT board first and RIGHT second.
 
 <a id="r02"></a>
 ### R02 — Keep the SSH tunnel open
@@ -1771,9 +1773,9 @@ File: [flash.py](../flash.py)
 python flash.py --pair left
 ```
 
-This setup option uses the existing authenticated pairing tool for the selected board. I use left and right in turn during first-time setup; existing authenticated bonds are reused.
+This setup option reads the saved board mapping and uses the existing authenticated pairing tool for the selected board. I use left and right in turn during first-time setup; existing authenticated bonds are reused.
 
-For the right board, use `python flash.py --pair right`. With an existing bond on both boards, `python flash.py --pair` checks both. During first pairing with one programming USB cable, monitor and pair one board at a time.
+Both uploads must finish before pairing; the saved mapping supplies the actual address. For the right board, use `python flash.py --pair right`. With an existing bond on both boards, `python flash.py --pair` checks both. During first pairing with one programming USB cable, monitor and pair one board at a time.
 
 <a id="r07"></a>
 ### R07 — Private serial monitor for first pairing
@@ -1822,7 +1824,7 @@ I am changing the first channel of the second dummy fixture from twelve hundred 
 | Step | Action | Evidence to show |
 |---|---|---|
 | Edit | Save the change in `common/dummy_fixtures.json` after the previous capture has finished | The actual file changes from 1200 to 1500 |
-| Rebuild and upload | Run `python flash.py`; connect left, then swap to right at the prompts | Regenerated fixture header and both successful uploads using one programming USB cable |
+| Rebuild and upload | Run `python flash.py`; connect the labelled LEFT first and RIGHT second to retain their hand roles | Regenerated fixture header, both successful uploads and the saved address mapping |
 | Prepare | Disconnect laptop USB; power both boards independently; keep the tunnel open and the iPhone Subscribed | Both boards on separate power; film the starting Received count |
 | Rerun | Run `python demo.py run` for Video or `python demo.py live` for Live | New physical capture, authenticated BLE connections and its exact Saved in directory |
 | Observe | Read the automatically displayed report; inspect this capture's `packets.log`; film the final phone count | Updated values from both devices, matching ACKs and camera evidence of phone reception |

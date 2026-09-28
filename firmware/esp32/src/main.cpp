@@ -559,3 +559,7 @@ void loop() {
   }
   delay(1);
 }
+
+// flash.py derives the Bluetooth identity from the ESP32 factory base MAC.
+static_assert(CONFIG_ESP32_UNIVERSAL_MAC_ADDRESSES == 4,
+              "Sequential flash mapping requires the default four-address ESP32 SDK");
