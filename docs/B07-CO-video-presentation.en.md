@@ -2,7 +2,7 @@
 
 Two FireBeetles · one relay laptop · Ultra96 · Visualizer iPhone
 
-The diagrams and annotated excerpts below support the recorded physical demonstration. Comments have been added for this walkthrough; the implementation statements are preserved. `L` labels refer to original source-file lines, not the line numbers of this Markdown document.
+The diagrams and annotated excerpts below support the recorded physical demonstration. Comments have been added for this walkthrough; the implementation statements are preserved. `L` labels refer to original source-file lines, not the line numbers of this Markdown document. In VS Code Markdown preview, Code links jump to the annotated excerpts below; Source links open the original file at the indicated line.
 
 ## Recording scripts
 
@@ -48,7 +48,7 @@ Two FireBeetles send structured dummy sensor packets to the relay laptop over pr
 <a id="c01"></a>
 ### C01 — Launcher
 
-Source: [demo.py](D:/LetThemCook/demo.py:64) · original lines **64–81**.
+Source: [demo.py](../demo.py#L64) · original lines **64–81**.
 
 The launcher selects explicit transport settings and evidence paths, then delegates communication to the dual-device bridge.
 
@@ -99,7 +99,7 @@ PlatformIO builds our Arduino firmware for the firebeetle32 board. The left prof
 <a id="c02"></a>
 ### C02 — Board + IDs
 
-Source: [firmware/esp32/platformio.ini](D:/LetThemCook/firmware/esp32/platformio.ini:4) · original lines **4–26**.
+Source: [firmware/esp32/platformio.ini](../firmware/esp32/platformio.ini#L4) · original lines **4–26**.
 
 Separate protected build profiles assign stable left and right application identities while sharing the same board and framework.
 
@@ -142,7 +142,7 @@ build_flags =
 <a id="c03"></a>
 ### C03 — Boot setup
 
-Source: [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:404) · original lines **404–423**.
+Source: [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L404) · original lines **404–423**.
 
 Startup creates the boot identity and control state, then requires successful BLE security configuration before continuing.
 
@@ -180,7 +180,7 @@ void setup() {
 <a id="c04"></a>
 ### C04 — Pairing
 
-Source: [laptop/windows_pairing.py](D:/LetThemCook/laptop/windows_pairing.py:116) · original lines **116–127**.
+Source: [laptop/windows_pairing.py](../laptop/windows_pairing.py#L116) · original lines **116–127**.
 
 The pairing helper preserves valid authenticated bonds and verifies the security level after any new pairing.
 
@@ -222,7 +222,7 @@ Each sensor notification contains thirty-two bytes. The fields are the W7 marker
 <a id="c05"></a>
 ### C05 — Sensor fields
 
-Source: [common/sensor.py](D:/LetThemCook/common/sensor.py:11) · original lines **11–38**.
+Source: [common/sensor.py](../common/sensor.py#L11) · original lines **11–38**.
 
 SensorPacket defines and validates the fixed binary sensor schema shared by firmware and the Python bridge. The version-one constructor default supports legacy packets; the decoder retains the received version, and the current firmware sends version two.
 
@@ -272,7 +272,7 @@ class SensorPacket:
 <a id="c06"></a>
 ### C06 — Sensor codec
 
-Source: [common/sensor.py](D:/LetThemCook/common/sensor.py:63) · original lines **63–80**.
+Source: [common/sensor.py](../common/sensor.py#L63) · original lines **63–80**.
 
 The sensor codec enforces exact length, marker, version and field validity before the bridge accepts a BLE sample.
 
@@ -310,7 +310,7 @@ def decode_packet(data: bytes) -> SensorPacket:
 <a id="c07"></a>
 ### C07 — Fixtures
 
-Source: [common/dummy_fixtures.json](D:/LetThemCook/common/dummy_fixtures.json:1) · original lines **1–6**.
+Source: [common/dummy_fixtures.json](../common/dummy_fixtures.json#L1) · original lines **1–6**.
 
 Several editable eight-channel fixtures provide varied, schema-valid dummy payloads for random selection.
 
@@ -337,7 +337,7 @@ Several editable eight-channel fixtures provide varied, schema-valid dummy paylo
 <a id="c08"></a>
 ### C08 — Sensor send
 
-Source: [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:483) · original lines **483–511**.
+Source: [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L483) · original lines **483–511**.
 
 Firmware paces independently sequenced sensor samples, checks readiness and MTU, and records each submission outcome.
 
@@ -391,7 +391,7 @@ Firmware paces independently sequenced sensor samples, checks readiness and MTU,
 <a id="c40"></a>
 ### C40 — Random source
 
-Source: [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:87) · original lines **87–96**.
+Source: [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L87) · original lines **87–96**.
 
 Fixture randomness is independent of identity counters, with an optional deterministic seed for reproducible testing.
 
@@ -428,7 +428,7 @@ The sensor characteristic sends W7 notifications. The laptop reads W7S1 source c
 <a id="c09"></a>
 ### C09 — BLE types
 
-Source: [common/control.py](D:/LetThemCook/common/control.py:8) · original lines **8–17**.
+Source: [common/control.py](../common/control.py#L8) · original lines **8–17**.
 
 BLE controls use a separate bounded binary protocol with typed operations, response identification and request correlation.
 
@@ -459,7 +459,7 @@ _OPCODES = (COMMAND, SET_RATE, FILE_BEGIN, FILE_CHUNK, FILE_END, FILE_ABORT)
 <a id="c10"></a>
 ### C10 — Control codec
 
-Source: [common/control.py](D:/LetThemCook/common/control.py:88) · original lines **88–101**.
+Source: [common/control.py](../common/control.py#L88) · original lines **88–101**.
 
 Control encoding and decoding preserve the B7 boundary and validate the whole operation against its schema and MTU.
 
@@ -493,7 +493,7 @@ def decode_control(data, *, mtu=517):
 <a id="c11"></a>
 ### C11 — JSON types
 
-Source: [ultra96/protocol.py](D:/LetThemCook/ultra96/protocol.py:3) · original lines **3–13**.
+Source: [ultra96/protocol.py](../ultra96/protocol.py#L3) · original lines **3–13**.
 
 Distinct JSON message schemas separate sample ingestion, board acknowledgements and phone subscription/results.
 
@@ -527,7 +527,7 @@ _FIELDS = {
 <a id="c12"></a>
 ### C12 — Source counters
 
-Source: [firmware/esp32/include/week7_source_stats.h](D:/LetThemCook/firmware/esp32/include/week7_source_stats.h:34) · original lines **34–53**.
+Source: [firmware/esp32/include/week7_source_stats.h](../firmware/esp32/include/week7_source_stats.h#L34) · original lines **34–53**.
 
 Protected source-counter reads provide boot-specific sequence boundaries and submission outcomes for end-of-run reconciliation.
 
@@ -584,7 +584,7 @@ On power-up, the FireBeetle advertises its BLE service. After the laptop connect
 <a id="c13"></a>
 ### C13 — BLE gates
 
-Source: [firmware/esp32/include/week7_security.h](D:/LetThemCook/firmware/esp32/include/week7_security.h:7) · original lines **7–25**.
+Source: [firmware/esp32/include/week7_security.h](../firmware/esp32/include/week7_security.h#L7) · original lines **7–25**.
 
 Small explicit gates connect BLE protocol states to authentication, current-peer ownership, subscription and payload-size requirements.
 
@@ -640,7 +640,7 @@ TCP delivers a byte stream, so one application frame can arrive in several piece
 <a id="c14"></a>
 ### C14 — Frame encode
 
-Source: [common/wire.py](D:/LetThemCook/common/wire.py:35) · original lines **35–46**.
+Source: [common/wire.py](../common/wire.py#L35) · original lines **35–46**.
 
 Network messages are bounded UTF-8 JSON objects preceded by a byte-count header, independently of the BLE binary format.
 
@@ -670,7 +670,7 @@ def encode_frame(message):
 <a id="c15"></a>
 ### C15 — Partial reads
 
-Source: [common/wire.py](D:/LetThemCook/common/wire.py:49) · original lines **49–76**.
+Source: [common/wire.py](../common/wire.py#L49) · original lines **49–76**.
 
 The frame reader handles fragmented and coalesced TCP delivery by reading exact bounded lengths under one deadline.
 
@@ -731,7 +731,7 @@ The laptop connects through the configured SSH route and verifies Ultra96's TLS 
 <a id="c16"></a>
 ### C16 — TLS connect
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349) · original lines **349–353**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L349) · original lines **349–353**.
 
 Each bridge opens its own verified and time-bounded TLS connection through the configured SSH route.
 
@@ -754,7 +754,7 @@ Each bridge opens its own verified and time-bounded TLS connection through the c
 <a id="c17"></a>
 ### C17 — ACK identity
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:375) · original lines **375–386**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L375) · original lines **375–386**.
 
 The bridge releases work only for an acknowledgement whose schema and complete identity match the submitted record.
 
@@ -786,7 +786,7 @@ The bridge releases work only for an acknowledgement whose schema and complete i
 <a id="c39"></a>
 ### C39 — Retry delay
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:656) · original lines **656–670**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L656) · original lines **656–670**.
 
 The bridge retries failed transport epochs with a capped asynchronous backoff and resets the delay after real ACK progress.
 
@@ -833,7 +833,7 @@ After Connect, the iPhone verifies the SSH hosts and establishes verified TLS to
 <a id="c18"></a>
 ### C18 — Phone subscribe
 
-Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift:24) · original lines **24–50**.
+Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift#L24) · original lines **24–50**.
 
 The native phone waits for verified TLS, performs a subscription handshake, then incrementally decodes and validates result frames.
 
@@ -882,7 +882,7 @@ The native phone waits for verified TLS, performs a subscription handshake, then
 <a id="c19"></a>
 ### C19 — Phone pause
 
-Source: [ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift:24) · original lines **24–37**.
+Source: [ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift](../ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift#L24) · original lines **24–37**.
 
 The visualizer deliberately pauses networking when inactive, so the filming phone must be a separate device.
 
@@ -925,7 +925,7 @@ The FireBeetle link uses BLE Secure Connections with authenticated pairing and b
 <a id="c20"></a>
 ### C20 — BLE security
 
-Source: [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:243) · original lines **243–262**.
+Source: [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L243) · original lines **243–262**.
 
 The protected firmware configures BLE-stack authentication, bonding and key policy rather than inventing payload encryption.
 
@@ -967,7 +967,7 @@ void gattsCallback(esp_gatts_cb_event_t event, esp_gatt_if_t interface,
 <a id="c21"></a>
 ### C21 — Peer check
 
-Source: [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:196) · original lines **196–208**.
+Source: [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L196) · original lines **196–208**.
 
 Authentication completion authorizes only the current peer and rejects connections that fail the required BLE security policy.
 
@@ -1000,7 +1000,7 @@ Authentication completion authorizes only the current peer and rejects connectio
 <a id="c22"></a>
 ### C22 — GATT access
 
-Source: [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:391) · original lines **391–398**.
+Source: [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L391) · original lines **391–398**.
 
 GATT permissions protect both data attributes and the subscription descriptor used to enable notifications.
 
@@ -1024,7 +1024,7 @@ BLECharacteristic* addNotify(BLEService* service, const char* uuid, BLE2902** de
 <a id="c23"></a>
 ### C23 — Python TLS
 
-Source: [common/tls.py](D:/LetThemCook/common/tls.py:4) · original lines **4–19**.
+Source: [common/tls.py](../common/tls.py#L4) · original lines **4–19**.
 
 Python TLS verifies the Ultra96 server certificate and hostname with a configured CA and enforces a minimum protocol version.
 
@@ -1063,7 +1063,7 @@ def server_context(cert_file, key_file):
 <a id="c24"></a>
 ### C24 — iPhone TLS
 
-Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:88) · original lines **88–95**.
+Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift#L88) · original lines **88–95**.
 
 The phone independently configures TLS certificate trust and distinct SSH host-key pins for its route.
 
@@ -1092,7 +1092,7 @@ The phone independently configures TLS certificate trust and distinct SSH host-k
 <a id="c25"></a>
 ### C25 — Phone route
 
-Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:128) · original lines **128–150**.
+Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift#L128) · original lines **128–150**.
 
 The native client opens a board-loopback result channel through SSH, layers verified TLS over it and ignores obsolete connection callbacks.
 
@@ -1137,7 +1137,7 @@ The native client opens a board-loopback result channel through SSH, layers veri
 <a id="c26"></a>
 ### C26 — SSH pins
 
-Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift:4) · original lines **4–10**.
+Source: [ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift#L4) · original lines **4–10**.
 
 Pinned SSH host keys make an unexpected board or jump-host identity a connection failure.
 
@@ -1173,7 +1173,7 @@ Each device has its own BLE input task, bounded inbox and TLS sender. Its acknow
 <a id="c27"></a>
 ### C27 — Device tasks
 
-Source: [laptop/dual_bridge.py](D:/LetThemCook/laptop/dual_bridge.py:91) · original lines **91–111**.
+Source: [laptop/dual_bridge.py](../laptop/dual_bridge.py#L91) · original lines **91–111**.
 
 The laptop schedules independent device inputs and ingestion writers, with optional command workers alongside them.
 
@@ -1212,7 +1212,7 @@ The laptop schedules independent device inputs and ingestion writers, with optio
 <a id="c28"></a>
 ### C28 — Inbox state
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:87) · original lines **87–101**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L87) · original lines **87–101**.
 
 RawInbox bridges cross-thread BLE callbacks into bounded asyncio processing with explicit synchronization.
 
@@ -1245,7 +1245,7 @@ class RawInbox:
 <a id="c29"></a>
 ### C29 — Callback queue
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:122) · original lines **122–147**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L122) · original lines **122–147**.
 
 The callback queue rejects obsolete generations, records bounded-buffer losses and wakes its asynchronous consumer without busy waiting.
 
@@ -1294,7 +1294,7 @@ The callback queue rejects obsolete generations, records bounded-buffer losses a
 <a id="c30"></a>
 ### C30 — ACK window
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:533) · original lines **533–544**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L533) · original lines **533–544**.
 
 The ingestion pipeline bounds messages awaiting acknowledgement while allowing sending and ACK reading to overlap.
 
@@ -1322,7 +1322,7 @@ The ingestion pipeline bounds messages awaiting acknowledgement while allowing s
 <a id="c31"></a>
 ### C31 — Send / ACK tasks
 
-Source: [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:632) · original lines **632–642**.
+Source: [laptop/bridge.py](../laptop/bridge.py#L632) · original lines **632–642**.
 
 Sender and ACK-reader tasks share one owned TLS epoch, with coordinated failure and cancellation handling.
 
@@ -1353,7 +1353,7 @@ Sender and ACK-reader tasks share one owned TLS epoch, with coordinated failure 
 <a id="c32"></a>
 ### C32 — Log thread
 
-Source: [laptop/evidence.py](D:/LetThemCook/laptop/evidence.py:13) · original lines **13–34**.
+Source: [laptop/evidence.py](../laptop/evidence.py#L13) · original lines **13–34**.
 
 Packet evidence is written by a dedicated thread from a bounded queue, keeping disk work outside the main network event loop.
 
@@ -1404,7 +1404,7 @@ Ultra96 has separate accept tasks for ingestion and the phone gateway. Each clie
 <a id="c33"></a>
 ### C33 — Two listeners
 
-Source: [ultra96/server.py](D:/LetThemCook/ultra96/server.py:136) · original lines **136–153**.
+Source: [ultra96/server.py](../ultra96/server.py#L136) · original lines **136–153**.
 
 Ultra96 owns two loopback TCP services with independent asynchronous accept tasks.
 
@@ -1440,7 +1440,7 @@ Ultra96 owns two loopback TCP services with independent asynchronous accept task
 <a id="c34"></a>
 ### C34 — Client task
 
-Source: [ultra96/server.py](D:/LetThemCook/ultra96/server.py:179) · original lines **179–188**.
+Source: [ultra96/server.py](../ultra96/server.py#L179) · original lines **179–188**.
 
 Each accepted socket gets a tracked asynchronous client task, within the server's bounded connection capacity.
 
@@ -1466,7 +1466,7 @@ Each accepted socket gets a tracked asynchronous client task, within the server'
 <a id="c35"></a>
 ### C35 — Ingest + ACK
 
-Source: [ultra96/server.py](D:/LetThemCook/ultra96/server.py:246) · original lines **246–275**.
+Source: [ultra96/server.py](../ultra96/server.py#L246) · original lines **246–275**.
 
 Ultra96 validates and deduplicates input, creates one simulated result for a new identity and acknowledges ingestion separately.
 
@@ -1521,7 +1521,7 @@ Ultra96 validates and deduplicates input, creates one simulated result for a new
 <a id="c36"></a>
 ### C36 — Gateway tasks
 
-Source: [ultra96/server.py](D:/LetThemCook/ultra96/server.py:309) · original lines **309–337**.
+Source: [ultra96/server.py](../ultra96/server.py#L309) · original lines **309–337**.
 
 The result gateway owns one subscription at a time and separates result sending from connection monitoring.
 
@@ -1572,7 +1572,7 @@ The result gateway owns one subscription at a time and separates result sending 
 <a id="c37"></a>
 ### C37 — Queue capacity
 
-Source: [ultra96/server.py](D:/LetThemCook/ultra96/server.py:32) · original lines **32–41**.
+Source: [ultra96/server.py](../ultra96/server.py#L32) · original lines **32–41**.
 
 The phone result path uses a bounded live queue with loss counters and a distinct subscription identity.
 
@@ -1600,7 +1600,7 @@ class ResultQueue:
 <a id="c38"></a>
 ### C38 — Queue freshness
 
-Source: [ultra96/server.py](D:/LetThemCook/ultra96/server.py:56) · original lines **56–77**.
+Source: [ultra96/server.py](../ultra96/server.py#L56) · original lines **56–77**.
 
 The live result queue bounds memory and latency by recording overflow and discarding stale results.
 
@@ -1648,7 +1648,7 @@ Read the relevant sentence just before running that script. Physical actions, th
 <a id="s00"></a>
 ### S00 — Identify serial ports
 
-File: [00_ports.py](D:/LetThemCook/video_steps/00_ports.py)
+File: [00_ports.py](../video_steps/00_ports.py)
 
 ```powershell
 python video_steps/00_ports.py
@@ -1659,7 +1659,7 @@ This script lists the serial ports so I can identify the left and right boards b
 <a id="s01"></a>
 ### S01 — Build and upload both boards
 
-File: [01_flash.py](D:/LetThemCook/video_steps/01_flash.py)
+File: [01_flash.py](../video_steps/01_flash.py)
 
 ```powershell
 python video_steps/01_flash.py
@@ -1670,7 +1670,7 @@ This script regenerates the fixture table, builds the two device profiles and up
 <a id="s02"></a>
 ### S02 — Check authenticated pairing
 
-File: [02_pair.py](D:/LetThemCook/video_steps/02_pair.py)
+File: [02_pair.py](../video_steps/02_pair.py)
 
 ```powershell
 python video_steps/02_pair.py
@@ -1681,7 +1681,7 @@ This script runs the existing authenticated pairing tool for both boards. Existi
 <a id="s03"></a>
 ### S03 — Keep the laptop SSH tunnel open
 
-File: [03_tunnel.py](D:/LetThemCook/video_steps/03_tunnel.py)
+File: [03_tunnel.py](../video_steps/03_tunnel.py)
 
 ```powershell
 python video_steps/03_tunnel.py
@@ -1692,7 +1692,7 @@ This script calls the tunnel command already implemented in demo.py. I keep this
 <a id="s04"></a>
 ### S04 — Capture physical data
 
-File: [04_capture.py](D:/LetThemCook/video_steps/04_capture.py)
+File: [04_capture.py](../video_steps/04_capture.py)
 
 ```powershell
 python video_steps/04_capture.py
@@ -1703,7 +1703,7 @@ This script calls demo.py to capture both physical boards for sixty seconds at a
 <a id="s05"></a>
 ### S05 — Review this capture and compare phone counts
 
-File: [05_report.py](D:/LetThemCook/video_steps/05_report.py)
+File: [05_report.py](../video_steps/05_report.py)
 
 ```powershell
 python video_steps/05_report.py
@@ -1714,7 +1714,7 @@ This script reviews the exact capture folder I select, displays matching sensor 
 <a id="s06"></a>
 ### S06 — Read a first-pairing passkey privately
 
-File: [06_serial.py](D:/LetThemCook/video_steps/06_serial.py)
+File: [06_serial.py](../video_steps/06_serial.py)
 
 ```powershell
 python video_steps/06_serial.py
@@ -1725,7 +1725,7 @@ This script opens the selected serial port at one hundred and fifteen thousand t
 <a id="s07"></a>
 ### S07 — Inspect the deployed Ultra96 service
 
-File: [07_service_status.py](D:/LetThemCook/video_steps/07_service_status.py)
+File: [07_service_status.py](../video_steps/07_service_status.py)
 
 ```powershell
 python video_steps/07_service_status.py
@@ -1736,7 +1736,7 @@ This script checks the listening ports and server process on Ultra96 through SSH
 <a id="s08"></a>
 ### S08 — Start the deployed service only when needed
 
-File: [08_service_start.py](D:/LetThemCook/video_steps/08_service_start.py)
+File: [08_service_start.py](../video_steps/08_service_start.py)
 
 ```powershell
 python video_steps/08_service_start.py

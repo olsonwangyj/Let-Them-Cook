@@ -1,6 +1,6 @@
 # B07 CO 录像操作稿：先拍实物，再录电脑
 
-**在 Windows PowerShell 中直接运行独立脚本，每个文件只负责一个步骤。** 这些脚本是现有工具的薄封装：S03 复用 `demo.py tunnel`，S04 复用 `demo.py run`，S05 复用报告显示并补充匹配数据/人工计数；没有重写通信系统。先进入仓库，再按录制顺序运行需要的文件；脚本不会自动打开其他终端。
+**在 Windows PowerShell 中直接运行独立脚本，每个文件只负责一个步骤。** 这些脚本是现有工具的薄封装：S03 复用 `demo.py tunnel`，S04 复用 `demo.py run`，S05 复用报告显示并补充匹配数据/人工计数；没有重写通信系统。先进入仓库，再按录制顺序运行需要的文件；脚本不会自动打开其他终端。在 VS Code Markdown 预览中，展示稿章节链接跳到 Gxx/Cxx/Sxx；源码链接打开实际文件并定位行号。图解里的 Code 链接用于展示带注释片段，片段上方的 Source 链接用于打开原文件。
 
 ```powershell
 Set-Location D:\LetThemCook
@@ -10,15 +10,15 @@ Set-Location D:\LetThemCook
 
 | 演示编号 | 在 PowerShell 运行 | 作用及你需要做的事 |
 |---|---|---|
-| S00（[第 1649 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1649)） | `python video_steps/00_ports.py` | 列出串口；一次只接一块板，记清 left / right 的实际 COM |
-| S01（[第 1660 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1660)） | `python video_steps/01_flash.py` | 输入核实的左右 COM；生成 fixtures、编译并上传两板，失败即停 |
-| S02（[第 1671 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1671)） | `python video_steps/02_pair.py` | 检查两板认证绑定；首次配对先分别运行 S06，在隐藏提示输入真实 PIN |
-| S03（[第 1682 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1682)） | `python video_steps/03_tunnel.py` | 在终端 A 运行并手输 SSH 密码；隧道占用此终端，保持打开 |
-| S04（[第 1693 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1693)） | `python video_steps/04_capture.py` | 在终端 B 确认独立供电、Subscribed、已记录 P0，再采集 60 秒/每台 10 Hz |
-| S05（[第 1704 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1704)） | `python video_steps/05_report.py` | 粘贴本次 `Saved in` 精确目录，显示报告和匹配 sensor/ACK，再输入 P0/P1 对账 |
-| S06（[第 1715 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1715)） | `python video_steps/06_serial.py` | 在单独终端输入该板 COM，运行 115200 监视；口令不入镜 |
-| S07（[第 1726 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1726)） | `python video_steps/07_service_status.py` | 在当前终端通过 SSH 只读检查 Ultra96 的端口、进程、部署 |
-| S08（[第 1737 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1737)） | `python video_steps/08_service_start.py` | 仅服务不存在、两端口空闲时启动当前部署；保持该终端运行 |
+| S00（[第 1649 行](./B07-CO-video-presentation.en.md#s00)） | `python video_steps/00_ports.py` | 列出串口；一次只接一块板，记清 left / right 的实际 COM |
+| S01（[第 1660 行](./B07-CO-video-presentation.en.md#s01)） | `python video_steps/01_flash.py` | 输入核实的左右 COM；生成 fixtures、编译并上传两板，失败即停 |
+| S02（[第 1671 行](./B07-CO-video-presentation.en.md#s02)） | `python video_steps/02_pair.py` | 检查两板认证绑定；首次配对先分别运行 S06，在隐藏提示输入真实 PIN |
+| S03（[第 1682 行](./B07-CO-video-presentation.en.md#s03)） | `python video_steps/03_tunnel.py` | 在终端 A 运行并手输 SSH 密码；隧道占用此终端，保持打开 |
+| S04（[第 1693 行](./B07-CO-video-presentation.en.md#s04)） | `python video_steps/04_capture.py` | 在终端 B 确认独立供电、Subscribed、已记录 P0，再采集 60 秒/每台 10 Hz |
+| S05（[第 1704 行](./B07-CO-video-presentation.en.md#s05)） | `python video_steps/05_report.py` | 粘贴本次 `Saved in` 精确目录，显示报告和匹配 sensor/ACK，再输入 P0/P1 对账 |
+| S06（[第 1715 行](./B07-CO-video-presentation.en.md#s06)） | `python video_steps/06_serial.py` | 在单独终端输入该板 COM，运行 115200 监视；口令不入镜 |
+| S07（[第 1726 行](./B07-CO-video-presentation.en.md#s07)） | `python video_steps/07_service_status.py` | 在当前终端通过 SSH 只读检查 Ultra96 的端口、进程、部署 |
+| S08（[第 1737 行](./B07-CO-video-presentation.en.md#s08)） | `python video_steps/08_service_start.py` | 仅服务不存在、两端口空闲时启动当前部署；保持该终端运行 |
 
 **每新开一个终端，先执行上面这一条 `Set-Location`。** 下文的短命令都从 `D:\LetThemCook` 运行。脚本标号 S00–S08 与展示稿中的脚本说明一致；不能把 S03/S06/S08 运行中的终端拿来执行下一个脚本。
 
@@ -28,8 +28,8 @@ Set-Location D:\LetThemCook
 
 | 文件 | 用途 | 怎么打开 |
 |---|---|---|
-| [B07-CO-video-presentation.en.md](D:/LetThemCook/docs/B07-CO-video-presentation.en.md) | 投屏展示稿：G01–G11 图解、英文旁白、带英文注释的 C01–C40 源码和 S00–S08 脚本说明 | VS Code 打开，Ctrl+Shift+V 预览；Ctrl+F 找 Gxx/Cxx/Sxx，点内部代码链接跳转，再点 Back to Gxx 返回 |
-| [B07-CO-video-operator-script.zh-CN.md](D:/LetThemCook/docs/B07-CO-video-operator-script.zh-CN.md) | 本操作稿：中文步骤、短命令、英文口播、源码定位 | 放在旁边参考，不必把整篇投屏 |
+| [B07-CO-video-presentation.en.md](./B07-CO-video-presentation.en.md) | 投屏展示稿：G01–G11 图解、英文旁白、带英文注释的 C01–C40 源码和 S00–S08 脚本说明 | VS Code 打开，Ctrl+Shift+V 预览；Ctrl+F 找 Gxx/Cxx/Sxx，点内部代码链接跳转，再点 Back to Gxx 返回 |
+| [B07-CO-video-operator-script.zh-CN.md](./B07-CO-video-operator-script.zh-CN.md) | 本操作稿：中文步骤、短命令、英文口播、源码定位 | 放在旁边参考，不必把整篇投屏 |
 
 **录像顺序固定为 A → B。** 第一阶段用**摄影手机**拍 FireBeetle 的真实设置、同一台 Windows laptop 上的 USB 烧录操作、电脑屏幕里的 ID/包格式源码，以及实际通信现象；第二阶段才用电脑屏幕录制图解、加密和并发源码。**“手机录像”也包括用相机拍电脑屏幕，不是只拍硬件外观。** 摄影手机和 **Visualizer iPhone** 是不同设备。Visualizer iPhone 全程运行 Unity，摄影手机负责相机和收音；不要在 Visualizer iPhone 打开相机、锁屏或切出 Unity。
 
@@ -323,17 +323,17 @@ python video_steps/05_report.py
 
 | 章节 | 内容 | Markdown 标题行 |
 |---|---|---|
-| G01 | 系统架构 | [展示稿第 40 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:40) |
-| G02 | FireBeetle setup / IDs | [展示稿第 91 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:91) |
-| G03 | Sensor packet / fixtures | [展示稿第 214 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:214) |
-| G04 | Packet types / control | [展示稿第 420 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:420) |
-| G05 | BLE FSM | [展示稿第 576 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:576) |
-| G06 | TCP frame / fragmentation | [展示稿第 632 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:632) |
-| G07 | Laptop–Ultra96 FSM | [展示稿第 723 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:723) |
-| G08 | Phone FSM | [展示稿第 825 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:825) |
-| G09 | 三条通道加密 | [展示稿第 917 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:917) |
-| G10 | Laptop 并发 | [展示稿第 1165 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1165) |
-| G11 | Ultra96 并发 | [展示稿第 1396 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1396) |
+| G01 | 系统架构 | [展示稿第 40 行](./B07-CO-video-presentation.en.md#g01) |
+| G02 | FireBeetle setup / IDs | [展示稿第 91 行](./B07-CO-video-presentation.en.md#g02) |
+| G03 | Sensor packet / fixtures | [展示稿第 214 行](./B07-CO-video-presentation.en.md#g03) |
+| G04 | Packet types / control | [展示稿第 420 行](./B07-CO-video-presentation.en.md#g04) |
+| G05 | BLE FSM | [展示稿第 576 行](./B07-CO-video-presentation.en.md#g05) |
+| G06 | TCP frame / fragmentation | [展示稿第 632 行](./B07-CO-video-presentation.en.md#g06) |
+| G07 | Laptop–Ultra96 FSM | [展示稿第 723 行](./B07-CO-video-presentation.en.md#g07) |
+| G08 | Phone FSM | [展示稿第 825 行](./B07-CO-video-presentation.en.md#g08) |
+| G09 | 三条通道加密 | [展示稿第 917 行](./B07-CO-video-presentation.en.md#g09) |
+| G10 | Laptop 并发 | [展示稿第 1165 行](./B07-CO-video-presentation.en.md#g10) |
+| G11 | Ultra96 并发 | [展示稿第 1396 行](./B07-CO-video-presentation.en.md#g11) |
 
 **统一节奏：** 先展示 G 节图解 → 读“投屏英文旁白” → 打开表内“主讲”C 片段 → 指源码原行号及英文注释 → 读“代码口播” → Back to Gxx 返回，再到下一节。B2–B4 只回顾 A 已录过的 setup / 格式；备查片段只在需要时展开，不要求逐段朗读全部代码。B 阶段不运行 hardware/bridge，不穿插拍实物；重看 A 的报告只读取那次已保存的证据。
 
@@ -353,7 +353,7 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C01 Launcher** | [展示稿第 49 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:49) | [demo.py](D:/LetThemCook/demo.py:64)，64–81 | L67 / L69 / L72 |
+| 主讲 | **C01 Launcher** | [展示稿第 49 行](./B07-CO-video-presentation.en.md#c01) | [demo.py](../demo.py#L64)，64–81 | L67 / L69 / L72 |
 
 **投屏 G01：** 指 FireBeetle → laptop → Ultra96，再指独立的 Ultra96 → iPhone；读图解英文说明。指出应用服务运行在 Ultra96，未使用 message broker；SSH 是当前校园访问路线，不是 TCP 固有要求。
 
@@ -379,14 +379,14 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| A 已讲；本段回顾/备查 | **C02 Board + IDs** | [展示稿第 100 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:100) | [firmware/esp32/platformio.ini](D:/LetThemCook/firmware/esp32/platformio.ini:4)，4–26 | L6 / L7 / L21 / L26 |
-| setup 细节备查 | **C03 Boot setup** | [展示稿第 143 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:143) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:404)，404–423 | L406 / L421 |
-| 配对实现备查 | **C04 Pairing** | [展示稿第 181 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:181) | [laptop/windows_pairing.py](D:/LetThemCook/laptop/windows_pairing.py:116)，116–127 | L119 / L120 / L123 / L125 |
+| A 已讲；本段回顾/备查 | **C02 Board + IDs** | [展示稿第 100 行](./B07-CO-video-presentation.en.md#c02) | [firmware/esp32/platformio.ini](../firmware/esp32/platformio.ini#L4)，4–26 | L6 / L7 / L21 / L26 |
+| setup 细节备查 | **C03 Boot setup** | [展示稿第 143 行](./B07-CO-video-presentation.en.md#c03) | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L404)，404–423 | L406 / L421 |
+| 配对实现备查 | **C04 Pairing** | [展示稿第 181 行](./B07-CO-video-presentation.en.md#c04) | [laptop/windows_pairing.py](../laptop/windows_pairing.py#L116)，116–127 | L119 / L120 / L123 / L125 |
 
 
 **投屏 G02：** 回顾 A1 已由摄影手机拍到的真实构建/上传、双板 ID、认证绑定，以及 USB setup → 拔线 → 独立供电的切换。这里不再执行上传，也不把 setup 第一次放到本段才解释。
 
-**画面：** 指 left / right profile 与 device 1 / 2 映射；必要时暂停到 A1 两次 upload 的成功画面。原始配置位置为 [platformio.ini](D:/LetThemCook/firmware/esp32/platformio.ini)，搜索 firebeetle32-left / firebeetle32-right。
+**画面：** 指 left / right profile 与 device 1 / 2 映射；必要时暂停到 A1 两次 upload 的成功画面。原始配置位置为 [platformio.ini](../firmware/esp32/platformio.ini)，搜索 firebeetle32-left / firebeetle32-right。
 
 **回顾口播：**
 
@@ -402,14 +402,14 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| A 已讲；本段回顾/备查 | **C05 Sensor fields** | [展示稿第 223 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:223) | [common/sensor.py](D:/LetThemCook/common/sensor.py:11)，11–38 | L11 / L12 / L23 / L27 |
-| A 已讲；本段回顾/备查 | **C06 Sensor codec** | [展示稿第 273 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:273) | [common/sensor.py](D:/LetThemCook/common/sensor.py:63)，63–80 | L67 / L73 / L75 / L78 |
-| A 已讲；本段回顾/备查 | **C07 Fixtures** | [展示稿第 311 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:311) | [common/dummy_fixtures.json](D:/LetThemCook/common/dummy_fixtures.json:1)，1–6 | L2 / L3 / L4 / L5 |
-| A 已讲；本段回顾/备查 | **C40 Random source** | [展示稿第 392 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:392) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:87)，87–96 | L89 / L94 |
-| A 已讲；本段回顾/备查 | **C08 Sensor send** | [展示稿第 338 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:338) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:483)，483–511 | L500 / L503 / L507 / L508 |
+| A 已讲；本段回顾/备查 | **C05 Sensor fields** | [展示稿第 223 行](./B07-CO-video-presentation.en.md#c05) | [common/sensor.py](../common/sensor.py#L11)，11–38 | L11 / L12 / L23 / L27 |
+| A 已讲；本段回顾/备查 | **C06 Sensor codec** | [展示稿第 273 行](./B07-CO-video-presentation.en.md#c06) | [common/sensor.py](../common/sensor.py#L63)，63–80 | L67 / L73 / L75 / L78 |
+| A 已讲；本段回顾/备查 | **C07 Fixtures** | [展示稿第 311 行](./B07-CO-video-presentation.en.md#c07) | [common/dummy_fixtures.json](../common/dummy_fixtures.json#L1)，1–6 | L2 / L3 / L4 / L5 |
+| A 已讲；本段回顾/备查 | **C40 Random source** | [展示稿第 392 行](./B07-CO-video-presentation.en.md#c40) | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L87)，87–96 | L89 / L94 |
+| A 已讲；本段回顾/备查 | **C08 Sensor send** | [展示稿第 338 行](./B07-CO-video-presentation.en.md#c08) | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L483)，483–511 | L500 / L503 / L507 / L508 |
 
 
-**投屏 G03：** 用清晰图解回顾 A2 相机镜头里的 _PACKET / decode_packet，顺着 32 个 byte 的位置讲，不需要重复上传或生成数据。源码为 [sensor.py](D:/LetThemCook/common/sensor.py)、[dummy_fixtures.json](D:/LetThemCook/common/dummy_fixtures.json)、[week7_packet.h](D:/LetThemCook/firmware/esp32/include/week7_packet.h)。
+**投屏 G03：** 用清晰图解回顾 A2 相机镜头里的 _PACKET / decode_packet，顺着 32 个 byte 的位置讲，不需要重复上传或生成数据。源码为 [sensor.py](../common/sensor.py)、[dummy_fixtures.json](../common/dummy_fixtures.json)、[week7_packet.h](../firmware/esp32/include/week7_packet.h)。
 
 **要指到：** W7、v2、ID、boot、seq、uptime、八个 int16，little-endian；fixture 是随机抽取，允许连续重复，真正的 values 已保存在 A6 的解码日志。没有 custom application CRC，不把校验或加密说成不存在的 CRC 字段。
 
@@ -423,15 +423,15 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| A 已讲；本段回顾/备查 | **C09 BLE types** | [展示稿第 429 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:429) | [common/control.py](D:/LetThemCook/common/control.py:8)，8–17 | L10 / L11 / L12 / L15 |
-| A 已讲；本段回顾/备查 | **C10 Control codec** | [展示稿第 460 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:460) | [common/control.py](D:/LetThemCook/common/control.py:88)，88–101 | L90 / L97 / L98 / L100 |
-| A 已讲；本段回顾/备查 | **C11 JSON types** | [展示稿第 494 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:494) | [ultra96/protocol.py](D:/LetThemCook/ultra96/protocol.py:3)，3–13 | L7 / L8 / L9 / L10 |
-| A 已讲；本段回顾/备查 | **C12 Source counters** | [展示稿第 528 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:528) | [firmware/esp32/include/week7_source_stats.h](D:/LetThemCook/firmware/esp32/include/week7_source_stats.h:34)，34–53 | L41 / L44 / L45 / L49 |
+| A 已讲；本段回顾/备查 | **C09 BLE types** | [展示稿第 429 行](./B07-CO-video-presentation.en.md#c09) | [common/control.py](../common/control.py#L8)，8–17 | L10 / L11 / L12 / L15 |
+| A 已讲；本段回顾/备查 | **C10 Control codec** | [展示稿第 460 行](./B07-CO-video-presentation.en.md#c10) | [common/control.py](../common/control.py#L88)，88–101 | L90 / L97 / L98 / L100 |
+| A 已讲；本段回顾/备查 | **C11 JSON types** | [展示稿第 494 行](./B07-CO-video-presentation.en.md#c11) | [ultra96/protocol.py](../ultra96/protocol.py#L3)，3–13 | L7 / L8 / L9 / L10 |
+| A 已讲；本段回顾/备查 | **C12 Source counters** | [展示稿第 528 行](./B07-CO-video-presentation.en.md#c12) | [firmware/esp32/include/week7_source_stats.h](../firmware/esp32/include/week7_source_stats.h#L34)，34–53 | L41 / L44 / L45 / L49 |
 
 
-**投屏 G04：** 回顾 A2 已实际打开的 [control.py](D:/LetThemCook/common/control.py) 和 [protocol.py](D:/LetThemCook/ultra96/protocol.py)。指 W7 notification、W7S1 source counters、B7 control request / response，再指网络消息类型。控制头为 14 bytes；响应置 bit 7；控制 version=1 与 sensor version=2 分开。
+**投屏 G04：** 回顾 A2 已实际打开的 [control.py](../common/control.py) 和 [protocol.py](../ultra96/protocol.py)。指 W7 notification、W7S1 source counters、B7 control request / response，再指网络消息类型。控制头为 14 bytes；响应置 bit 7；控制 version=1 与 sensor version=2 分开。
 
-**需要进一步说明 source counters 时：** 打开 [week7_source_stats.h](D:/LetThemCook/firmware/esp32/include/week7_source_stats.h)，搜索 serializeSourceStats。24-byte W7S1 记录包含 device、boot、next sequence、submitted、failures，为 A6 的源端对账提供边界。它不等于手机的结果收据。
+**需要进一步说明 source counters 时：** 打开 [week7_source_stats.h](../firmware/esp32/include/week7_source_stats.h)，搜索 serializeSourceStats。24-byte W7S1 记录包含 device、boot、next sequence、submitted、failures，为 A6 的源端对账提供边界。它不等于手机的结果收据。
 
 ### B5 / G05｜BLE 协议 FSM
 
@@ -443,7 +443,7 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C13 BLE gates** | [展示稿第 585 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:585) | [firmware/esp32/include/week7_security.h](D:/LetThemCook/firmware/esp32/include/week7_security.h:7)，7–25 | L10 / L11 / L14 / L16 |
+| 主讲 | **C13 BLE gates** | [展示稿第 585 行](./B07-CO-video-presentation.en.md#c13) | [firmware/esp32/include/week7_security.h](../firmware/esp32/include/week7_security.h#L7)，7–25 | L10 / L11 / L14 / L16 |
 
 
 **投屏 G05：** 广播 → 连接/认证 → ready → 通知发送；断开后重新广播/重连。这是行为概括，不声称源码存在同名 enum。读图解英文说明。
@@ -464,13 +464,13 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C14 Frame encode** | [展示稿第 641 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:641) | [common/wire.py](D:/LetThemCook/common/wire.py:35)，35–46 | L43 / L45 / L46 |
-| 主讲 | **C15 Partial reads** | [展示稿第 671 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:671) | [common/wire.py](D:/LetThemCook/common/wire.py:49)，49–76 | L53 / L58 / L59 / L62 |
+| 主讲 | **C14 Frame encode** | [展示稿第 641 行](./B07-CO-video-presentation.en.md#c14) | [common/wire.py](../common/wire.py#L35)，35–46 | L43 / L45 / L46 |
+| 主讲 | **C15 Partial reads** | [展示稿第 671 行](./B07-CO-video-presentation.en.md#c15) | [common/wire.py](../common/wire.py#L49)，49–76 | L53 / L58 / L59 / L62 |
 
 
 **投屏 G06：** 4-byte big-endian 长度 + UTF-8 JSON；读图解英文说明，指一个应用帧跨多个 TCP chunk 的图。
 
-**源码：** [wire.py](D:/LetThemCook/common/wire.py) 的 `encode_frame()` / `read_frame()`，指出 `struct.pack("!I", ...)`、`readexactly(4)`、`readexactly(length)` 和 1..16384 限制。
+**源码：** [wire.py](../common/wire.py) 的 `encode_frame()` / `read_frame()`，指出 `struct.pack("!I", ...)`、`readexactly(4)`、`readexactly(length)` 和 1..16384 限制。
 
 **代码口播：**
 
@@ -488,9 +488,9 @@ python video_steps/05_report.py
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C16 TLS connect** | [展示稿第 732 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:732) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349)，349–353 | L351 / L352 / L353 |
-| 主讲 | **C17 ACK identity** | [展示稿第 755 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:755) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:375)，375–386 | L376 / L379 / L381 / L382 |
-| 备查 | **C39 Retry delay** | [展示稿第 787 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:787) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:656)，656–670 | L660 / L667 / L669 |
+| 主讲 | **C16 TLS connect** | [展示稿第 732 行](./B07-CO-video-presentation.en.md#c16) | [laptop/bridge.py](../laptop/bridge.py#L349)，349–353 | L351 / L352 / L353 |
+| 主讲 | **C17 ACK identity** | [展示稿第 755 行](./B07-CO-video-presentation.en.md#c17) | [laptop/bridge.py](../laptop/bridge.py#L375)，375–386 | L376 / L379 / L381 / L382 |
+| 备查 | **C39 Retry delay** | [展示稿第 787 行](./B07-CO-video-presentation.en.md#c39) | [laptop/bridge.py](../laptop/bridge.py#L656)，656–670 | L660 / L667 / L669 |
 
 
 **投屏 G07：** 建连/验证 TLS → active → 匹配 ACK；错误关闭重试与正常 drain 分开。读图解英文说明。
@@ -519,8 +519,8 @@ S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看�
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C18 Phone subscribe** | [展示稿第 834 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:834) | [ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift:24)，24–50 | L28 / L31 / L37 / L41 |
-| 主讲 | **C19 Phone pause** | [展示稿第 883 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:883) | [ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift:24)，24–37 | L26 / L27 / L28 |
+| 主讲 | **C18 Phone subscribe** | [展示稿第 834 行](./B07-CO-video-presentation.en.md#c18) | [ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift#L24)，24–50 | L28 / L31 / L37 / L41 |
+| 主讲 | **C19 Phone pause** | [展示稿第 883 行](./B07-CO-video-presentation.en.md#c19) | [ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift](../ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift#L24)，24–37 | L26 / L27 / L28 |
 
 
 **投屏 G08：** Connect → SSH/TLS 验证 → SUBSCRIBE / SUBSCRIBED → 收结果；失活进入 Paused，需要用户重连。读图解英文说明。
@@ -543,14 +543,14 @@ S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看�
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C20 BLE security** | [展示稿第 926 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:926) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:243)，243–262 | L251 / L253 / L254 / L255 |
-| 主讲 | **C22 GATT access** | [展示稿第 1001 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1001) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:391)，391–398 | L396 / L397 |
-| 备查 | **C21 Peer check** | [展示稿第 968 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:968) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:196)，196–208 | L198 / L200 / L201 / L208 |
-| 主讲 | **C23 Python TLS** | [展示稿第 1025 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1025) | [common/tls.py](D:/LetThemCook/common/tls.py:4)，4–19 | L9 / L10 / L11 / L12 |
-| B7 已讲；需要时回看 | **C16 TLS connect** | [展示稿第 732 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:732) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349)，349–353 | L351 / L352 / L353 |
-| 主讲 | **C24 iPhone TLS** | [展示稿第 1064 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1064) | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:88)，88–95 | L89 / L91 / L92 / L94 |
-| 主讲 | **C25 Phone route** | [展示稿第 1093 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1093) | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:128)，128–150 | L138 / L140 / L142 / L144 |
-| 主讲 | **C26 SSH pins** | [展示稿第 1138 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1138) | [ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift:4)，4–10 | L7 / L8 / L9 |
+| 主讲 | **C20 BLE security** | [展示稿第 926 行](./B07-CO-video-presentation.en.md#c20) | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L243)，243–262 | L251 / L253 / L254 / L255 |
+| 主讲 | **C22 GATT access** | [展示稿第 1001 行](./B07-CO-video-presentation.en.md#c22) | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L391)，391–398 | L396 / L397 |
+| 备查 | **C21 Peer check** | [展示稿第 968 行](./B07-CO-video-presentation.en.md#c21) | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L196)，196–208 | L198 / L200 / L201 / L208 |
+| 主讲 | **C23 Python TLS** | [展示稿第 1025 行](./B07-CO-video-presentation.en.md#c23) | [common/tls.py](../common/tls.py#L4)，4–19 | L9 / L10 / L11 / L12 |
+| B7 已讲；需要时回看 | **C16 TLS connect** | [展示稿第 732 行](./B07-CO-video-presentation.en.md#c16) | [laptop/bridge.py](../laptop/bridge.py#L349)，349–353 | L351 / L352 / L353 |
+| 主讲 | **C24 iPhone TLS** | [展示稿第 1064 行](./B07-CO-video-presentation.en.md#c24) | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift#L88)，88–95 | L89 / L91 / L92 / L94 |
+| 主讲 | **C25 Phone route** | [展示稿第 1093 行](./B07-CO-video-presentation.en.md#c25) | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift#L128)，128–150 | L138 / L140 / L142 / L144 |
+| 主讲 | **C26 SSH pins** | [展示稿第 1138 行](./B07-CO-video-presentation.en.md#c26) | [ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift](../ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift#L4)，4–10 | L7 / L8 / L9 |
 
 
 **投屏 G09：** 读图解英文说明，依次指 BLE、laptop–Ultra96、Ultra96–phone 的保护边界。以下三段源码都录，不能只投一张图结束。
@@ -579,17 +579,17 @@ S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看�
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C27 Device tasks** | [展示稿第 1174 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1174) | [laptop/dual_bridge.py](D:/LetThemCook/laptop/dual_bridge.py:91)，91–111 | L94 / L106 / L109 |
-| 主讲 | **C29 Callback queue** | [展示稿第 1246 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1246) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:122)，122–147 | L125 / L128 / L135 / L137 |
-| 主讲 | **C30 ACK window** | [展示稿第 1295 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1295) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:533)，533–544 | L535 / L541 |
-| 主讲 | **C31 Send / ACK tasks** | [展示稿第 1323 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1323) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:632)，632–642 | L633 / L634 / L637 |
-| 主讲 | **C32 Log thread** | [展示稿第 1354 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1354) | [laptop/evidence.py](D:/LetThemCook/laptop/evidence.py:13)，13–34 | L17 / L33 / L34 |
-| 备查 | **C28 Inbox state** | [展示稿第 1213 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1213) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:87)，87–101 | L91 / L92 / L93 |
+| 主讲 | **C27 Device tasks** | [展示稿第 1174 行](./B07-CO-video-presentation.en.md#c27) | [laptop/dual_bridge.py](../laptop/dual_bridge.py#L91)，91–111 | L94 / L106 / L109 |
+| 主讲 | **C29 Callback queue** | [展示稿第 1246 行](./B07-CO-video-presentation.en.md#c29) | [laptop/bridge.py](../laptop/bridge.py#L122)，122–147 | L125 / L128 / L135 / L137 |
+| 主讲 | **C30 ACK window** | [展示稿第 1295 行](./B07-CO-video-presentation.en.md#c30) | [laptop/bridge.py](../laptop/bridge.py#L533)，533–544 | L535 / L541 |
+| 主讲 | **C31 Send / ACK tasks** | [展示稿第 1323 行](./B07-CO-video-presentation.en.md#c31) | [laptop/bridge.py](../laptop/bridge.py#L632)，632–642 | L633 / L634 / L637 |
+| 主讲 | **C32 Log thread** | [展示稿第 1354 行](./B07-CO-video-presentation.en.md#c32) | [laptop/evidence.py](../laptop/evidence.py#L13)，13–34 | L17 / L33 / L34 |
+| 备查 | **C28 Inbox state** | [展示稿第 1213 行](./B07-CO-video-presentation.en.md#c28) | [laptop/bridge.py](../laptop/bridge.py#L87)，87–101 | L91 / L92 / L93 |
 
 
 **投屏 G10：** 指两套 input → RawInbox → TLS sender / ACK reader；再指独立日志线程，读图解英文说明。
 
-**源码顺序：** [dual_bridge.py](D:/LetThemCook/laptop/dual_bridge.py) 的 `DualBridge.run()`：`writers` / `inputs` 的 `asyncio.create_task()`；[bridge.py](D:/LetThemCook/laptop/bridge.py) 的 `RawInbox` / `call_soon_threadsafe`、`_pipeline_epoch()` 内 `sender()` / `receiver()` / `asyncio.Semaphore`；C32 展示 evidence.py 的有界 queue.Queue 和真实 threading.Thread。
+**源码顺序：** [dual_bridge.py](../laptop/dual_bridge.py) 的 `DualBridge.run()`：`writers` / `inputs` 的 `asyncio.create_task()`；[bridge.py](../laptop/bridge.py) 的 `RawInbox` / `call_soon_threadsafe`、`_pipeline_epoch()` 内 `sender()` / `receiver()` / `asyncio.Semaphore`；C32 展示 evidence.py 的有界 queue.Queue 和真实 threading.Thread。
 
 > Each device has its own BLE input task, bounded queue and TLS writer. Both streams can make progress during I/O waits. Within each stream, sending and acknowledgement reading are separate asyncio tasks. The semaphore bounds outstanding messages at thirty-two, and a valid acknowledgement releases a slot.
 >
@@ -605,17 +605,17 @@ S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看�
 
 | 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
 |---|---|---|---|---|
-| 主讲 | **C33 Two listeners** | [展示稿第 1405 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1405) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:136)，136–153 | L139 / L150 / L151 |
-| 主讲 | **C34 Client task** | [展示稿第 1441 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1441) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:179)，179–188 | L187 / L188 |
-| 主讲 | **C35 Ingest + ACK** | [展示稿第 1467 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1467) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:246)，246–275 | L248 / L265 / L266 / L272 |
-| 主讲 | **C36 Gateway tasks** | [展示稿第 1522 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1522) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:309)，309–337 | L310 / L331 / L334 / L336 |
-| 主讲 | **C38 Queue freshness** | [展示稿第 1601 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1601) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:56)，56–77 | L58 / L62 / L72 / L73 |
-| 备查 | **C37 Queue capacity** | [展示稿第 1573 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1573) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:32)，32–41 | L35 |
+| 主讲 | **C33 Two listeners** | [展示稿第 1405 行](./B07-CO-video-presentation.en.md#c33) | [ultra96/server.py](../ultra96/server.py#L136)，136–153 | L139 / L150 / L151 |
+| 主讲 | **C34 Client task** | [展示稿第 1441 行](./B07-CO-video-presentation.en.md#c34) | [ultra96/server.py](../ultra96/server.py#L179)，179–188 | L187 / L188 |
+| 主讲 | **C35 Ingest + ACK** | [展示稿第 1467 行](./B07-CO-video-presentation.en.md#c35) | [ultra96/server.py](../ultra96/server.py#L246)，246–275 | L248 / L265 / L266 / L272 |
+| 主讲 | **C36 Gateway tasks** | [展示稿第 1522 行](./B07-CO-video-presentation.en.md#c36) | [ultra96/server.py](../ultra96/server.py#L309)，309–337 | L310 / L331 / L334 / L336 |
+| 主讲 | **C38 Queue freshness** | [展示稿第 1601 行](./B07-CO-video-presentation.en.md#c38) | [ultra96/server.py](../ultra96/server.py#L56)，56–77 | L58 / L62 / L72 / L73 |
+| 备查 | **C37 Queue capacity** | [展示稿第 1573 行](./B07-CO-video-presentation.en.md#c37) | [ultra96/server.py](../ultra96/server.py#L32)，32–41 | L35 |
 
 
 **投屏 G11：** 两个 accept tasks、每个连接的 client task、订阅结果队列、结果发送与 EOF/额外输入监控，读图解英文说明。
 
-**源码：** [server.py](D:/LetThemCook/ultra96/server.py) 的 `start()` / `_accept()` / `_client()`；再 `_ingest()`、`_gateway()`、`_send_results()`、`ResultQueue`。在 `_gateway()` 指到发送任务与 `reader.read(1)` 监控任务。
+**源码：** [server.py](../ultra96/server.py) 的 `start()` / `_accept()` / `_client()`；再 `_ingest()`、`_gateway()`、`_send_results()`、`ResultQueue`。在 `_gateway()` 指到发送任务与 `reader.read(1)` 监控任务。
 
 > Ultra96 has independent accept tasks for ingestion and the phone gateway. Each accepted connection gets a client task. The ingestion handler validates and deduplicates incoming messages, creates a simulated result for a new input, queues it for the subscriber, and sends an acknowledgement to the laptop.
 >
@@ -673,4 +673,4 @@ python video_steps/08_service_start.py
 | CAPTURE NOT PASSED / N/A / 手机增量不符 | 保留失败证据，排查后另开新采集；不混用两次计数 |
 | 第二阶段找不到这次报告 | S05 粘贴 A6 保存的完整目录；不随意取“最新成功的一次” |
 
-来源：[当前 CO v2 协议](D:/LetThemCook/docs/co-protocol-v2.md)、[2026-09-28 部署与实体测试记录](D:/LetThemCook/docs/co-live-deployment-2026-09-28.md)及上述当前源码。本文是录制步骤，编写时没有重跑硬件测试。
+来源：[当前 CO v2 协议](./co-protocol-v2.md)、[2026-09-28 部署与实体测试记录](./co-live-deployment-2026-09-28.md)及上述当前源码。本文是录制步骤，编写时没有重跑硬件测试。
