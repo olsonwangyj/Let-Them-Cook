@@ -1,11 +1,10 @@
-"""W7 v1 fixed 32-byte sensor codec; values are uncalibrated int16 channels.
-
-The codec validates representation. The dummy-inference consumer separately
-checks that values equal ``dummy_values(seq)``; real int16 samples still decode.
-"""
+"""Fixed 32-byte W7 codec: legacy deterministic v1 and editable-fixture v2."""
 
 from dataclasses import dataclass
 import struct
+import json
+from pathlib import Path
+import random
 from typing import Tuple
 
 
@@ -26,9 +25,11 @@ class SensorPacket:
     seq: int
     uptime_ms: int
     values: Tuple[int, ...]
+    version: int = 1
 
     def __post_init__(self) -> None:
         _integer(self.device_id, 1, 2, "device_id")
+        _integer(self.version, 1, 2, "version")
         for name in ("boot_id", "seq", "uptime_ms"):
             _integer(getattr(self, name), 0, 0xFFFFFFFF, name)
         if not isinstance(self.values, (list, tuple)) or len(self.values) != 8:
@@ -37,11 +38,15 @@ class SensorPacket:
             _integer(value, -32768, 32767, "channel")
         object.__setattr__(self, "values", tuple(self.values))
 
-    def to_message(self, session_id: str) -> dict:
+    def to_message(self, session_id: str, request_id=None) -> dict:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a nonempty string")
-        return {
-            "v": 1,
+        if request_id is not None:
+            _integer(request_id, 1, 0xFFFFFFFF, "request_id")
+            if self.version != 2 or request_id != self.seq:
+                raise ValueError("commands require v2 and seq equal to request_id")
+        result = {
+            "v": self.version,
             "type": "SENSOR_BATCH",
             "session_id": session_id,
             "device_id": self.device_id,
@@ -50,13 +55,16 @@ class SensorPacket:
             "uptime_ms": self.uptime_ms,
             "values": list(self.values),
         }
+        if self.version == 2:
+            result["request_id"] = request_id
+        return result
 
 
 def encode_packet(packet: SensorPacket) -> bytes:
     if not isinstance(packet, SensorPacket):
         raise ValueError("packet must be a SensorPacket")
     return _PACKET.pack(
-        b"W7", 1, packet.device_id, packet.boot_id, packet.seq, packet.uptime_ms,
+        b"W7", packet.version, packet.device_id, packet.boot_id, packet.seq, packet.uptime_ms,
         *packet.values
     )
 
@@ -67,12 +75,30 @@ def decode_packet(data: bytes) -> SensorPacket:
     magic, version, device_id, boot_id, seq, uptime_ms, *values = _PACKET.unpack(data)
     if magic != b"W7":
         raise ValueError("invalid W7 packet magic")
-    if version != 1:
+    if version not in (1, 2):
         raise ValueError("unsupported W7 packet version")
-    return SensorPacket(device_id, boot_id, seq, uptime_ms, tuple(values))
+    return SensorPacket(device_id, boot_id, seq, uptime_ms, tuple(values), version)
 
 
 def dummy_values(seq: int) -> Tuple[int, ...]:
     _integer(seq, 0, 0xFFFFFFFF, "seq")
     base = (seq % 2000) - 1000
     return tuple(base + 10 * index for index in range(8))
+
+
+def load_fixtures(path=None):
+    """Read editable source data; validate before generation or transmission."""
+    source = Path(path) if path is not None else Path(__file__).with_name("dummy_fixtures.json")
+    rows = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(rows, list) or not 2 <= len(rows) <= 64:
+        raise ValueError("provide between two and 64 dummy fixtures")
+    return tuple(SensorPacket(1, 0, 0, 0, row, version=2).values for row in rows)
+
+
+DUMMY_FIXTURES = load_fixtures()
+_RANDOM = random.SystemRandom()
+
+
+def choose_fixture(rng=None):
+    """Use system randomness normally; inject random.Random(seed) in tests."""
+    return (rng if rng is not None else _RANDOM).choice(DUMMY_FIXTURES)

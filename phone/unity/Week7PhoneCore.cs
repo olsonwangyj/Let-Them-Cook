@@ -21,6 +21,7 @@ namespace LetThemCook.Week7
         public uint DeviceId { get; internal set; }
         public uint BootId { get; internal set; }
         public uint Sequence { get; internal set; }
+        public uint? RequestId { get; internal set; }
         public string ResultId { get; internal set; }
         public string Gesture { get; internal set; }
         public string Json { get; internal set; }
@@ -41,22 +42,32 @@ namespace LetThemCook.Week7
         public static GestureResult ParseResult(string json, string session)
         {
             var fields = FlatJson.Parse(json);
-            Header(fields, "GESTURE_RESULT", session, 9);
+            uint version = Integer(fields, "v");
+            Header(fields, "GESTURE_RESULT", session, version == 2 ? 10 : 9, true);
             uint device = Integer(fields, "device_id"), boot = Integer(fields, "boot_id"), seq = Integer(fields, "seq");
             if (device != 1 && device != 2) throw new InvalidDataException("Invalid device_id");
             string id = Text(fields, "result_id"), gesture = Text(fields, "gesture");
             string expectedId = device.ToString(CultureInfo.InvariantCulture) + ":" + boot.ToString(CultureInfo.InvariantCulture) + ":" + seq.ToString(CultureInfo.InvariantCulture);
+            uint? requestId = null;
+            if (version == 2 && !Required(fields, "request_id").IsNull)
+            {
+                requestId = Integer(fields, "request_id");
+                if (requestId == 0 || requestId != seq) throw new InvalidDataException("Invalid request correlation");
+                expectedId = "cmd:" + expectedId;
+            }
             double confidence;
             Atom score = Required(fields, "confidence");
             if (score.IsString || !Double.TryParse(score.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out confidence) || confidence != 1.0)
                 throw new InvalidDataException("Invalid dummy confidence");
-            if (id != expectedId || gesture != Gestures[seq % 4]) throw new InvalidDataException("Invalid deterministic result");
-            return new GestureResult { DeviceId = device, BootId = boot, Sequence = seq, ResultId = id, Gesture = gesture, Json = json };
+            bool validGesture = version == 1 ? gesture == Gestures[seq % 4] : Array.IndexOf(Gestures, gesture) >= 0;
+            if (id != expectedId || !validGesture) throw new InvalidDataException("Invalid dummy result");
+            return new GestureResult { DeviceId = device, BootId = boot, Sequence = seq, RequestId = requestId, ResultId = id, Gesture = gesture, Json = json };
         }
 
-        private static void Header(Dictionary<string, Atom> fields, string type, string session, int count)
+        private static void Header(Dictionary<string, Atom> fields, string type, string session, int count, bool allowV2 = false)
         {
-            if (fields.Count != count || Integer(fields, "v") != 1 || Text(fields, "type") != type || Text(fields, "session_id") != session || !ValidSession(session))
+            uint version = Integer(fields, "v");
+            if (fields.Count != count || !(version == 1 || (allowV2 && version == 2)) || Text(fields, "type") != type || Text(fields, "session_id") != session || !ValidSession(session))
                 throw new InvalidDataException("Unexpected message schema or session");
         }
         private static Atom Required(Dictionary<string, Atom> fields, string key)
@@ -110,11 +121,12 @@ namespace LetThemCook.Week7
         private sealed class Atom
         {
             public bool IsString;
+            public bool IsNull;
             public string Value;
         }
 
-        // The wire messages are flat objects with string/number fields only.
-        // This deliberately rejects arrays, objects, bool and null, as required by these schemas.
+        // The wire messages are flat. Only v2 request_id permits null; field
+        // validators reject it elsewhere. Arrays, objects and bool are forbidden.
         private sealed class FlatJson
         {
             private readonly string input;
@@ -142,8 +154,8 @@ namespace LetThemCook.Week7
                         int start = index;
                         while (index < input.Length && !Peek(',') && !Peek('}') && !IsSpace(input[index])) index++;
                         string value = input.Substring(start, index - start);
-                        if (!Number.IsMatch(value)) Fail();
-                        atom = new Atom { IsString = false, Value = value };
+                        if (value != "null" && !Number.IsMatch(value)) Fail();
+                        atom = new Atom { IsString = false, IsNull = value == "null", Value = value };
                     }
                     if (fields.ContainsKey(key)) throw new InvalidDataException("Duplicate JSON key");
                     fields.Add(key, atom); Space();
@@ -209,16 +221,26 @@ namespace LetThemCook.Week7
             frame[2] = (byte)(body.Length >> 8); frame[3] = (byte)body.Length;
             Buffer.BlockCopy(body, 0, frame, 4, body.Length); return frame;
         }
-        public static async Task<string> ReadAsync(Stream stream, TimeSpan timeout, CancellationToken token)
+        public static async Task<string> ReadAsync(Stream stream, TimeSpan timeout, CancellationToken token, bool allowIdle = false)
         {
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                deadline.CancelAfter(timeout);
+                if (!allowIdle) deadline.CancelAfter(timeout);
                 using (deadline.Token.Register(() => stream.Dispose()))
                 {
                     try
                     {
-                        byte[] header = await Exactly(stream, 4, deadline.Token).ConfigureAwait(false);
+                        byte[] header;
+                        if (allowIdle)
+                        {
+                            // Idle has no deadline; the first byte starts one
+                            // shared budget for the remaining prefix and body.
+                            byte[] first = await Exactly(stream, 1, deadline.Token).ConfigureAwait(false);
+                            deadline.CancelAfter(timeout);
+                            byte[] rest = await Exactly(stream, 3, deadline.Token).ConfigureAwait(false);
+                            header = new byte[] { first[0], rest[0], rest[1], rest[2] };
+                        }
+                        else header = await Exactly(stream, 4, deadline.Token).ConfigureAwait(false);
                         uint length = ((uint)header[0] << 24) | ((uint)header[1] << 16) | ((uint)header[2] << 8) | header[3];
                         if (length == 0 || length > MaximumBytes) throw new InvalidDataException("Frame outside 1..16384 bytes");
                         byte[] body = await Exactly(stream, (int)length, deadline.Token).ConfigureAwait(false);
@@ -378,7 +400,7 @@ namespace LetThemCook.Week7
                                     LastStatus = "Subscribed";
                                     while (!token.IsCancellationRequested)
                                     {
-                                        var result = PhoneProtocol.ParseResult(await PhoneFrames.ReadAsync(tls, timeout, token).ConfigureAwait(false), session);
+                                        var result = PhoneProtocol.ParseResult(await PhoneFrames.ReadAsync(tls, timeout, token, allowIdle: true).ConfigureAwait(false), session);
                                         if (!seen.Add(result.ResultId)) continue;
                                         order.Enqueue(result.ResultId); if (order.Count > 4096) seen.Remove(order.Dequeue());
                                         token.ThrowIfCancellationRequested(); results.Enqueue(result); backoff = 0.5;

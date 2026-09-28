@@ -42,5 +42,22 @@ int main() {
   assert(week7::parseMtuControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
   request.write.len = 2; request.write.value = nullptr;
   assert(week7::parseMtuControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
+  uint8_t control[46] = {};
+  request.write = {7, 123, 0, 46, false, control};
+  auto application = week7::parseApplicationControlWrite(true, &request, 123);
+  assert(application.status == ProbeWriteStatus::Valid && application.connectionId == 7);
+  assert(application.inputLength == 46 && application.value == control);
+  assert(week7::parseApplicationControlWrite(false, &execute, 123).status == ProbeWriteStatus::Ignored);
+  assert(week7::parseApplicationControlWrite(true, &request, 124).status == ProbeWriteStatus::Ignored);
+  request.write.is_prep = true;
+  assert(week7::parseApplicationControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
+  request.write.is_prep = false; request.write.offset = 1;
+  assert(week7::parseApplicationControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
+  request.write.offset = 0; request.write.len = 13;
+  assert(week7::parseApplicationControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
+  request.write.len = 195;
+  assert(week7::parseApplicationControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
+  request.write.len = 46; request.write.value = nullptr;
+  assert(week7::parseApplicationControlWrite(true, &request, 123).status == ProbeWriteStatus::Malformed);
   std::puts("PASS GATT event/union and malformed-write regression");
 }

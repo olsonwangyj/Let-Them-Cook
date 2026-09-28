@@ -268,15 +268,19 @@ def test_late_atomic_publication_does_not_upgrade_timeout_receipt(monkeypatch, t
         return replace(source, destination)
 
     monkeypatch.setattr(diagnostics.os, "replace", blocking_final_status)
-    first = sink.close(timeout=0.01)
-    assert entered.is_set()
-    assert first["close_timed_out"] is True
-    assert first["finalized"] is False
-    assert first["complete"] is False
-    assert sink.close() == first
-
-    release.set()
-    assert sink._done.wait(1.0)
+    # Reach the publication race before starting the close deadline. Disk flush
+    # and writer scheduling need not finish within the 10 ms timeout under test.
+    sink._stop.set()
+    try:
+        assert entered.wait(2.0)
+        first = sink.close(timeout=0.01)
+        assert first["close_timed_out"] is True
+        assert first["finalized"] is False
+        assert first["complete"] is False
+        assert sink.close() == first
+    finally:
+        release.set()
+        assert sink._done.wait(2.0)
     assert sink.stats() == first
     assert sink.close() == first
 

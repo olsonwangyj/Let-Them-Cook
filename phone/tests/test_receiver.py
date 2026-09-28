@@ -178,8 +178,10 @@ class ReceiverStartupTests(unittest.IsolatedAsyncioTestCase):
         statistics = dict(received=0, reconnects=0)
         args = SimpleNamespace(ca="unused", port=19999, session="week7-demo", count=count, duration=None)
 
-        async def fast_frame(reader, timeout=5.0, first_byte_timeout=None):
+        async def fast_frame(reader, timeout=5.0, first_byte_timeout=None, allow_idle=False):
             options = {} if first_byte_timeout is None else dict(first_byte_timeout=first_byte_timeout * 0.02)
+            if allow_idle:
+                options['allow_idle'] = True
             return await read_frame(reader, timeout=timeout * 0.02, **options)
 
         with patch("phone.receiver.tls_context", return_value=object()), \
@@ -210,17 +212,29 @@ class ReceiverStartupTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await asyncio.wait_for(task, 0.3), dict(received=1, reconnects=0))
             self.assertEqual(json.loads(output.getvalue()), result())
 
-    async def test_later_idle_retains_frame_deadline(self):
+    async def test_later_clean_idle_resumes_on_same_subscription(self):
         stream = self.subscribed_stream(); stream.feed_data(encode_frame(result()))
-        async with self.running_receiver([stream], count=0) as (_, statistics, output, _, writers):
-            await asyncio.wait_for(writers[0].closing.wait(), 0.4)
-            self.assertEqual(statistics, dict(received=1, reconnects=1))
-            self.assertEqual(json.loads(output.getvalue()), result())
+        async with self.running_receiver([stream], count=2) as (task, statistics, output, _, _):
+            await asyncio.sleep(0.25)
+            self.assertEqual(statistics, dict(received=1, reconnects=0))
+            next_result = dict(result(), seq=4, result_id='1:4294967295:4', gesture='REST')
+            stream.feed_data(encode_frame(next_result))
+            await asyncio.wait_for(task, 0.3)
+            self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], [result(), next_result])
 
-    async def test_first_result_startup_grace_is_finite(self):
+    async def test_first_result_clean_idle_has_no_frame_deadline(self):
         stream = self.subscribed_stream()
         async with self.running_receiver([stream]) as (_, statistics, _, _, writers):
-            await asyncio.wait_for(writers[0].closing.wait(), 0.9)
+            await asyncio.sleep(0.7)
+            self.assertFalse(writers[0].closing.is_set())
+            self.assertEqual(statistics, dict(received=0, reconnects=0))
+
+    async def test_partial_result_still_expires_after_long_clean_idle(self):
+        stream = self.subscribed_stream()
+        async with self.running_receiver([stream]) as (_, statistics, _, _, writers):
+            await asyncio.sleep(0.25)
+            stream.feed_data(b'\x00')
+            await asyncio.wait_for(writers[0].closing.wait(), 0.3)
             self.assertEqual(statistics, dict(received=0, reconnects=1))
 
     async def test_subscribed_response_retains_frame_deadline(self):
@@ -243,13 +257,14 @@ class ReceiverStartupTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await asyncio.wait_for(task, 0.3), dict(received=1, reconnects=1))
             self.assertEqual(json.loads(output.getvalue()), result())
 
-    async def test_reconnect_after_valid_result_does_not_restore_startup_grace(self):
+    async def test_reconnect_after_valid_result_also_allows_clean_idle(self):
         first = self.subscribed_stream(); first.feed_data(encode_frame(result())); first.feed_eof()
         second = self.subscribed_stream()
         async with self.running_receiver([first, second], count=0) as (_, statistics, _, _, writers):
-            # First connection ends at EOF, then the normal 0.5 s backoff passes.
-            await asyncio.wait_for(writers[1].closing.wait(), 0.9)
-            self.assertEqual(statistics, dict(received=1, reconnects=2))
+            # First connection ends at EOF; the replacement remains subscribed.
+            await asyncio.sleep(0.85)
+            self.assertFalse(writers[1].closing.is_set())
+            self.assertEqual(statistics, dict(received=1, reconnects=1))
 
 
 class ReceiverDurationTests(unittest.TestCase):

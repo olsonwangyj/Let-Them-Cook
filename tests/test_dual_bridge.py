@@ -58,9 +58,10 @@ def install_ack_transport(bridge, *, gate=None, progress=None, progress_count=1)
         if progress is not None and len(messages) >= progress_count:
             progress.set()
         return {
-            "v": 1, "type": "INGEST_ACK", "session_id": message["session_id"],
+            "v": message["v"], "type": "INGEST_ACK", "session_id": message["session_id"],
             "device_id": message["device_id"], "boot_id": message["boot_id"],
             "seq": message["seq"], "status": "accepted",
+            **({"request_id": message["request_id"]} if message["v"] == 2 else {}),
         }
 
     bridge._connector = connect
@@ -104,6 +105,9 @@ async def test_normal_stop_drains_tail_and_reconciles_both_mock_sources():
     report = await dual.run(duration=0.12, mock=True, mock_rate=100)
 
     assert report["clean"] is True
+    assert (report["devices"]["1"]["sensor_goodput"]["elapsed_seconds"] ==
+            report["devices"]["2"]["sensor_goodput"]["elapsed_seconds"] ==
+            report["common_observation_seconds"])
     for device in ("1", "2"):
         item = report["devices"][device]
         assert item["source"]["generated"] >= 3
@@ -485,11 +489,12 @@ def test_cli_exits_after_bounded_cleanup_when_ack_read_resists_cancellation():
                     async def acknowledge(_reader, timeout, device=device):
                         message = messages[device][-1]
                         return {
-                            "v": 1, "type": "INGEST_ACK",
+                            "v": message["v"], "type": "INGEST_ACK",
                             "session_id": message["session_id"],
                             "device_id": message["device_id"],
                             "boot_id": message["boot_id"], "seq": message["seq"],
                             "status": "accepted",
+                            "request_id": message["request_id"],
                         }
                     bridge._read_frame = acknowledge
             self.drain_timeout = 0.03

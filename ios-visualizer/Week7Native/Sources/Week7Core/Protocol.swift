@@ -11,6 +11,7 @@ public struct GestureResult: Equatable, Sendable {
     public let seq: UInt32
     public let deviceID: UInt32
     public let bootID: UInt32
+    public let requestID: UInt32?
 }
 
 public enum Week7Protocol {
@@ -34,20 +35,32 @@ public enum Week7Protocol {
 
     public static func result(_ body: [UInt8], session: String) throws -> GestureResult {
         let (json, fields) = try parse(body)
-        try header(fields, kind: "GESTURE_RESULT", session: session, allowed: resultFields)
+        let version = try integer(fields["v"])
+        let allowed = version == 2 ? resultFields.union(["request_id"]) : resultFields
+        try header(fields, kind: "GESTURE_RESULT", session: session, allowed: allowed, versions: [1, 2])
         let device = try integer(fields["device_id"])
         let boot = try integer(fields["boot_id"])
         let seq = try integer(fields["seq"])
         let resultID = try string(fields["result_id"])
         let gesture = try string(fields["gesture"])
+        var requestID: UInt32?
+        if version == 2 {
+            if case .null = fields["request_id"] { requestID = nil }
+            else {
+                requestID = try integer(fields["request_id"])
+                guard requestID == seq, seq > 0 else { throw Week7ProtocolError.invalidSchema }
+            }
+        }
+        let expectedID = (requestID == nil ? "" : "cmd:") + "\(device):\(boot):\(seq)"
+        let gestures = ["REST", "FIST", "OPEN", "POINT"]
         guard device == 1 || device == 2,
-              resultID == "\(device):\(boot):\(seq)",
-              gesture == ["REST", "FIST", "OPEN", "POINT"][Int(seq % 4)],
+              resultID == expectedID,
+              version == 1 ? gesture == gestures[Int(seq % 4)] : gestures.contains(gesture),
               case .number(let token) = fields["confidence"],
               let confidence = Double(token), confidence.isFinite, confidence == 1 else {
             throw Week7ProtocolError.invalidSchema
         }
-        return GestureResult(json: json, resultID: resultID, gesture: gesture, seq: seq, deviceID: device, bootID: boot)
+        return GestureResult(json: json, resultID: resultID, gesture: gesture, seq: seq, deviceID: device, bootID: boot, requestID: requestID)
     }
 
     private static func validateSession(_ session: String) throws {
@@ -67,9 +80,9 @@ public enum Week7Protocol {
         return (json, try parser.object())
     }
 
-    private static func header(_ fields: [String: JSONAtom], kind: String, session: String, allowed: Set<String>) throws {
+    private static func header(_ fields: [String: JSONAtom], kind: String, session: String, allowed: Set<String>, versions: Set<UInt32> = [1]) throws {
         try validateSession(session)
-        guard Set(fields.keys) == allowed, try integer(fields["v"]) == 1,
+        guard Set(fields.keys) == allowed, try versions.contains(integer(fields["v"])),
               try string(fields["type"]) == kind,
               // Swift String equality normalizes Unicode; wire session identity does not.
               try string(fields["session_id"]).unicodeScalars.elementsEqual(session.unicodeScalars) else {
@@ -141,10 +154,11 @@ public struct FrameDecoder {
 private enum JSONAtom {
     case string(String)
     case number(String)
+    case null
 }
 
-/// The Week 7 schemas are flat. No recursive objects, arrays, booleans, or null
-/// can be valid here. Lexical numbers preserve the distinction between 42 and 42.0.
+/// The schemas are flat. Only v2 request_id permits null; validators reject it
+/// in other fields. Lexical numbers preserve the distinction between 42 and 42.0.
 private struct FlatJSON {
     private let input: [Unicode.Scalar]
     private var index = 0
@@ -161,12 +175,17 @@ private struct FlatJSON {
         } else {
             while true {
                 let key = try string()
-                // Every valid message has at most nine fields. Check decoded keys.
-                guard fields[key] == nil, fields.count < 9 else { throw Week7ProtocolError.invalidSchema }
+                // V2 adds one correlation field. Check decoded keys before insertion.
+                guard fields[key] == nil, fields.count < 10 else { throw Week7ProtocolError.invalidSchema }
                 space()
                 try take(58)
                 space()
-                fields[key] = try peek(34) ? .string(string()) : .number(number())
+                if peek(110) {
+                    for scalar in [UInt32(110), 117, 108, 108] { try take(scalar) }
+                    fields[key] = .null
+                } else {
+                    fields[key] = try peek(34) ? .string(string()) : .number(number())
+                }
                 space()
                 if peek(125) { index += 1; break }
                 try take(44)
