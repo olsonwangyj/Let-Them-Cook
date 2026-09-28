@@ -1,8 +1,8 @@
 # CO v2 deployment and physical verification — 28 September 2026
 
-The running Ultra96 service and both physical FireBeetles were updated at the user's request. All result-receiver evidence below uses an independent Python TLS subscriber, **not the native iPhone**. The user will build the updated Swift app on their Mac later. This is a record of implementation/deployment tests, not a demonstration checklist.
+The running Ultra96 service and both physical FireBeetles were updated at the user's request. The initial captures below used an independent Python TLS subscriber, **not the native iPhone**. After building and connecting the updated app, the user completed the separate aggregate iPhone count check recorded in the final section. This is a record of implementation/deployment tests, not a demonstration checklist.
 
-Final state: both ESPs are restored to 10 Hz, and the updated Ultra96 process remains running. The highest tested clean setting was 70 Hz, producing approximately **66 packets/second per device and 33.792 kbps combined** on its repeat; the next tested setting, 75 Hz, failed. Commands, 4096-byte files and right-device power recovery were physically exercised. Range and native iPhone verification remain deferred by the user.
+Final state: both ESPs are restored to 10 Hz, and the updated Ultra96 process remains running. The highest tested clean setting was 70 Hz, producing approximately **66 packets/second per device and 33.792 kbps combined** on its repeat; the next tested setting, 75 Hz, failed. Commands, 4096-byte files and right-device power recovery were physically exercised. The updated native iPhone later passed a 1320-result aggregate count check at 10 Hz. Range verification remains deferred by the user.
 
 ## Installed software
 
@@ -107,3 +107,21 @@ The corrected final cleanup capture (`cleanup-reset-10hz/report.json`) confirmed
 At `2026-09-28 13:15:41 UTC`, `.week7-local/co-production-final-check.json` verified PID **105159**, its original start time, command and deployed working directory. That process still owned loopback ports **8888/9999**. All ten deployed `common`/`ultra96` files matched both the uploaded SHA-256 manifest and the current workspace. A fresh certificate/hostname-verified TLS result connection received the expected `SUBSCRIBED` response for `week7-demo`. The check left the service running and closed its own subscriber and temporary tunnels.
 
 The running service's optional bounded diagnostic trace was **52,428,580 bytes**, within 220 bytes of its **52,428,800-byte** lifetime cap. Treat that server trace as capped/incomplete for later events. Its `status.json` is not finalized while the process runs, so the initial zero counters are not evidence of zero server errors. The per-capture client packet, ACK and independent result ledgers are complete and separately audited with no evidence overflow; they support the delivery totals above. The service was not restarted merely to reset its diagnostic logger.
+
+## Updated native iPhone follow-up
+
+After merge commit `3e58e3eeec51dec89e8f4909c0af8c9b132d0b3a`, the user reported building the new app on the iPhone and connecting it. Build provenance is the operator's report; the installed revision and Xcode build log were not independently extracted. Before the test the operator reported **`Subscribed, Received: 0`**.
+
+Artifact: `.week7-local/co-iphone-v2-20260928T133928Z/`. The capture ran from `13:39:29.914549` to `13:40:39.956873 UTC`, including setup and cleanup, with a **65.000-second** simultaneous observation at 10 Hz per ESP. The harness opened ingestion connections only, leaving the iPhone as the result receiver. It sent three keyboard-equivalent commands per device through the actual dispatch path, verified all eight transformed values for each response, and obtained six correlated ingestion ACKs.
+
+| Device | Boot ID | Sensor sequence interval | Generated = received = ACKed | Command ACKs | Expected results |
+|---|---:|---|---:|---:|---:|
+| Left / 1 | 1209560267 | 43211–43871 inclusive | 661 | 3 | 664 |
+| Right / 2 | 3829790198 | 39953–40605 inclusive | 653 | 3 | 656 |
+| Total | | | **1314** | **6** | **1320** |
+
+Both source boundaries were complete and clean, with zero missing records, source failures, sequence anomalies, identity errors, BLE disconnects, transport errors or cleanup errors. All commands completed without rejection or failure. The evidence logger wrote 2674 events with no drops, write errors or unfinished events, and captured software fingerprints remained unchanged. Combined steady sensor goodput was **5.123938 kbps**; it excludes commands and startup/drain packets.
+
+After the sender stopped, the operator reported **`Subscribed, Received: 1320`**. The increase from zero exactly matches the 1314 sensor records plus six commands. This is a **pass for the updated native iPhone's aggregate result count during concurrent v2 streaming and command traffic**, based on operator observations. It does not establish individual phone receipt for each expected result ID or separately observed command IDs. Expected command identities and transformations are saved in `expected-results.json` and `commands.jsonl`; the phone observation and SHA-256-bound acceptance summary are in `operator-after.json` and `iphone-acceptance.json`.
+
+Read-only board checks found the same service PID `105159` and established result socket inode `802867` before and after the capture. The deployed files still matched their uploaded manifest and the merged source, allowing for Git's Windows line-ending conversion. These endpoint socket checks are not continuous subscriber-lifecycle evidence. The existing server diagnostic trace remained capped, so this follow-up does not claim a complete server event ledger. No desktop result subscriber was opened and the production service was not restarted. Both source rates remain 10 Hz. The separate physical range trial is still deferred.
