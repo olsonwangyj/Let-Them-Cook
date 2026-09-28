@@ -7,7 +7,11 @@ Start with the two current reports:
 - [System technical report](docs/week7-system-technical-report.md) · [简体中文版](docs/week7-system-technical-report.zh-CN.md): architecture, parallel processing, packet formats, code walkthroughs, and a file-by-file guide.
 - [Testing and Week 7 demo guide](docs/week7-testing-and-demo-guide.md) · [简体中文版](docs/week7-testing-and-demo-guide.zh-CN.md): which commands to run on each machine, expected observations, acceptance criteria, troubleshooting, and a professor-facing demonstration.
 
-For the individual video submission, use the [B07 CO short local recording guide](docs/B07-CO-subsystem-video-guide.zh-CN.md): Chinese instructions for the configured Windows laptop, direct commands with live logs and saved JSON reports, short English narration, source-code locations, and recovery tests. The submission filename is `B07_CO_subsystem.mp4`.
+For the individual video submission, use the [B07 CO short local recording guide](docs/B07-CO-subsystem-video-guide.zh-CN.md): Chinese instructions for the configured Windows laptop, short English narration, source-code locations, and recovery tests. The submission filename is `B07_CO_subsystem.mp4`.
+
+From the configured repository, run `python demo.py tunnel` in terminal A. In terminal B, after the iPhone shows `Subscribed, Received: 0`, run `python demo.py run`. This captures both ESPs for 60 seconds, displays live logs, saves each capture under `.week7-local/B07-*`, and prints per-device counts and capture pass/fail. Use `python demo.py report` to reopen the latest capture summary, or `python demo.py run --duration 600` for a ten-minute capture.
+
+Both ESP addresses, the CA path, and port `18889` are prefilled; see `python demo.py run --help` to override them. Windows PowerShell 5.1 or 7 works. The script does not read the iPhone screen: manually compare the phone's count increase with the expected total shown for a valid clean physical capture.
 
 The [updated iPhone acceptance report](docs/phone-post-update-test-2026-09-21.md) records successful two-ESP tests at 10 Hz per device, including a 10-minute run with an operator-reported iPhone count of 12,003 matching the source total. These results establish observed delivery under the tested conditions; the system does not replay data across outages, and the iPhone requires manual reconnection after backgrounding or locking. The [dual-ESP runbook](docs/dual-esp-runbook.md) provides additional bridge details, live progress examples, and saved JSON reports using `--report`.
 

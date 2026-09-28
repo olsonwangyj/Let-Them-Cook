@@ -1,6 +1,6 @@
 # B07 CO：本机演示简短版
 
-**现有功能就能实现：两块 ESP 同时收发、实时日志、保存最终 JSON 报告。** 不用修改程序，也不用粘贴辅助函数。以下用于已经配置好的 `D:\LetThemCook`，使用 **PowerShell 7.3+（pwsh）**。
+**用 `demo.py` 启动隧道、采集两块 ESP，并自动保存日志和报告。** 以下用于已经配置好的 `D:\LetThemCook`，普通 **Windows PowerShell 5.1 或 PowerShell 7** 均可，无需粘贴辅助函数。
 
 视频文件名：**`B07_CO_subsystem.mp4`**；英文口播，无需幻灯片，上传 YouTube 时选择 **Unlisted**。源码放大到清楚可读。
 
@@ -22,10 +22,10 @@
 
 ```powershell
 cd D:\LetThemCook
-python -c 'import subprocess; from tools.ssh_tunnel import tunnel_command; raise SystemExit(subprocess.run(tunnel_command("yanjie@stujump.comp.nus.edu.sg","xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg",18889,8888)).returncode)'
+python demo.py tunnel
 ```
 
-这条命令直接使用已有隧道工具，无需粘贴函数。启动后安静等待属于正常情况；是否真正通信成功，要看后面的 ACK 和报告。输入密码时不要显示或录入口令。
+脚本使用交互式 SSH，沿用已有主机信任配置，不保存密码。启动后安静等待属于正常情况；是否真正通信成功，要看后面的 ACK 和报告。输入密码时不要显示或录入口令。
 
 ## 3. 终端 B：检查两台 BLE，然后连接手机
 
@@ -47,24 +47,15 @@ iPhone 打开 Unity → **Week 7 Connect / Settings → Connect**。确认 **`Su
 
 ## 4. 终端 B：运行 60 秒，显示并保存日志
 
-下面整个小块执行一次即可。每次运行自动使用新目录；重测时再执行同一块。现有程序默认每秒输出两路进度，ACK 窗口为每台 32，使用 `week7-demo` 会话。
+手机显示 `Subscribed, Received: 0` 后执行：
 
 ```powershell
-$ErrorActionPreference = 'Stop'
-$PSNativeCommandUseErrorActionPreference = $false
-$run = ".week7-local\B07-$(Get-Date -Format yyyyMMdd-HHmmss-fff)"
-New-Item -ItemType Directory -Path $run -ErrorAction Stop | Out-Null
-python -u -m laptop.dual_bridge `
-    --ca "$env:USERPROFILE\.codex\private\cg4002-week7-20260906\ca-cert.pem" --port 18889 `
-    --left-address 38:18:2B:19:82:AE --right-address 38:18:2B:18:9D:6A `
-    --duration 60 --report "$run\report.json" `
-    2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath "$run\live.log"
-$runExit = $LASTEXITCODE
-$runExit | Set-Content "$run\exit-code.txt"
-Write-Host "Exit=$runExit  Saved in: $run"
+python demo.py run
 ```
 
-**不需要改代码。** `--report` 是程序已有的报告功能；`Tee-Object` 让日志同时显示并保存。让程序自然结束，不要中途按 Ctrl+C；连接准备及最终排空会使总耗时略长于 60 秒。
+默认运行 **60 秒**，使用第 3 节的两台地址、端口 `18889`，以及当前用户主目录下的 `.codex\private\cg4002-week7-20260906\ca-cert.pem`。如需换地址、CA 或端口，执行 `python demo.py run --help` 查看选项。
+
+脚本会新建本次目录，实时显示并保存日志，结束后显示每台计数和采集通过/失败。让程序自然结束，不要中途按 Ctrl+C；连接准备及最终排空会使总耗时略长于 60 秒。默认每秒显示两路进度，ACK 窗口为每台 32，使用 `week7-demo` 会话。
 
 你会看到类似以下格式，数值以实际运行结果为准：
 
@@ -85,24 +76,19 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ## 5. 终端 B：看报告、核对手机
 
-结束后执行这个短块，显示总状态、连接状态和源端对账表。拉宽终端窗口，避免表格列被截断：
+`run` 结束时会自动显示摘要。之后要重新查看最近一次采集，只需：
 
 ```powershell
-$r = Get-Content "$run\report.json" -Raw | ConvertFrom-Json
-$r | Format-List clean,mock_input,report_saved
-# Connection rows are ESP 1, then ESP 2.
-$r.devices.'1', $r.devices.'2' | Format-Table clean,protected_ble,ble_connections,transport_connections,unfinished -AutoSize
-$r.devices.'1'.source, $r.devices.'2'.source |
-    Format-Table device_id,generated,source_submitted,received,acked,missing_received,missing_acked -AutoSize
+python demo.py report
 ```
 
-本次正常测试通过需要：
+它按目录修改时间选择最近一次采集；即使最近一次未完成，也不会退回旧的成功报告。本次正常测试通过需要：
 
-- `Exit=0`、`clean=True`、`mock_input=False`、`report_saved=True`；两台受保护连接正常，`unfinished=False`。正常无重连时 BLE/TLS 连接数各为 1。
+- 退出码为 `0`、`clean=true`、`mock_input=false`、`report_saved=true`；两台受保护连接正常，`unfinished=false`。正常无重连时 BLE/TLS 连接数各为 1。
 - 每台 **`generated = source_submitted = received = acked`**，两项 `missing` 均为 0。这里的 `received` 是源端审计中的已接收样本数。
-- 等手机计数稳定后，核对 **手机结束计数 − 开始计数 = 两台 `generated` 之和**。记录实际手机计数；电脑报告不会自动读取 iPhone 屏幕。初始为 0 时直接比较手机结束计数。
+- 等手机计数稳定后，手动核对 **手机结束计数 − 开始计数 = 两台 `generated` 之和**。只有有效、clean 的实体采集，脚本才会显示预期手机增量。**脚本不会读取 iPhone 屏幕**；初始为 0 时直接比较手机结束计数，并记录画面。
 
-不要固定要求“一分钟恰好 1,200 包”，连接启动和收尾也可能产生样本。未完成报告、`clean=False` 或源端 `null` 都不能算通过。`clean` 汇总了源端核对及错误/丢弃等检查；全部字段见[完整验收说明](week7-testing-and-demo-guide.zh-CN.md#7-capture-a-complete-physical-run-and-save-its-outcome)。
+不要固定要求“一分钟恰好 1,200 包”，连接启动和收尾也可能产生样本。未完成报告、`clean=false` 或源端 `null` 都不能算通过。`clean` 汇总了源端核对及错误/丢弃等检查；全部字段见[完整验收说明](week7-testing-and-demo-guide.zh-CN.md#7-capture-a-complete-physical-run-and-save-its-outcome)。
 
 文件保存在 **`D:\LetThemCook\.week7-local\B07-时间戳\`**：
 
@@ -111,12 +97,7 @@ $r.devices.'1'.source, $r.devices.'2'.source |
 | `live.log` | 本次电脑进度、错误及最终输出 |
 | `report.json` | 原始结构化报告，包含两台设备计数和源端审计 |
 | `exit-code.txt` | 本次退出码，正常通过为 0 |
-
-想保存一个方便阅读的缩进版本，再运行这一行即可：
-
-```powershell
-python -m json.tool "$run\report.json" "$run\report-readable.json"
-```
+| `report-readable.json` | 原始报告是有效 JSON 时，自动保存的缩进版本 |
 
 **English（核对通过后，用实际数字替换）：**
 
@@ -126,15 +107,15 @@ python -m json.tool "$run\report.json" "$run\report-readable.json"
 
 ## 6. 再录几段，验证恢复能力
 
-每次重复第 4 节，按表修改 `--duration`；自动得到新的日志和报告目录。记录每次手机开始/结束计数，正常运行后重复第 5 节。
+每次执行 `run` 都会得到新的日志和报告目录。记录每次手机开始/结束计数，正常运行后重复第 5 节。
 
 | 测试 | 操作与观察 |
 |---|---|
-| 空闲恢复 | 手机保持前台，停止发送至少 120 秒，再运行 60 秒；不点 Connect。应保持 `Subscribed`，手机增量匹配第二次源端总数。 |
-| 单 ESP 故障 | 单独运行 120 秒；两路开始后约 20 秒给 ESP 1 断电，约 20 秒后恢复。ESP 2 应继续推进，ESP 1 恢复后继续接收。此次故障报告预期不 clean，不能用来宣布零丢失。 |
-| 故障后正常运行 | 两台供电稳定后，另做新 60 秒采集，重新核对 clean 和计数。断电改变 boot ID，前一段源端数可能为 `null`，不能当作 0。 |
-| 手机锁屏恢复 | 停止发送后锁屏约 20 秒，解锁出现 `Paused`；手动 Connect，确认计数归零，再运行 30 秒并核对。 |
-| 十分钟连续运行 | 改为 `--duration 600`，保持手机前台，结束后用实际数值对账。 |
+| 空闲恢复 | 手机保持前台，停止发送至少 120 秒，再执行 `python demo.py run`；不点 Connect。应保持 `Subscribed`，手机增量匹配第二次源端总数。 |
+| 单 ESP 故障 | 执行 `python demo.py run --duration 120`；两路开始后约 20 秒给 ESP 1 断电，约 20 秒后恢复。ESP 2 应继续推进，ESP 1 恢复后继续接收。此次故障报告预期不 clean，不能用来宣布零丢失。 |
+| 故障后正常运行 | 两台供电稳定后，执行 `python demo.py run` 做新采集，重新核对 clean 和计数。断电改变 boot ID，前一段源端数可能为 `null`，不能当作 0。 |
+| 手机锁屏恢复 | 停止发送后锁屏约 20 秒，解锁出现 `Paused`；手动 Connect，确认计数归零，再执行 `python demo.py run --duration 30` 并核对。 |
+| 十分钟连续运行 | 执行 `python demo.py run --duration 600`，保持手机前台，结束后用实际数值对账。 |
 
 **English：**
 
@@ -161,4 +142,4 @@ python -m json.tool "$run\report.json" "$run\report-readable.json"
 
 > Each device has its own BLE input, queue and TLS connection. Asynchronous tasks allow both streams to make progress independently. The clean captures show matching source and acknowledgement counts, together with a matching aggregate phone count.
 
-保存报告和手机计数画面后，在终端 A 按 Ctrl+C 停止本次启动的隧道。完整原理见[技术报告](week7-system-technical-report.zh-CN.md)，首次配置和故障排查见[完整测试指南](week7-testing-and-demo-guide.zh-CN.md)。本次文档简化只核对命令与代码，没有重新执行实体测试。
+保存报告和手机计数画面后，在终端 A 按 Ctrl+C 停止本次启动的隧道。完整原理见[技术报告](week7-system-technical-report.zh-CN.md)，首次配置和故障排查见[完整测试指南](week7-testing-and-demo-guide.zh-CN.md)。本次脚本与文档更新没有重新执行实体测试。
