@@ -27,7 +27,7 @@ _INTEGER_FIELDS = frozenset({
 })
 _TEXT_FIELDS = frozenset({"session_id", "reason", "error_type"})
 _BOOLEAN_FIELDS = frozenset({"phone_receipt_confirmed", "ambiguous"})
-_ALLOWED_FIELDS = _INTEGER_FIELDS | _TEXT_FIELDS | _BOOLEAN_FIELDS | {"age_seconds"}
+_ALLOWED_FIELDS = _INTEGER_FIELDS | _TEXT_FIELDS | _BOOLEAN_FIELDS | {"age_seconds", "request_id"}
 _TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
 _STATUS_SCHEMA = "ultra96-bounded-event-log-status-v1"
 _EVENT_SCHEMA = "ultra96-observer-event-v1"
@@ -100,7 +100,10 @@ class BoundedEventLog:
             raise ValueError("unsafe or unexpected diagnostic field")
         copied = dict(fields)
         for name, value in copied.items():
-            if name in _INTEGER_FIELDS:
+            if name == "request_id":
+                if value is not None and (type(value) is not int or not 1 <= value <= 0xFFFFFFFF):
+                    raise ValueError("diagnostic request ID is invalid")
+            elif name in _INTEGER_FIELDS:
                 if type(value) is not int or value < 0:
                     raise ValueError("diagnostic integer field is invalid")
                 if name == "device_id" and value not in (1, 2):

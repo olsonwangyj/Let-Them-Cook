@@ -9,6 +9,10 @@ Start with the two current reports:
 
 The [B07 CO subsystem requirements](docs/B07-CO-subsystem-requirements.md) map the instructor's full guideline to existing capabilities, missing features, acceptance criteria, and implementation order. The current transport demo does not yet cover that entire guideline.
 
+The [CO version 2 protocol](docs/co-protocol-v2.md) documents the software extensions: editable random fixtures, random board events, keyboard commands, source-rate controls, SHA-256-verified BLE file transfers and measured kbps. These require coordinated firmware/server/receiver installation; the reports below remain evidence for their original versions.
+
+The [28 September deployment and physical test report](docs/co-live-deployment-2026-09-28.md) records the updated Ultra96 service, both flashed ESPs, command/file results, rate measurements and power recovery. Native iPhone and range verification remain separate from the Python result-receiver tests.
+
 For recording the existing transport baseline, use the [B07 CO short local recording guide](docs/B07-CO-subsystem-video-guide.zh-CN.md): Chinese instructions for the configured Windows laptop, short English narration, source-code locations, and recovery tests. Extend the recording to cover the requirements above after the remaining features are implemented. The submission filename is `B07_CO_subsystem.mp4`.
 
 From the configured repository, run `python demo.py tunnel` in terminal A. In terminal B, after the iPhone shows `Subscribed, Received: 0`, run `python demo.py run`. This captures both ESPs for 60 seconds, displays live logs, saves each capture under `.week7-local/B07-*`, and prints per-device counts and capture pass/fail. Use `python demo.py report` to reopen the latest capture summary, or `python demo.py run --duration 600` for a ten-minute capture.

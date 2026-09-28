@@ -18,4 +18,11 @@ inline bool canNotify(bool connected, bool subscribed, bool authenticated,
 
 inline bool sensorFitsMtu(uint16_t mtu) { return mtu >= 35; }
 
+inline bool canAcceptControl(bool connected, bool subscribed, bool authenticated,
+                             bool diagnostic, uint16_t writeConnection,
+                             uint16_t currentConnection) {
+  return writeConnection == currentConnection &&
+      canNotify(connected, subscribed, authenticated, diagnostic);
+}
+
 }  // namespace week7

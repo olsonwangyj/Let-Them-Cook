@@ -8,16 +8,22 @@ from dataclasses import asdict, dataclass
 import json
 import logging
 import math
+import random
 import secrets
 import ssl
 import threading
 import time
 from typing import Any, Optional
 
-from common.sensor import decode_packet, dummy_values, SensorPacket, encode_packet
+from common.sensor import decode_packet, dummy_values, choose_fixture, SensorPacket, encode_packet
+from common.control import CONTROL_UUID, RESPONSE_UUID
 from common.tls import client_context, TLS_SERVER_NAME
 from common.wire import read_frame, write_frame, ProtocolError
 from laptop.source_audit import SOURCE_STATS_UUID, SourceAudit, SourceStats, parse_source_stats
+from laptop.controls import ControlChannel, CommandPipeline
+from laptop.goodput import GoodputMeter
+from laptop.ble_parameters import prefer_throughput
+from laptop.ble_shutdown import disable_notifications_remotely
 
 SERVICE_UUID = "6e1c0001-7a45-4dc4-b678-3f2d5a9c1001"
 SENSOR_UUID = "6e1c0005-7a45-4dc4-b678-3f2d5a9c1001"
@@ -40,6 +46,9 @@ class BridgeConfig:
     expected_device_id: Optional[int] = None
     source_audit: bool = False
     ack_window: int = 1
+    controls_enabled: bool = False
+    source_rate: Optional[int] = None
+    seed: Optional[int] = None
 
     def __post_init__(self):
         if self.host != "127.0.0.1":
@@ -56,6 +65,11 @@ class BridgeConfig:
             raise ValueError("expected device ID must be 1 or 2")
         if self.source_audit and self.expected_device_id is None:
             raise ValueError("source audit requires an expected device ID")
+        if self.source_rate is not None and (type(self.source_rate) is not int
+                                            or not 1 <= self.source_rate <= 200):
+            raise ValueError("source rate must be integer 1..200 Hz")
+        if self.controls_enabled and (not self.source_audit or self.diagnostic_unprotected):
+            raise ValueError("controls require source identity and authenticated BLE bonding")
         from ultra96.protocol import validate_session
         validate_session(self.session_id)
         for value in [self.freshness, self.io_timeout, self.scan_timeout, self.connect_timeout]:
@@ -196,7 +210,7 @@ class _PipelineCleanupError(RuntimeError):
 
 
 class Bridge:
-    def __init__(self, config, *, connector=None, clock=time.monotonic):
+    def __init__(self, config, *, connector=None, clock=time.monotonic, evidence=None):
         self.config = config
         self.clock = clock
         self.inbox = RawInbox(config.queue_capacity)
@@ -223,11 +237,66 @@ class Bridge:
         self.observation_received = 0
         self.observation_max_silence = 0.0
         self._observation_last = None
+        self.goodput = GoodputMeter()
+        self.evidence = evidence
+        self.negotiated_mtu = None
+        self.source_rate_confirmed = None
+        self.connection_parameters = None
+        self.rng = random.Random(config.seed) if config.seed is not None else None
+        self.control = (ControlChannel(config.expected_device_id, timeout=config.io_timeout,
+                                       evidence=evidence, bounded=self._bounded)
+                        if config.controls_enabled else None)
+        self.commands = (CommandPipeline(self.control, self.forward_command)
+                         if self.control is not None else None)
+
+    def log(self, kind, **fields):
+        if self.evidence is not None:
+            self.evidence.record(kind, device_id=self.config.expected_device_id, **fields)
+
+    def submit_command(self):
+        if self.control is None:
+            return False
+        packet = SensorPacket(self.config.expected_device_id, self.control.boot_id or 0,
+                              self.control.next_id(), 0, choose_fixture(self.rng), version=2)
+        return self.commands.submit(packet)
+
+    async def forward_command(self, packet, request_id):
+        """Independent TLS transaction; never consumes stream sequence or ACK counts."""
+        reader = writer = None
+        try:
+            reader, writer = await self._connector()
+            await self._write_frame(writer, packet.to_message(self.config.session_id, request_id),
+                                    timeout=self.config.io_timeout)
+            ack = await self._read_frame(reader, timeout=self.config.io_timeout)
+            self._check_ack(ack, packet, request_id=request_id)
+            if ack["status"] != "accepted":
+                raise ProtocolError("duplicate command ingestion; no new phone event")
+        finally:
+            if writer is not None:
+                writer.close()
+                try:
+                    await self._bounded(writer.wait_closed(), 1.0)
+                except BaseException:
+                    if hasattr(writer, "transport"):
+                        writer.transport.abort()
+                    raise
 
     def enqueue(self, generation, data):
         received_at = self.clock()
         if not self.inbox.put(generation, data, received_at):
             return False
+        try:
+            packet = decode_packet(data)
+            if (self.config.expected_device_id is None or
+                    packet.device_id == self.config.expected_device_id):
+                self.goodput.record(packet, received_at)
+                self.log("sensor", direction="ESP->laptop", version=packet.version,
+                         boot_id=packet.boot_id, seq=packet.seq, uptime_ms=packet.uptime_ms,
+                         values=list(packet.values), raw_hex=bytes(data).hex(), validation="decoded",
+                         received_monotonic=received_at)
+        except (ValueError, TypeError):
+            self.log("sensor_invalid", direction="ESP->laptop", raw_hex=bytes(data).hex(),
+                     validation="malformed")
         with self._notification_lock:
             self.callback_received += 1
             self.last_notification_at = received_at
@@ -241,6 +310,7 @@ class Bridge:
 
     def begin_observation(self, now=None):
         now = self.clock() if now is None else now
+        self.goodput.start(now)
         with self._notification_lock:
             self._observation_active = True
             self.observation_received = 0
@@ -249,6 +319,7 @@ class Bridge:
 
     def finish_observation(self, now=None):
         now = self.clock() if now is None else now
+        self.goodput.stop(now)
         with self._notification_lock:
             if self._observation_active:
                 self.observation_max_silence = max(
@@ -301,9 +372,11 @@ class Bridge:
                 LOG.warning("TLS cleanup failed operation=close_transport error_type=%s",
                             type(exc).__name__)
 
-    def _check_ack(self, ack, packet):
-        expected = dict(v=1, type="INGEST_ACK", session_id=self.config.session_id,
+    def _check_ack(self, ack, packet, request_id=None):
+        expected = dict(v=packet.version, type="INGEST_ACK", session_id=self.config.session_id,
                         device_id=packet.device_id, boot_id=packet.boot_id, seq=packet.seq)
+        if packet.version == 2:
+            expected["request_id"] = request_id
         if not isinstance(ack, dict) or set(ack) != set(expected) | {"status"}:
             raise ProtocolError("malformed ingestion acknowledgement")
         for key, value in expected.items():
@@ -332,7 +405,7 @@ class Bridge:
                     and packet.device_id != self.config.expected_device_id):
                 self.metrics.identity_mismatches += 1
                 return
-            if tuple(packet.values) != tuple(dummy_values(packet.seq)):
+            if packet.version == 1 and tuple(packet.values) != tuple(dummy_values(packet.seq)):
                 raise ValueError("not a Week 7 deterministic packet")
         except (ValueError, TypeError):
             self.metrics.malformed += 1
@@ -381,6 +454,8 @@ class Bridge:
                 self.metrics.ack_errors += 1
                 raise
             self.metrics.acked += 1
+            self.log("sensor_ack", direction="Ultra96->laptop", seq=packet.seq,
+                     boot_id=packet.boot_id, validation=ack["status"])
             self.metrics.duplicate_acks += int(ack["status"] == "duplicate")
             if self.source_audit is not None:
                 self.source_audit.acknowledged(packet)
@@ -546,6 +621,8 @@ class Bridge:
                     raise _PipelineTransportError() from exc
                 pending.popleft()
                 self.metrics.acked += 1
+                self.log("sensor_ack", direction="Ultra96->laptop", seq=frame.packet.seq,
+                         boot_id=frame.packet.boot_id, validation=ack["status"])
                 self.metrics.duplicate_acks += int(ack["status"] == "duplicate")
                 if self.source_audit is not None:
                     self.source_audit.acknowledged(frame.packet)
@@ -614,7 +691,9 @@ class Bridge:
                 await asyncio.sleep(0.5)
                 continue
             client = None
+            connection_preference = None
             subscribed = False
+            controls_subscribed = False
             normal_stop = False
             disconnected = asyncio.Event()
             generation += 1
@@ -639,9 +718,22 @@ class Bridge:
                     raise ValueError("Week 7 sensor Notify characteristic missing")
                 if client.mtu_size < 35:
                     raise ValueError("current ATT MTU cannot carry 32-byte W7 packet")
+                self.negotiated_mtu = client.mtu_size
                 if not self.config.diagnostic_unprotected:
                     from laptop.windows_pairing import require_authenticated_bond
                     await require_authenticated_bond(client)
+
+                async def configure_parameters():
+                    nonlocal connection_preference
+                    # Store ownership inside the supervised child so cancellation
+                    # after it returns cannot discard an already-created handle.
+                    connection_preference = await prefer_throughput(
+                        client, source_rate=self.config.source_rate)
+
+                await self._bounded(configure_parameters(), self.config.connect_timeout)
+                self.connection_parameters = connection_preference.report()
+                self.log("BLE_connection_parameters", generation=current,
+                         **self.connection_parameters)
                 if self.source_audit is not None:
                     source = service.get_characteristic(SOURCE_STATS_UUID) if service else None
                     if source is None or "read" not in source.properties:
@@ -662,12 +754,29 @@ class Bridge:
                     else:
                         # The original start boundary remains authoritative.
                         self.source_audit.mark_interruption()
+                if self.control is not None:
+                    for uuid, property_name in ((CONTROL_UUID, "write"), (RESPONSE_UUID, "notify")):
+                        control_char = service.get_characteristic(uuid)
+                        if control_char is None or property_name not in control_char.properties:
+                            raise ValueError("protected B07 control characteristics missing; update firmware")
+                    self.control.attach(client, snapshot.boot_id)
+                    control_generation = self.control._generation
+                    def control_notification(sender, data, gen=control_generation):
+                        self.control.receive(sender, data, generation=gen)
+                    await self._bounded(client.start_notify(RESPONSE_UUID, control_notification),
+                                        self.config.connect_timeout)
+                    controls_subscribed = True
+                    if self.config.source_rate is not None:
+                        await self.control.set_rate(self.config.source_rate)
+                        self.source_rate_confirmed = self.config.source_rate
                 self.inbox.activate(current)
                 def notification(_sender, data, gen=current):
                     self.enqueue(gen, data)
                 await self._bounded(client.start_notify(SENSOR_UUID, notification), self.config.connect_timeout)
                 subscribed = True
                 self.metrics.ble_connections += 1
+                self.log("BLE_connected", direction="ESP<->laptop", generation=current,
+                         mtu=client.mtu_size, authenticated=not self.config.diagnostic_unprotected)
                 delay = 0.5
                 active_event.set()
                 if stop_event is None:
@@ -693,14 +802,77 @@ class Bridge:
                 self.metrics.ble_errors += 1
                 LOG.warning("BLE attempt failed: %s", exc)
             finally:
+                if self.control is not None:
+                    self.control.detach()
+                self.log("BLE_disconnected", direction="ESP<->laptop", generation=current)
                 if client is not None:
                     cleanup_cancellation = None
-                    deadline = self.clock() + 1.0
+                    source_deadline = self.clock() + self.config.connect_timeout
+                    quiesced_snapshot = None
+                    remote_stop_task = None
+                    if controls_subscribed and client.is_connected:
+                        try:
+                            await self._bounded(client.stop_notify(RESPONSE_UUID), 0.75)
+                        except (Exception, asyncio.CancelledError) as exc:
+                            self.metrics.cleanup_errors += 1
+                            if isinstance(exc, asyncio.CancelledError):
+                                cleanup_cancellation = exc
+                    if normal_stop and subscribed and client.is_connected and self.source_audit is not None:
+                        try:
+                            async def stop_remote():
+                                nonlocal remote_stop_task
+                                remote_stop_task = asyncio.current_task()
+                                return await disable_notifications_remotely(characteristic)
+
+                            remote_disabled = await self._bounded(stop_remote(),
+                                min(0.75, max(0.001, source_deadline - self.clock())))
+                            if remote_disabled:
+                                remaining = source_deadline - self.clock()
+                                if remaining <= 0:
+                                    raise asyncio.TimeoutError("source cleanup budget exhausted")
+                                # Arduino can ACK a CCCD write before its callback.
+                                # An uncached source read is the firmware mutex barrier.
+                                quiesced_snapshot = parse_source_stats(await self._bounded(
+                                    client.read_gatt_char(SOURCE_STATS_UUID, use_cached=False), remaining),
+                                    expected_device_id=self.config.expected_device_id)
+                                start = self.source_audit.start_stats
+                                if start is None or quiesced_snapshot.boot_id != start.boot_id:
+                                    raise ProtocolError("quiesced source boot changed")
+                                expected_received = (quiesced_snapshot.submitted - start.submitted) & 0xffffffff
+                                self.log("source_quiesced", snapshot=asdict(quiesced_snapshot),
+                                         expected_received=expected_received)
+                                drain_started = self.clock()
+                                drain_deadline = min(source_deadline, drain_started + 0.5)
+                                while self.source_audit.received_count < expected_received:
+                                    remaining = drain_deadline - self.clock()
+                                    if remaining <= 0:
+                                        self.log("source_tail_drain", validation="timeout",
+                                            expected_received=expected_received,
+                                            received=self.source_audit.received_count,
+                                            elapsed_seconds=self.clock() - drain_started)
+                                        # Conservative failure: may be host backlog
+                                        # or a missing BLE tail. Neither is hidden.
+                                        raise asyncio.TimeoutError("source tail drain timed out")
+                                    await asyncio.sleep(min(0.01, remaining))
+                                self.log("source_tail_drain", validation="complete",
+                                    expected_received=expected_received,
+                                    received=self.source_audit.received_count,
+                                    elapsed_seconds=self.clock() - drain_started)
+                        except (Exception, asyncio.CancelledError) as exc:
+                            self.metrics.source_stats_errors += 1
+                            self.source_audit.mark_snapshot_error()
+                            if isinstance(exc, asyncio.CancelledError):
+                                cleanup_cancellation = exc
+                            self.log("source_quiesce_failed", error_type=type(exc).__name__,
+                                native_pending=bool(remote_stop_task is not None and not remote_stop_task.done()))
+                            LOG.warning("BLE cleanup failed operation=quiesce_source error_type=%s",
+                                        type(exc).__name__)
                     # WinRT stop_notify writes the remote CCCD and rejects an
                     # already-disconnected client. disconnect still releases
                     # local notification handlers and native service objects.
                     stopped_notifications = False
-                    if subscribed and client.is_connected:
+                    if (subscribed and client.is_connected and
+                            (remote_stop_task is None or remote_stop_task.done())):
                         try:
                             await self._bounded(client.stop_notify(SENSOR_UUID), 0.75)
                             stopped_notifications = True
@@ -713,28 +885,48 @@ class Bridge:
                     if (normal_stop and stopped_notifications
                             and self.source_audit is not None):
                         try:
+                            remaining = source_deadline - self.clock()
+                            if remaining <= 0:
+                                raise asyncio.TimeoutError("source cleanup budget exhausted")
+                            read_options = {"use_cached": False} if quiesced_snapshot is not None else {}
                             final = parse_source_stats(
-                                await self._bounded(client.read_gatt_char(SOURCE_STATS_UUID),
-                                                    self.config.connect_timeout),
+                                await self._bounded(client.read_gatt_char(SOURCE_STATS_UUID, **read_options),
+                                                    remaining),
                                 expected_device_id=self.config.expected_device_id)
                             self.source_audit.finish(final)
+                            if quiesced_snapshot is not None and final != quiesced_snapshot:
+                                raise ProtocolError("source changed after notifications were quiesced")
+                            if quiesced_snapshot is not None:
+                                self.log("source_final_verified", snapshot=asdict(final), validation="unchanged")
                         except (Exception, asyncio.CancelledError) as exc:
                             self.metrics.source_stats_errors += 1
                             self.source_audit.mark_snapshot_error()
                             if isinstance(exc, asyncio.CancelledError):
                                 cleanup_cancellation = exc
+                            self.log("source_final_failed", error_type=type(exc).__name__)
                             LOG.warning("BLE cleanup failed operation=read_source_stats error_type=%s",
                                         type(exc).__name__)
                     self.inbox.deactivate(preserve=normal_stop and stopped_notifications)
                     active_event.clear()
+                    if connection_preference is not None:
+                        connection_preference.refresh()
+                        self.connection_parameters = connection_preference.report()
                     try:
-                        await self._bounded(client.disconnect(), max(0.001, deadline - self.clock()))
+                        # WinRT waits before disposing GATT services. Earlier
+                        # CCCD timeouts/source reads must not spend this budget.
+                        await self._bounded(client.disconnect(), 1.0)
                     except (Exception, asyncio.CancelledError) as exc:
                         if isinstance(exc, asyncio.CancelledError):
                             cleanup_cancellation = exc
                         self.metrics.cleanup_errors += 1
                         LOG.warning("BLE cleanup failed operation=disconnect error_type=%s",
                                     type(exc).__name__)
+                    finally:
+                        if connection_preference is not None:
+                            connection_preference.close()
+                            self.connection_parameters = connection_preference.report()
+                            self.metrics.cleanup_errors += len(
+                                self.connection_parameters["cleanup_errors"])
                     if cleanup_cancellation is not None:
                         raise cleanup_cancellation
                 else:
@@ -769,7 +961,7 @@ class Bridge:
         try:
             while stop_event is None or not stop_event.is_set():
                 self.enqueue(1, encode_packet(SensorPacket(device_id, boot_id, seq,
-                    (seq * 100) & 0xffffffff, dummy_values(seq))))
+                    int(seq * 1000 / rate) & 0xffffffff, choose_fixture(self.rng), version=2)))
                 seq = (seq + 1) & 0xffffffff
                 if stop_event is None:
                     await asyncio.sleep(1.0 / rate)
@@ -806,6 +998,18 @@ class Bridge:
                     callback_received=self.callback_received,
                     observation_received=self.observation_received,
                     observation_max_silence=self.observation_max_silence,
+                    sensor_goodput=self.goodput.report(self.clock()),
+                    commands=self.commands.summary() if self.commands is not None else None,
+                    controls=self.control.summary() if self.control is not None else None,
+                    configuration={"address": self.config.address,
+                                   "negotiated_att_mtu": self.negotiated_mtu,
+                                   "source_rate_requested_hz": self.config.source_rate,
+                                   "source_rate_confirmed_hz": self.source_rate_confirmed,
+                                   "connection_parameters": self.connection_parameters,
+                                   "ack_window": self.config.ack_window,
+                                   "queue_capacity": self.config.queue_capacity,
+                                   "freshness_seconds": self.config.freshness,
+                                   "fixture_seed": self.config.seed},
                     source=source, source_issue=source_issue)
 
     async def run(self, duration=60.0, target=0, mock=False):

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "week7_fixtures.h"
 
 namespace week7 {
 
@@ -46,6 +47,18 @@ inline bool serializeDummyPacket(uint8_t* output, size_t capacity,
     values[channel] = dummyValue(seq, channel);
   }
   return serializePacket(output, capacity, deviceId, bootId, seq, uptimeMs, values);
+}
+
+// Version 1 remains the deterministic baseline. Version 2 has the same binary
+// representation and chooses an editable fixture independently of sequence.
+inline bool serializeFixturePacket(uint8_t* output, size_t capacity,
+                                   uint8_t deviceId, uint32_t bootId, uint32_t seq,
+                                   uint32_t uptimeMs, uint32_t randomWord) {
+  static_assert(kDummyFixtureCount > 1, "random source needs multiple fixtures");
+  if (!serializePacket(output, capacity, deviceId, bootId, seq, uptimeMs,
+                       kDummyFixtures[randomWord % kDummyFixtureCount])) return false;
+  output[2] = 2;
+  return true;
 }
 
 }  // namespace week7

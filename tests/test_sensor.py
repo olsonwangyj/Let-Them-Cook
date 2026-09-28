@@ -35,7 +35,7 @@ def test_decoder_rejects_truncation_and_trailing_bytes(length):
         decode_packet((raw + bytes(64))[:length])
 
 
-@pytest.mark.parametrize("offset,value", [(0, 0), (1, 0), (2, 0), (2, 2), (3, 0), (3, 3), (3, 255)])
+@pytest.mark.parametrize("offset,value", [(0, 0), (1, 0), (2, 0), (2, 3), (3, 0), (3, 3), (3, 255)])
 def test_decoder_rejects_wrong_magic_version_and_device(offset, value):
     from common.sensor import decode_packet
 

@@ -21,6 +21,29 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(message.json, result)
     }
 
+    func testV2RandomLabelsAndCommandIdentityPreserveCorrelation() throws {
+        let stream = result.replacingOccurrences(of: #""v":1"#, with: #""v":2,"request_id":null"#)
+        for label in ["REST", "FIST", "OPEN", "POINT"] {
+            let message = try Week7Protocol.result(Array(stream.replacingOccurrences(of: "OPEN", with: label).utf8), session: "week7-demo")
+            XCTAssertEqual(message.gesture, label)
+            XCTAssertNil(message.requestID)
+        }
+        let command = stream.replacingOccurrences(of: #""request_id":null"#, with: #""request_id":42"#)
+            .replacingOccurrences(of: #""1:7:42""#, with: #""cmd:1:7:42""#)
+        let parsed = try Week7Protocol.result(Array(command.utf8), session: "week7-demo")
+        XCTAssertEqual(parsed.requestID, 42)
+        XCTAssertEqual(parsed.resultID, "cmd:1:7:42")
+        for request in ["true", "-1", "42.0", "4294967296", "41", #""42""#] {
+            XCTAssertThrowsError(try Week7Protocol.result(Array(command.replacingOccurrences(of: #""request_id":42"#, with: "\"request_id\":\(request)").utf8), session: "week7-demo"))
+        }
+        for invalid in [stream.replacingOccurrences(of: #","request_id":null"#, with: ""),
+                        stream.replacingOccurrences(of: "OPEN", with: "OTHER"),
+                        stream.replacingOccurrences(of: #""v":2"#, with: #""v":1"#),
+                        stream.replacingOccurrences(of: #""request_id":null"#, with: #""request_id":null,"request_id":null"#)] {
+            XCTAssertThrowsError(try Week7Protocol.result(Array(invalid.utf8), session: "week7-demo"))
+        }
+    }
+
     func testAcceptsExactUInt32EndpointsAndAllDeterministicGestures() throws {
         let literals = [
             #"{"v":1,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":2,"boot_id":0,"seq":0,"result_id":"2:0:0","gesture":"REST","confidence":1}"#,

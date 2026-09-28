@@ -34,6 +34,14 @@ public static class CoreSelfTest
         PhoneProtocol.ValidateSubscribed("{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}", "week7-demo");
         Check(PhoneProtocol.Subscribe("week7-demo") == "{\"v\":1,\"type\":\"SUBSCRIBE\",\"session_id\":\"week7-demo\"}", "subscribe contract");
         Check(PhoneProtocol.Subscribe(new string('a', 128)).Contains(new string('a', 128)), "128-character session matches server");
+        string randomResult = Result.Replace("\"v\":1", "\"v\":2,\"request_id\":null").Replace("\"POINT\"", "\"REST\"");
+        Check(PhoneProtocol.ParseResult(randomResult, "week7-demo").Gesture == "REST", "v2 event is independent of sequence");
+        string commandResult = randomResult.Replace("\"request_id\":null", "\"request_id\":3").Replace("\"1:4294967295:3\"", "\"cmd:1:4294967295:3\"");
+        Check(PhoneProtocol.ParseResult(commandResult, "week7-demo").ResultId == "cmd:1:4294967295:3", "command trace namespace");
+        foreach (string badRequest in new[] { "true", "-1", "3.0", "4294967296", "2", "\"3\"" })
+            Reject(() => PhoneProtocol.ParseResult(commandResult.Replace("\"request_id\":3", "\"request_id\":" + badRequest), "week7-demo"), "invalid command request identity");
+        Reject(() => PhoneProtocol.ParseResult(randomResult.Replace(",\"request_id\":null", ""), "week7-demo"), "missing v2 request field");
+        Reject(() => PhoneProtocol.ParseResult(randomResult.Replace("\"REST\"", "\"UNKNOWN\""), "week7-demo"), "unknown random gesture");
         string[] bad = {
             Result.Replace("\"v\":1", "\"v\":1,\"v\":1"),
             Result.Replace("\"v\":1", "\"v\":true"),
@@ -68,6 +76,21 @@ public static class CoreSelfTest
         byte[][] invalidFrames = { new byte[] {0,0,0,0}, new byte[] {0,0,64,1}, new byte[] {0,0}, new byte[] {0,0,0,2,0xff,0xff}, new byte[] {0,0,0,2,123} };
         foreach (var invalid in invalidFrames)
             Reject(() => PhoneFrames.ReadAsync(new MemoryStream(invalid), TimeSpan.FromSeconds(1), CancellationToken.None).GetAwaiter().GetResult(), "invalid frame");
+        using (var stalled = new StalledReadStream(true))
+        {
+            bool expired = false;
+            try { await PhoneFrames.ReadAsync(stalled, TimeSpan.FromMilliseconds(40), CancellationToken.None, allowIdle: true); }
+            catch (TimeoutException) { expired = true; }
+            Check(expired, "partial result after first byte still has a frame deadline");
+        }
+        using (var idle = new StalledReadStream(false))
+        using (var cancelled = new CancellationTokenSource(TimeSpan.FromMilliseconds(80)))
+        {
+            bool stopped = false;
+            try { await PhoneFrames.ReadAsync(idle, TimeSpan.FromMilliseconds(20), cancelled.Token, allowIdle: true); }
+            catch (OperationCanceledException) { stopped = true; }
+            Check(stopped, "healthy idle is cancellable without frame timeout");
+        }
         Reject(() => PhoneFrames.Encode(new string('x', 16385)), "oversized outbound");
         var delivery = new FreshResultQueue(2, TimeSpan.FromMilliseconds(30));
         delivery.NewConnection(); delivery.Enqueue(result); delivery.NewConnection();
@@ -102,6 +125,7 @@ public static class CoreSelfTest
                 Check(!await TlsHandshake(wrongName, root), "real loopback TLS with wrong SAN rejected");
                 Check(!await TlsHandshake(valid, otherRoot), "real loopback TLS with wrong CA rejected");
                 Check(await ReceiverReconnect(valid, root), "receiver recovers after malformed subscription and cancels cleanly");
+                Check(await ReceiverIdle(valid, root), "receiver keeps a healthy idle subscription beyond five seconds");
             }
         }
         return "PASS " + count + " C# contract/frame/freshness checks";
@@ -197,6 +221,55 @@ public static class CoreSelfTest
                 finally { timeout.Cancel(); receiver.Close(); release.TrySetResult(true); }
                 try { await receiving; } finally { try { await server; } catch (SocketException) { } }
                 return delivered && queue.Count == 0;
+            }
+        }
+    }
+
+    private sealed class StalledReadStream : MemoryStream
+    {
+        private bool firstByte;
+        public StalledReadStream(bool firstByte) { this.firstByte = firstByte; }
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken token)
+        {
+            if (firstByte) { firstByte = false; buffer[offset] = 0; return 1; }
+            await Task.Delay(Timeout.Infinite, token);
+            return 0;
+        }
+    }
+
+    private static async Task<bool> ReceiverIdle(X509Certificate2 serverCertificate, X509Certificate2 root)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+        var subscribed = new TaskCompletionSource<bool>();
+        var release = new TaskCompletionSource<bool>();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(9)))
+        using (timeout.Token.Register(() => listener.Stop()))
+        {
+            var serving = Task.Run(async () => {
+                using (var tcp = await listener.AcceptTcpClientAsync())
+                using (var tls = new SslStream(tcp.GetStream(), false))
+                {
+                    await tls.AuthenticateAsServerAsync(serverCertificate, false, SslProtocols.Tls12, false);
+                    await PhoneFrames.ReadAsync(tls, TimeSpan.FromSeconds(2), timeout.Token);
+                    await PhoneFrames.WriteAsync(tls, "{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}", TimeSpan.FromSeconds(2), timeout.Token);
+                    subscribed.TrySetResult(true);
+                    await release.Task;
+                }
+            });
+            var queue = new FreshResultQueue(32, TimeSpan.FromSeconds(2));
+            using (var receiver = new PhoneReceiver(root.Export(X509ContentType.Cert), queue, "week7-demo", ((IPEndPoint)listener.LocalEndpoint).Port))
+            {
+                var receiving = receiver.RunAsync(timeout.Token);
+                bool healthy;
+                try
+                {
+                    await subscribed.Task;
+                    await Task.Delay(5600, timeout.Token);
+                    healthy = receiver.LastStatus == "Subscribed" && !receiving.IsCompleted;
+                }
+                finally { timeout.Cancel(); receiver.Close(); release.TrySetResult(true); }
+                await receiving; await serving;
+                return healthy;
             }
         }
     }

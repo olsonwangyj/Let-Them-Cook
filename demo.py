@@ -12,6 +12,7 @@ import sys
 import uuid
 
 from tools.ssh_tunnel import tunnel_command
+from laptop.dual_bridge import _source_rate
 
 
 ROOT = Path(__file__).resolve().parent
@@ -48,6 +49,11 @@ def _parser():
     run.add_argument("--right-address", default="38:18:2B:18:9D:6A")
     run.add_argument("--port", type=_port, default=18889)
     run.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
+    run.add_argument("--keyboard", action="store_true", help="individual keys 1/2 command the selected ESP")
+    run.add_argument("--rate", type=_source_rate, help="set BOTH physical ESP sources to 1..200 Hz")
+    run.add_argument("--file", type=Path, help="send a 1..65536 byte file through BLE")
+    run.add_argument("--file-device", type=int, choices=(1, 2), default=1)
+    run.add_argument("--seed", type=int, help="repeat laptop random fixture selection")
 
     report = commands.add_parser("report", help="view the latest capture, or a given report")
     report.add_argument("path", nargs="?", type=Path, help="capture folder or report.json")
@@ -57,12 +63,20 @@ def _parser():
 
 def capture_command(args, report_path):
     """Keep physical input and current protocol settings explicit in the child."""
-    return [sys.executable, "-u", "-m", "laptop.dual_bridge",
+    command = [sys.executable, "-u", "-m", "laptop.dual_bridge",
             "--ca", str(args.ca.expanduser().resolve()), "--port", str(args.port),
             "--left-address", args.left_address, "--right-address", args.right_address,
             "--duration", str(args.duration), "--session-id", "week7-demo",
             "--ack-window", "32", "--progress-interval", "1",
-            "--report", str(report_path)]
+            "--report", str(report_path), "--evidence", str(report_path.with_name("packets.jsonl"))]
+    if args.keyboard:
+        command.append("--keyboard")
+    for flag, value in (("--rate", args.rate), ("--seed", args.seed),
+                        ("--file", args.file.expanduser().resolve() if args.file else None),
+                        ("--file-device", args.file_device)):
+        if value is not None:
+            command.extend((flag, str(value)))
+    return command
 
 
 def _stop_child(child):
@@ -74,6 +88,21 @@ def _stop_child(child):
         except subprocess.TimeoutExpired:
             child.kill()
             child.wait(timeout=5)
+
+
+def _console_line(line):
+    """Color the operator's terminal while the saved live log remains plain text."""
+    if not sys.stdout.isatty():
+        return line
+    if "disconnected" in line or "failed" in line or "rejected" in line:
+        color = "\x1b[33m"
+    elif "device_id=1" in line or "device=1" in line:
+        color = "\x1b[36m"
+    elif "device_id=2" in line or "device=2" in line:
+        color = "\x1b[35m"
+    else:
+        return line
+    return color + line.rstrip("\n") + "\x1b[0m\n"
 
 
 def run_tunnel(args):
@@ -144,10 +173,24 @@ def show_report(path, *, save_readable=False):
                   ("generated", "received", "acked", "missing_received", "missing_acked")]
         text = [str(value) if type(value) is int else "N/A" for value in values]
         print(f"{identity:>6}  {text[0]:>9}  {text[1]:>8}  {text[2]:>5}  {text[3]:>10}  {text[4]:>10}")
+    goodput = report.get("sensor_goodput")
+    if isinstance(goodput, dict):
+        print("Measured combined BLE sensor goodput at laptop reception: "
+              f"{goodput.get('average_kbps', 0):.3f} kbps over "
+              f"{goodput.get('elapsed_seconds', 0):.3f} observation seconds.")
+        print("Sensor-packet bytes include application header; exclude BLE/TLS/SSH and command/file traffic.")
+    command_total = 0
+    for identity, device, _ in _device_rows(report):
+        commands = device.get("commands")
+        if isinstance(commands, dict):
+            command_total += commands.get("completed", 0)
+            print(f"Device {identity} commands: {commands}")
+    if report.get("file_transfer") is not None:
+        print(f"BLE file result: {report['file_transfer']}")
     if not _clean_capture(report, exit_code):
         print("CAPTURE NOT PASSED: inspect report.json and live.log; do not infer a phone total.")
         return 1
-    total = sum(source["generated"] for _, _, source in _device_rows(report))
+    total = sum(source["generated"] for _, _, source in _device_rows(report)) + command_total
     print("CAPTURE PASSED: physical ESP input through Ultra96 ingestion ACKs.")
     print(f"Phone expected increase: {total}")
     print("Compare with the actual iPhone Received increase; phone receipt is not checked here.")
@@ -161,6 +204,13 @@ def run_capture(args):
         return 2
     if args.left_address.casefold() == args.right_address.casefold():
         print("The two ESP addresses must be distinct.", file=sys.stderr)
+        return 2
+    if args.keyboard and not sys.stdin.isatty():
+        print("--keyboard requires an interactive terminal (press 1 or 2, no Enter).", file=sys.stderr)
+        return 2
+    if args.file is not None and (not args.file.expanduser().is_file()
+                                 or not 1 <= args.file.expanduser().stat().st_size <= 65536):
+        print("--file must refer to a file containing 1..65536 bytes.", file=sys.stderr)
         return 2
     root = args.output_root.expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -182,7 +232,7 @@ def run_capture(args):
             for line in child.stdout:
                 log.write(line)
                 log.flush()
-                print(line, end="", flush=True)
+                print(_console_line(line), end="", flush=True)
             exit_code = child.wait()
     except KeyboardInterrupt:
         exit_code = 130

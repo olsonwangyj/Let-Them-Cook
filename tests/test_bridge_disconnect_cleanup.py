@@ -1,10 +1,14 @@
 """BLE link-loss cleanup boundaries; all clients are in-process fakes."""
 import asyncio
+import struct
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from bleak.exc import BleakError
+from common.control import CONTROL_UUID, RESPONSE_UUID
 from laptop.bridge import Bridge, BridgeConfig, SENSOR_UUID, SERVICE_UUID
+from laptop.source_audit import SOURCE_STATS_UUID
 
 
 class FakeScanner:
@@ -157,3 +161,53 @@ class DisconnectCleanupTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("operation=disconnect error_type=RuntimeError" in line
                             for line in captured.output))
         self.assertNotIn("private-", "\n".join(captured.output))
+
+    async def test_both_notification_timeouts_leave_time_to_release_native_resources(self):
+        """Slow CCCD writes must not cancel WinRT's delayed service disposal."""
+        bridge = Bridge(BridgeConfig(ca_file="unused", expected_device_id=1,
+                                     source_audit=True, controls_enabled=True))
+        stop = asyncio.Event()
+        clients = []
+
+        class ProtectedClient(FakeClient):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                properties = {SENSOR_UUID: ["notify"], SOURCE_STATS_UUID: ["read"],
+                              CONTROL_UUID: ["write"], RESPONSE_UUID: ["notify"]}
+                service = SimpleNamespace(get_characteristic=lambda uuid:
+                    SimpleNamespace(properties=properties[uuid]) if uuid in properties else None)
+                self.services = SimpleNamespace(get_service=lambda uuid: service)
+                self.stop_gate = asyncio.Event()
+                self.resources_released = False
+                clients.append(self)
+
+            async def read_gatt_char(self, uuid):
+                return struct.pack("<4sB3xIIII", b"W7S1", 1, 7, 0, 0, 0)
+
+            async def disconnect(self):
+                self.disconnect_calls += 1
+                # Installed Bleak WinRT waits 100 ms before closing services.
+                await asyncio.sleep(0.1)
+                self.resources_released = True
+                self.is_connected = False
+
+        async def authenticated(_client):
+            pass
+
+        with patch("laptop.windows_pairing.require_authenticated_bond", authenticated):
+            worker = asyncio.create_task(bridge.ble_loop(scanner=FakeScanner(),
+                client_factory=ProtectedClient, stop_event=stop))
+            try:
+                await self.wait_until(lambda: bridge.metrics.ble_connections == 1)
+                stop.set()
+                await asyncio.wait_for(worker, 3)
+            finally:
+                if not worker.done():
+                    worker.cancel()
+                await asyncio.gather(worker, return_exceptions=True)
+        self.assertTrue(clients[0].resources_released,
+                        "notification timeouts consumed the native disconnect budget")
+        self.assertEqual(clients[0].stop_calls, 2)
+        self.assertEqual(clients[0].disconnect_calls, 1)
+        self.assertEqual(bridge.metrics.cleanup_errors, 2)
+        self.assertFalse(any(not task.done() for task in bridge._retained))

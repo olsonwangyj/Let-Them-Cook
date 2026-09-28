@@ -95,11 +95,12 @@ def test_cli_progress_is_on_stderr_and_saved_report_equals_final_stdout(tmp_path
                 async def read(_reader, timeout, device=device):
                     message = messages[device][-1]
                     return {{
-                        "v": 1, "type": "INGEST_ACK",
+                        "v": message["v"], "type": "INGEST_ACK",
                         "session_id": message["session_id"],
                         "device_id": message["device_id"],
                         "boot_id": message["boot_id"], "seq": message["seq"],
                         "status": "accepted",
+                        "request_id": message["request_id"],
                     }}
                 bridge._connector = connect
                 bridge._write_frame = write

@@ -61,13 +61,14 @@ def encode_frame(message):
     return len(data).to_bytes(4, "big") + data
 
 
-async def read_frame(reader, timeout=5.0, first_byte_timeout=None):
-    # Startup may be quiet while the operator starts BLE. Once a byte arrives,
-    # the remaining prefix and body must still complete within one frame budget.
+async def read_frame(reader, timeout=5.0, first_byte_timeout=None, allow_idle=False):
+    # A subscribed connection may be quiet indefinitely. Once a byte arrives,
+    # the remaining prefix and body must complete within one shared frame budget.
     first = b""
-    if first_byte_timeout is not None:
+    if allow_idle or first_byte_timeout is not None:
         try:
-            first = await asyncio.wait_for(reader.readexactly(1), first_byte_timeout)
+            first = await asyncio.wait_for(reader.readexactly(1),
+                                           None if allow_idle else first_byte_timeout)
         except asyncio.IncompleteReadError as error:
             raise ProtocolError("malformed or incomplete frame") from error
 
@@ -87,9 +88,9 @@ async def read_frame(reader, timeout=5.0, first_byte_timeout=None):
     return await asyncio.wait_for(read(), timeout)
 
 
-def _header(message, fields, kind, session):
+def _header(message, fields, kind, session, versions=(1,)):
     if (not isinstance(message, dict) or set(message) != fields or
-            type(message.get("v")) is not int or message["v"] != 1 or
+            type(message.get("v")) is not int or message["v"] not in versions or
             message.get("type") != kind or message.get("session_id") != session):
         raise ProtocolError("unexpected schema or session")
     validate_session(message["session_id"])
@@ -107,16 +108,26 @@ def validate_subscribed(message, session):
 
 
 def validate_result(message, session):
-    _header(message, {"v", "type", "session_id", "device_id", "boot_id", "seq", "result_id", "gesture", "confidence"},
-            "GESTURE_RESULT", session)
+    fields = {"v", "type", "session_id", "device_id", "boot_id", "seq", "result_id", "gesture", "confidence"}
+    version = message.get("v") if isinstance(message, dict) else None
+    if version == 2:
+        fields.add("request_id")
+    _header(message, fields, "GESTURE_RESULT", session, versions=(1, 2))
     for field in ("device_id", "boot_id", "seq"):
         if type(message[field]) is not int or not 0 <= message[field] < 2**32:
             raise ProtocolError("invalid uint32 " + field)
     expected_id = "{}:{}:{}".format(message["device_id"], message["boot_id"], message["seq"])
+    if version == 2 and message["request_id"] is not None:
+        request = message["request_id"]
+        if type(request) is not int or not 1 <= request < 2**32 or request != message["seq"]:
+            raise ProtocolError("invalid request correlation")
+        expected_id = "cmd:" + expected_id
+    valid_gesture = (message["gesture"] == GESTURES[message["seq"] % 4]
+                     if version == 1 else message["gesture"] in GESTURES)
     if (message["device_id"] not in (1, 2) or message["result_id"] != expected_id or
-            message["gesture"] != GESTURES[message["seq"] % 4] or
+            not valid_gesture or
             type(message["confidence"]) not in (int, float) or message["confidence"] != 1.0):
-        raise ProtocolError("invalid deterministic result")
+        raise ProtocolError("invalid dummy result")
     return message
 
 
@@ -148,10 +159,7 @@ async def receive(args, statistics=None):
             validate_subscribed(await read_frame(reader), args.session)
             print("subscribed session=" + args.session, file=sys.stderr, flush=True)
             while args.duration is None or asyncio.get_running_loop().time() - started < args.duration:
-                # Only a receiver that has never validated a result gets startup
-                # grace. Reconnects after live results retain the five-second limit.
-                message = validate_result(await read_frame(
-                    reader, first_byte_timeout=30.0 if count == 0 else None), args.session)
+                message = validate_result(await read_frame(reader, allow_idle=True), args.session)
                 if message["result_id"] in seen:
                     continue
                 seen[message["result_id"]] = None

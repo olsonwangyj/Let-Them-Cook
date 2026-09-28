@@ -6,6 +6,7 @@ import errno
 import json
 import logging
 import os
+import random
 import signal
 import socket
 import ssl
@@ -13,7 +14,7 @@ import time
 
 from common.tls import server_context
 from common.wire import ProtocolError, STREAM_LIMIT, read_frame, write_frame
-from ultra96.protocol import GESTURES, trace_fields, validate_message, validate_session
+from ultra96.protocol import GESTURES, result_identity, trace_fields, validate_message, validate_session
 
 LOG = logging.getLogger(__name__)
 _EXPECTED_ERRORS = (ProtocolError, asyncio.IncompleteReadError, asyncio.TimeoutError,
@@ -43,7 +44,7 @@ class ResultQueue:
         if self.observer is None:
             return
         fields.update({key: message[key] for key in
-                       ("session_id", "device_id", "boot_id", "seq") if key in message})
+                       ("session_id", "device_id", "boot_id", "seq", "request_id") if key in message})
         fields.update(subscriber_id=self.subscriber_id, queue_size=self._queue.qsize())
         if received_at is not None:
             fields["age_seconds"] = max(0.0, time.monotonic() - received_at)
@@ -84,7 +85,7 @@ class ResultQueue:
 
 class Week7Server:
     def __init__(self, ssl_context, session_id="week7-demo", ingest_port=8888, gateway_port=9999,
-                 *, observer=None):
+                 *, observer=None, rng=None, max_v2_namespaces=128, max_v2_commands=4096):
         if (not isinstance(ssl_context, ssl.SSLContext)
                 or ssl_context.minimum_version < ssl.TLSVersion.TLSv1_2):
             raise ValueError("server requires TLS >=1.2")
@@ -101,6 +102,19 @@ class Week7Server:
         self.observer = observer
         self._subscriber_generation = 0
         self._recent = OrderedDict()
+        # V2 stream high-water marks are never evicted: an old identity cannot
+        # draw another random event after leaving the bounded fingerprint cache.
+        # Command IDs need not be ordered across relay restarts, so commands use
+        # a separate bounded ledger that rejects capacity exhaustion.
+        if (type(max_v2_namespaces) is not int or max_v2_namespaces < 1 or
+                type(max_v2_commands) is not int or max_v2_commands < 1):
+            raise ValueError("v2 identity capacities must be positive integers")
+        self._v2_high_water = {}
+        self._v2_recent = OrderedDict()
+        self._v2_commands = {}
+        self._max_v2_namespaces = max_v2_namespaces
+        self._max_v2_commands = max_v2_commands
+        self._rng = random.SystemRandom() if rng is None else rng
         self._closing = False
         self._accept_failure = None
         self._failed = asyncio.Event()
@@ -233,29 +247,64 @@ class Week7Server:
         while not self._closing:
             message = validate_message(await read_frame(reader), "SENSOR_BATCH", self.session_id)
             trace = (message["device_id"], message["boot_id"], message["seq"])
-            duplicate = trace in self._recent
+            duplicate = (self._v2_duplicate(message) if message["v"] == 2
+                         else trace in self._recent)
             if duplicate:
                 self.metrics["duplicates"] += 1
                 self._observe("result_duplicate", **trace_fields(message))
             else:
-                self._recent[trace] = None
-                if len(self._recent) > 4096:
-                    self._recent.popitem(last=False)
+                if message["v"] == 1:
+                    self._recent[trace] = None
+                    if len(self._recent) > 4096:
+                        self._recent.popitem(last=False)
                 self.metrics["accepted"] += 1
                 self._observe("result_accepted", **trace_fields(message))
                 LOG.info("accepted session=%s device=%d boot=%d seq=%d",
                          self.session_id, *trace)
-                result = dict(v=1, type="GESTURE_RESULT", **trace_fields(message))
-                result.update(result_id="{}:{}:{}".format(*trace),
-                              gesture=GESTURES[message["seq"] % 4], confidence=1.0)
+                result = dict(v=message["v"], type="GESTURE_RESULT", **trace_fields(message))
+                result.update(result_id=result_identity(message),
+                              gesture=(self._rng.choice(GESTURES) if message["v"] == 2
+                                       else GESTURES[message["seq"] % 4]), confidence=1.0)
                 if self._subscriber is None:
                     self.metrics["disconnected_results"] += 1
                     self._observe("result_no_subscriber", **trace_fields(message))
                 else:
                     self._subscriber[1].put(result)
-            ack = dict(v=1, type="INGEST_ACK", **trace_fields(message))
+            ack = dict(v=message["v"], type="INGEST_ACK", **trace_fields(message))
             ack["status"] = "duplicate" if duplicate else "accepted"
             await write_frame(writer, ack)
+
+    def _v2_duplicate(self, message):
+        """Record acceptance atomically before the next await; no outage replay.
+
+        State is scoped to this server process/configured session. A fresh server
+        must use a fresh session when old inputs might be replayed. Telemetry seq
+        must increase within a boot (no wrap); command request IDs must not repeat
+        within a boot except exact retries. Capacity failures close ingestion.
+        """
+        trace = (message["device_id"], message["boot_id"], message["seq"])
+        fingerprint = (message["uptime_ms"], tuple(message["values"]))
+        command = message["request_id"] is not None
+        ledger = self._v2_commands if command else self._v2_recent
+        if trace in ledger:
+            if ledger[trace] != fingerprint:
+                raise ProtocolError("conflicting payload for existing v2 identity")
+            return True
+        if command:
+            if len(ledger) >= self._max_v2_commands:
+                raise ProtocolError("v2 command identity capacity exhausted; start a new session")
+        else:
+            namespace = trace[:2]
+            if namespace in self._v2_high_water:
+                if message["seq"] <= self._v2_high_water[namespace]:
+                    raise ProtocolError("stale v2 stream identity outside replay window")
+            elif len(self._v2_high_water) >= self._max_v2_namespaces:
+                raise ProtocolError("v2 stream identity capacity exhausted; start a new session")
+            self._v2_high_water[namespace] = message["seq"]
+        ledger[trace] = fingerprint
+        if not command and len(ledger) > 4096:
+            ledger.popitem(last=False)
+        return False
 
     async def _gateway(self, reader, writer):
         validate_message(await read_frame(reader), "SUBSCRIBE", self.session_id)

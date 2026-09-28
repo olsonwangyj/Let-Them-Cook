@@ -2,11 +2,39 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
 from typing import Mapping
 import uuid
+
+
+def source_provenance(repository: Path) -> dict:
+    """Fingerprint relevant workspace source, including uncommitted implementation."""
+    repository = Path(repository)
+    digest = hashlib.sha256()
+    candidates = [repository / "demo.py", repository / "firmware/esp32/platformio.ini"]
+    for folder in ("common", "laptop", "ultra96", "phone", "tools",
+                   "firmware/esp32/include", "firmware/esp32/src",
+                   "ios-visualizer/Week7Native/Sources"):
+        directory = repository / folder
+        if directory.is_dir():
+            candidates.extend(path for path in directory.rglob("*")
+                              if path.suffix in (".py", ".json", ".h", ".cpp", ".cs", ".swift")
+                              and "tests" not in path.relative_to(repository).parts)
+    for path in sorted(candidates):
+        if path.is_file():
+            digest.update(path.relative_to(repository).as_posix().encode("utf-8") + b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+    try:
+        state = subprocess.run(["git", "status", "--porcelain"], cwd=str(repository),
+                               capture_output=True, text=True, timeout=1, check=True)
+        dirty = bool(state.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        dirty = None
+    return {"worktree_dirty": dirty, "workspace_source_sha256": digest.hexdigest()}
 
 
 class ReportReservation:

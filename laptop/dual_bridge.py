@@ -13,6 +13,8 @@ from typing import Optional
 
 from laptop.bridge import Bridge, BridgeConfig
 from laptop import reporting
+from laptop.controls import keyboard_loop
+from laptop.evidence import PacketEvidence
 
 
 LOG = logging.getLogger(__name__)
@@ -61,7 +63,8 @@ class DualBridge:
         await asyncio.wait_for(both_active(), self.startup_timeout)
 
     async def run(self, duration=600.0, *, mock=False, mock_rate: Optional[float] = None,
-                  ble_options=None, progress_interval=0.0, progress_callback=None):
+                  ble_options=None, progress_interval=0.0, progress_callback=None,
+                  keyboard=False, file_data=None, file_device=1):
         if not isinstance(duration, (int, float)) or isinstance(duration, bool) \
                 or not math.isfinite(duration) or duration <= 0:
             raise ValueError("duration must be positive finite seconds")
@@ -80,6 +83,11 @@ class DualBridge:
                 or not math.isfinite(progress_interval) or progress_interval < 0:
             raise ValueError("progress interval must be zero or positive finite seconds")
         ble_options = ble_options or {}
+        if (keyboard or file_data is not None) and (mock or
+                any(bridge.control is None for bridge in self.bridges.values())):
+            raise ValueError("keyboard/file requires protected physical control connections")
+        if file_device not in (1, 2):
+            raise ValueError("file device must be 1 or 2")
         stop = {device: asyncio.Event() for device in self.bridges}
         active = {device: asyncio.Event() for device in self.bridges}
         writers = {
@@ -98,6 +106,12 @@ class DualBridge:
             inputs[device] = asyncio.create_task(coroutine, name=f"input-{device}")
 
         failures = {1: [], 2: []}
+        command_workers = {device: asyncio.create_task(bridge.commands.run(),
+                           name=f"commands-{device}")
+                           for device, bridge in self.bridges.items() if bridge.commands is not None}
+        control_stop = asyncio.Event()
+        keyboard_task = file_task = None
+        file_result = None
         progress_failed = False
         next_progress = asyncio.get_running_loop().time()
 
@@ -134,6 +148,7 @@ class DualBridge:
                     "queue": bridge.inbox.size,
                     "drops": drops,
                     "errors": errors,
+                    "sensor_goodput": bridge.goodput.report(bridge.clock()),
                 })
             try:
                 progress_callback(
@@ -159,13 +174,24 @@ class DualBridge:
                 emit_progress("observation", force=True)
                 observation_start = asyncio.get_running_loop().time()
                 for bridge in self.bridges.values():
-                    bridge.begin_observation()
+                    bridge.begin_observation(observation_start)
+                if keyboard:
+                    keyboard_task = asyncio.create_task(keyboard_loop(
+                        lambda device: self.bridges[device].submit_command(), control_stop))
+                if file_data is not None:
+                    file_task = asyncio.create_task(
+                        self.bridges[file_device].control.transfer_file(file_data))
                 deadline = observation_start + duration
                 while True:
                     now = asyncio.get_running_loop().time()
                     if now >= deadline:
                         break
                     emit_progress("observation")
+                    if keyboard_task is not None and keyboard_task.done():
+                        error = keyboard_task.exception()
+                        if error is not None and "keyboard:error" not in failures[1]:
+                            failures[1].append("keyboard:error")
+                            LOG.error("keyboard failed: %s", error)
                     for device, task in inputs.items():
                         if task.done() and not stop[device].is_set():
                             try:
@@ -187,8 +213,43 @@ class DualBridge:
                     await asyncio.sleep(min(0.02, max(0.0, deadline - now)))
                 observation_end = asyncio.get_running_loop().time()
                 for bridge in self.bridges.values():
-                    bridge.finish_observation()
+                    bridge.finish_observation(observation_end)
         finally:
+            control_stop.set()
+            if keyboard_task is not None:
+                keyboard_task.cancel()
+                await asyncio.gather(keyboard_task, return_exceptions=True)
+            if file_task is not None:
+                if not file_task.done():
+                    file_task.cancel()
+                done, pending = await asyncio.wait({file_task}, timeout=self.drain_timeout)
+                if pending:
+                    failures[file_device].append("file:shutdown_timeout")
+                    file_task.cancel()
+                elif file_task.cancelled():
+                    failures[file_device].append("file:interrupted")
+                elif file_task.exception() is not None:
+                    failures[file_device].append(f"file:{type(file_task.exception()).__name__}")
+                else:
+                    file_result = file_task.result()
+            for device in command_workers:
+                self.bridges[device].commands._accepting = False
+            if command_workers:
+                try:
+                    await asyncio.wait_for(asyncio.gather(*(
+                        self.bridges[device].commands.join() for device in command_workers)),
+                        self.drain_timeout)
+                except asyncio.TimeoutError:
+                    for device in command_workers:
+                        if self.bridges[device].commands.summary()["pending"]:
+                            failures[device].append("commands:drain_timeout")
+                for task in command_workers.values():
+                    task.cancel()
+                _, pending = await asyncio.wait(command_workers.values(), timeout=self.shutdown_timeout)
+                for device, task in command_workers.items():
+                    await self.bridges[device].commands.stop()
+                    if task in pending:
+                        failures[device].append("commands:shutdown_timeout")
             # Both producers are asked to quiesce together. Each path performs
             # stop-notify and its final source read independently.
             for event in stop.values():
@@ -293,6 +354,9 @@ class DualBridge:
                 not failures[device] and item["source"] and item["source"]["clean"]
                 and coverage_ok and silence_ok and protected_ble and not item["unfinished"]
                 and not any(item[field] for field in anomaly_fields)
+                and not (item["commands"] and (item["commands"]["failed"] or item["commands"]["pending"]))
+                and not (item["controls"] and any(item["controls"].values()))
+                and not item["sensor_goodput"]["tracking_overflow"]
             )
             item["clean"] = item_clean
             clean = clean and item_clean
@@ -304,6 +368,14 @@ class DualBridge:
             "common_observation_seconds": observed_duration,
             "expected_rate_hz": self.expected_rate,
             "progress_error": progress_failed,
+            "file_transfer": file_result,
+            "sensor_goodput": {
+                "boundary": "unique valid sensor packet bytes at laptop reception; excludes controls/files/overhead",
+                "elapsed_seconds": observed_duration,
+                "packet_bytes": sum(item["sensor_goodput"]["packet_bytes"] for item in devices.values()),
+                "average_kbps": sum(item["sensor_goodput"]["average_kbps"] for item in devices.values()),
+                "rolling_kbps": sum(item["sensor_goodput"]["rolling_kbps"] for item in devices.values()),
+            },
             "devices": devices,
         }
 
@@ -348,15 +420,48 @@ def _parser():
     parser.add_argument("--progress-interval", type=_progress_interval, default=1.0,
                         help="seconds between per-device stderr updates; 0 disables")
     parser.add_argument("--report", help="new path for the final JSON report")
+    parser.add_argument("--keyboard", action="store_true", help="press 1/2 to command either ESP")
+    parser.add_argument("--file", type=Path, help="transfer a 1..65536 byte file over BLE")
+    parser.add_argument("--file-device", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--rate", type=_source_rate, help="set actual source rate on BOTH ESPs, 1..200 Hz")
+    parser.add_argument("--seed", type=int, help="reproducible laptop fixture choice for tests")
+    parser.add_argument("--evidence", type=Path, help="new JSONL path; matching .log is also written")
+    parser.add_argument("--console-sample", type=int, default=10)
     parser.add_argument("--mock", action="store_true",
                         help="explicit two-device synthetic input, not BLE evidence")
     parser.add_argument("--diagnostic-unprotected", action="store_true")
     return parser
 
 
+def _source_rate(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("source rate must be integer 1..200 Hz") from exc
+    if not 1 <= parsed <= 200:
+        raise argparse.ArgumentTypeError("source rate must be integer 1..200 Hz")
+    return parsed
+
+
 def main():
     parser = _parser()
     args = parser.parse_args()
+    controls_enabled = args.keyboard or args.file is not None or args.rate is not None
+    if controls_enabled and (args.mock or args.diagnostic_unprotected):
+        parser.error("controls require authenticated physical BLE")
+    if args.console_sample < 1:
+        parser.error("--console-sample must be positive")
+    if args.keyboard and not sys.stdin.isatty():
+        parser.error("--keyboard requires an interactive terminal")
+    file_data = None
+    if args.file is not None:
+        try:
+            with args.file.open("rb") as source:
+                file_data = source.read(65537)
+            if not 1 <= len(file_data) <= 65536:
+                raise ValueError("file must contain 1..65536 bytes")
+        except (OSError, ValueError) as exc:
+            parser.error(str(exc))
     if not args.mock and (not args.left_address or not args.right_address):
         parser.error("physical mode requires --left-address and --right-address")
     if (args.left_address and args.right_address
@@ -368,10 +473,15 @@ def main():
         "started_at_utc": started_at,
         "mode": mode,
         "requested_duration_seconds": args.duration,
-        "expected_rate_hz": args.expected_rate,
+        "expected_rate_hz": args.rate if args.rate is not None else args.expected_rate,
+        "source_rate_requested_hz": args.rate,
+        "keyboard": args.keyboard, "file_device": args.file_device if args.file else None,
+        "seed": args.seed,
+        "queue_capacity": args.queue_capacity, "freshness_seconds": args.freshness,
         "ack_window": args.ack_window,
         "session_id": args.session_id,
         "revision": reporting.local_revision(Path(__file__).parents[1]),
+        **reporting.source_provenance(Path(__file__).parents[1]),
     }
     reservation = None
     if args.report:
@@ -384,6 +494,7 @@ def main():
             print(f"report reservation failed: {detail}", file=sys.stderr)
             return 2
     logging.basicConfig(level=logging.INFO)
+    evidence = PacketEvidence(args.evidence, sample_every=args.console_sample)
 
     def bridge(device_id, address):
         return Bridge(BridgeConfig(
@@ -391,19 +502,29 @@ def main():
             queue_capacity=args.queue_capacity, freshness=args.freshness,
             ack_window=args.ack_window,
             address=address, diagnostic_unprotected=args.diagnostic_unprotected,
-            expected_device_id=device_id, source_audit=True))
+            expected_device_id=device_id, source_audit=True, controls_enabled=controls_enabled,
+            source_rate=args.rate, seed=None if args.seed is None else args.seed + device_id),
+            evidence=evidence)
 
     async def run():
         dual = DualBridge(
             bridge(1, args.left_address), bridge(2, args.right_address),
-            expected_rate=args.expected_rate, startup_timeout=args.startup_timeout,
+            expected_rate=args.rate if args.rate is not None else args.expected_rate,
+            startup_timeout=args.startup_timeout,
             drain_timeout=args.drain_timeout)
         return await dual.run(
             duration=args.duration, mock=args.mock, mock_rate=args.expected_rate,
             progress_interval=args.progress_interval,
-            progress_callback=_write_progress)
+            progress_callback=_write_progress, keyboard=args.keyboard,
+            file_data=file_data, file_device=args.file_device)
 
-    report = _run_with_bounded_loop(run())
+    try:
+        report = _run_with_bounded_loop(run())
+    finally:
+        evidence.close()
+    report["evidence"] = evidence.summary()
+    if any(report["evidence"][key] for key in ("dropped", "write_errors", "unfinished")):
+        report["clean"] = False
     report["run"] = dict(
         run_metadata,
         finished_at_utc=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
@@ -429,9 +550,16 @@ def _write_progress(phase, mode, snapshots):
         print(
             "progress mode={mode} phase={phase} device={device_id} "
             "received={received} processed={processed} acked={acked} "
-            "queue={queue} drops={drops} errors={errors}".format(
+            "queue={queue} drops={drops} errors={errors} "
+            "BLE_sensor_kbps_rolling={sensor_goodput[rolling_kbps]:.3f} "
+            "BLE_sensor_kbps_average={sensor_goodput[average_kbps]:.3f}".format(
                 mode=mode, phase=phase, **item),
             file=sys.stderr, flush=True)
+    print("progress combined_BLE_sensor_kbps_rolling={:.3f} combined_average_kbps={:.3f} "
+          "boundary=laptop_reception bytes=sensor_packet_including_header excludes=BLE_TLS_SSH_controls_files".format(
+              sum(item["sensor_goodput"]["rolling_kbps"] for item in snapshots),
+              sum(item["sensor_goodput"]["average_kbps"] for item in snapshots)),
+          file=sys.stderr, flush=True)
 
 
 def _run_with_bounded_loop(coroutine, *, retirement_timeout=0.1):
