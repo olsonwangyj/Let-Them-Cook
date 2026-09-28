@@ -1,4 +1,4 @@
-"""Exercise the remote startup guard locally, without SSH or a real server."""
+"""Run the service startup guard locally; never contact SSH or real devices."""
 import os
 import shlex
 import shutil
@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-import video_demo
+from test_video_steps import step
 
 
 @pytest.fixture
@@ -21,16 +21,14 @@ def local_shell():
 
 
 def run_start_guard(shell, monkeypatch, listeners="", ss_status=0):
-    # Replace only the external deployment directory, listener query and final
-    # server launch. The generated shell guard itself runs unchanged.
-    monkeypatch.setattr(video_demo, "BOARD_SOURCE", "/")
-    remote = shlex.split(video_demo.remote_command(start=True)[-1])
-    assert remote[:2] == ["sh", "-c"] and len(remote) == 3
-    lines = remote[2].splitlines()
+    module = step("08_service_start", monkeypatch)
+    monkeypatch.setattr(module, "BOARD_SOURCE", "/")
+    lines = module.start_script().splitlines()
     launch_lines = [index for index, line in enumerate(lines) if line.startswith("exec ")]
     assert len(launch_lines) == 1, "Refuse to run an unrecognized server-launch script"
     launch = shlex.split(lines[launch_lines[0]])
     assert launch[:5] == ["exec", "/usr/bin/python3", "-u", "-m", "ultra96.server"]
+    # Replace only the external listener query and final service launch.
     lines[launch_lines[0]] = "printf 'START_REACHED\\n'"
     fake_ss = """ss() {
   case "$1" in
@@ -40,10 +38,9 @@ def run_start_guard(shell, monkeypatch, listeners="", ss_status=0):
   esac
 }
 """
-    environment = dict(os.environ, B07_TEST_LISTENERS=listeners,
-                       B07_TEST_SS_STATUS=str(ss_status))
-    return subprocess.run([shell, "-c", fake_ss + "\n".join(lines)],
-                          env=environment, text=True, capture_output=True, timeout=5)
+    environment = dict(os.environ, B07_TEST_LISTENERS=listeners, B07_TEST_SS_STATUS=str(ss_status))
+    return subprocess.run([shell, "-c", fake_ss + "\n".join(lines)], env=environment,
+                          text=True, capture_output=True, timeout=5)
 
 
 def test_listener_query_failure_never_starts_service(local_shell, monkeypatch):
@@ -67,9 +64,14 @@ def test_free_service_ports_reach_start(local_shell, monkeypatch):
     assert result.stdout.strip() == "START_REACHED"
 
 
-@pytest.mark.parametrize("start", [False, True])
-def test_remote_operations_retain_strict_host_keys_on_both_hops(start):
-    command = video_demo.remote_command(start=start)
+@pytest.mark.parametrize("name", ["07_service_status", "08_service_start"])
+def test_remote_steps_retain_strict_host_keys_on_both_hops(monkeypatch, name):
+    module = step(name, monkeypatch)
+    commands = []
+    monkeypatch.setattr(module, "run", lambda command: commands.append(command))
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    assert module.main() == 0
+    command, = commands
     options = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "-o"]
     assert "StrictHostKeyChecking=yes" in options
     proxy = next(option for option in options if option.startswith("ProxyCommand="))
@@ -77,3 +79,4 @@ def test_remote_operations_retain_strict_host_keys_on_both_hops(start):
     assert "StrictHostKeyChecking=no" not in " ".join(command)
     assert "-N" not in command and "-T" not in command and "-L" not in command
     assert command[-2] == "xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg"
+    assert shlex.split(command[-1])[:2] == ["sh", "-c"]

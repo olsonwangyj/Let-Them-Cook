@@ -1,30 +1,35 @@
 # B07 CO 录像操作稿：先拍实物，再录电脑
 
-**先双击 [Video-Demo.cmd](D:/LetThemCook/Video-Demo.cmd)。录像时选数字即可，不需要再粘贴长串命令。** 备用方式是在 `D:\LetThemCook` 运行 `python video_demo.py`。启动只显示菜单，不会自动烧录、采集或停止服务。
+**在 Windows PowerShell 中直接运行独立脚本，每个文件只负责一个步骤。** 这些脚本是现有工具的薄封装：S03 复用 `demo.py tunnel`，S04 复用 `demo.py run`，S05 复用报告显示并补充匹配数据/人工计数；没有重写通信系统。先进入仓库，再按录制顺序运行需要的文件；脚本不会自动打开其他终端。
 
-## 数字菜单与最短录制顺序
+```powershell
+Set-Location D:\LetThemCook
+```
 
-| 输入数字 | 做什么 | 你还需要做什么 |
+## 独立脚本速查与最短录制顺序
+
+| 演示编号 | 在 PowerShell 运行 | 作用及你需要做的事 |
 |---|---|---|
-| **1** | 生成 fixtures → 编译左右固件 → 上传两块板；失败即停 | 按列出的数字选择已核实的 left / right 串口，不能同口 |
-| **2** | 检查两块板的认证绑定；需要时交互输入 PIN | 已绑定直接复用；首次口令按下面的 8 → 2 流程 |
-| **3** | 新窗口启动 SSH tunnel | 在新窗口输入密码并保持窗口打开 |
-| **4** | 录制 60 秒、每台 10 Hz；结束显示报告、匹配数据与人工计数对账 | 先拔两条 USB、独立供电、手机 Subscribed；按提示填 P0，结束填 P1 |
-| **5** | 重新显示准确的本次报告和两设备匹配 sensor/ACK | Enter 用保存的本次目录；也可粘贴明确的历史目录 |
-| **6** | 打开图解与源码投屏 HTML | 按 Gxx / Cxx 链接展示即可 |
-| **7** | 打开 `dummy_fixtures.json` 编辑 | 保存后回 1，重新生成、编译、上传；再拔 USB 做新采集 |
-| **8** | 为选定 COM 开一个 115200 串口监视窗口 | 首次配对时先选 8，再回 2；口令避开镜头，完成后关监视器 |
-| **9** | Ultra96 服务子菜单：1 只读检查；2 端口空闲时启动当前部署 | 新 SSH 窗口手输密码；已有正常服务只检查，不重复启动 |
-| **0** | 退出主菜单 | 独立的隧道/串口/板端窗口按各段说明处理 |
+| S00（[第 1649 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1649)） | `python video_steps/00_ports.py` | 列出串口；一次只接一块板，记清 left / right 的实际 COM |
+| S01（[第 1660 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1660)） | `python video_steps/01_flash.py` | 输入核实的左右 COM；生成 fixtures、编译并上传两板，失败即停 |
+| S02（[第 1671 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1671)） | `python video_steps/02_pair.py` | 检查两板认证绑定；首次配对先分别运行 S06，在隐藏提示输入真实 PIN |
+| S03（[第 1682 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1682)） | `python video_steps/03_tunnel.py` | 在终端 A 运行并手输 SSH 密码；隧道占用此终端，保持打开 |
+| S04（[第 1693 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1693)） | `python video_steps/04_capture.py` | 在终端 B 确认独立供电、Subscribed、已记录 P0，再采集 60 秒/每台 10 Hz |
+| S05（[第 1704 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1704)） | `python video_steps/05_report.py` | 粘贴本次 `Saved in` 精确目录，显示报告和匹配 sensor/ACK，再输入 P0/P1 对账 |
+| S06（[第 1715 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1715)） | `python video_steps/06_serial.py` | 在单独终端输入该板 COM，运行 115200 监视；口令不入镜 |
+| S07（[第 1726 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1726)） | `python video_steps/07_service_status.py` | 在当前终端通过 SSH 只读检查 Ultra96 的端口、进程、部署 |
+| S08（[第 1737 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1737)） | `python video_steps/08_service_start.py` | 仅服务不存在、两端口空闲时启动当前部署；保持该终端运行 |
 
-**最短操作路线：** 录前 `9 → 1` 检查板端、选 `6` 打开图源 → 摄影手机开始 → A1 选 `1` 烧录、需要时 `8 → 2` 配对、拔 USB 独立供电后再选 `2` → A2 拍图源的 ID/包格式代码 → A3 选 `3` → A4 手动连 Visualizer → A5 选 `4`（包含 A6 的报告和对账）→ 保存画面 → B 阶段选 `6` 录图解/代码，B7 选 `5` 重看同次证据。
+**每新开一个终端，先执行上面这一条 `Set-Location`。** 下文的短命令都从 `D:\LetThemCook` 运行。脚本标号 S00–S08 与展示稿中的脚本说明一致；不能把 S03/S06/S08 运行中的终端拿来执行下一个脚本。
 
-**本次只使用两个主文件：**
+**最短操作路线：** 录前 S07 检查板端、VS Code 打开展示稿预览 → 摄影手机开始 → A1 用 S00 核实 COM、S01 烧录，需要时先 S06 再 S02，拔 USB 独立供电后再 S02 → A2 拍 ID/包格式代码 → A3 终端 A 运行 S03 → A4 手动连 Visualizer 并记 P0 → A5 终端 B 运行 S04 → A6 用 S05 显示本次证据、填 P0/P1 → 保存画面 → B 阶段录 Markdown 图解/代码，B7 重新用 S05 查看同次证据。
+
+**本次使用两个主文档：**
 
 | 文件 | 用途 | 怎么打开 |
 |---|---|---|
-| [B07-CO-video-visuals.en.html](D:/LetThemCook/docs/B07-CO-video-visuals.en.html) | 独立投屏文件：G01–G11 图解、配套英文说明、可点击跳转的源码片段 | 浏览器打开；左右方向键 / PageUp / PageDown / 空格翻页，Home / End 跳到首尾，F 切换全屏；代码页 Esc / Back 返回图解 |
-| [B07-CO-video-operator-script.zh-CN.md](D:/LetThemCook/docs/B07-CO-video-operator-script.zh-CN.md) | 本操作稿：中文步骤、数字菜单操作、英文口播、源码定位 | 放在旁边参考，不必把整篇投屏 |
+| [B07-CO-video-presentation.en.md](D:/LetThemCook/docs/B07-CO-video-presentation.en.md) | 投屏展示稿：G01–G11 图解、英文旁白、带英文注释的 C01–C40 源码和 S00–S08 脚本说明 | VS Code 打开，Ctrl+Shift+V 预览；Ctrl+F 找 Gxx/Cxx/Sxx，点内部代码链接跳转，再点 Back to Gxx 返回 |
+| [B07-CO-video-operator-script.zh-CN.md](D:/LetThemCook/docs/B07-CO-video-operator-script.zh-CN.md) | 本操作稿：中文步骤、短命令、英文口播、源码定位 | 放在旁边参考，不必把整篇投屏 |
 
 **录像顺序固定为 A → B。** 第一阶段用**摄影手机**拍 FireBeetle 的真实设置、同一台 Windows laptop 上的 USB 烧录操作、电脑屏幕里的 ID/包格式源码，以及实际通信现象；第二阶段才用电脑屏幕录制图解、加密和并发源码。**“手机录像”也包括用相机拍电脑屏幕，不是只拍硬件外观。** 摄影手机和 **Visualizer iPhone** 是不同设备。Visualizer iPhone 全程运行 Unity，摄影手机负责相机和收音；不要在 Visualizer iPhone 打开相机、锁屏或切出 Unity。
 
@@ -45,10 +50,10 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 ## 开录前准备：不计入口播
 
-1. 双击 `D:\LetThemCook\Video-Demo.cmd` 打开主菜单；无需预先设置 PowerShell 变量。Windows 的 Python 应能运行项目；本机核实过 Python 3.12.7 和 Bleak 3.0.1。备用入口是在仓库根目录运行 `python video_demo.py`。
+1. Windows 的 Python 应能运行项目；本机核实过 Python 3.12.7 和 Bleak 3.0.1。打开 PowerShell，执行开头的 `Set-Location D:\LetThemCook`。在 VS Code 打开 `D:\LetThemCook\docs\B07-CO-video-presentation.en.md`，按 Ctrl+Shift+V 预览；把此操作稿放旁边参考。
 2. 本机已准备 PlatformIO 和串口驱动；本次在 A1 用**同一台 laptop** 拍真实构建/上传过程。**USB 只用于 setup；实际 BLE 通信前拔掉两条 USB，改独立供电。** Ultra96 和已安装的原生 iPhone App 都支持匹配的 v2。更新仓库不等于更新已经烧录/安装的程序；不要为了录像无理由清除既有认证绑定。
 3. Windows 蓝牙开启；Windows 和 Visualizer iPhone 均开启所需 VPN。关闭连接这两块板子的其他 BLE 客户端。
-4. Ultra96 当前服务需监听板端 `127.0.0.1:8888` 和 `127.0.0.1:9999`。菜单 **9 → 1** 检查并复用正常服务，不重复启动；仅不存在时按附录用 **9 → 2**。当前部署源码目录为 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z`；历史 PID 不能当作当天状态。
+4. Ultra96 当前服务需监听板端 `127.0.0.1:8888` 和 `127.0.0.1:9999`。录前按附录运行 `07_service_status.py` 检查并复用正常服务；仅不存在且端口空闲时运行 `08_service_start.py`。当前部署源码目录为 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z`；历史 PID 不能当作当天状态。
 5. 手机是本次唯一结果订阅者。不要另跑 `phone.receiver`、`laptop.phone_simulator`、`tools.rehearse_remote_week7`；新订阅者会替换旧订阅者。
 6. 准备两个独立电源，例如不会因低电流自动关机的充电宝。A1 烧录/首次串口配对时可以 USB 接这台 laptop；A5 开始实体 BLE 采集前，两块板都必须**完全断开 laptop USB**，各自使用独立电源，即使另有电源也不能保留 laptop USB 线。
 7. 默认 CA 是 `C:\Users\Yanjie Wang\.codex\private\cg4002-week7-20260906\ca-cert.pem`。这是已有可信公开证书，不为普通录像重新生成 PKI；不打开任何私钥文件。
@@ -56,11 +61,11 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 | 窗口名称 | 机器 | 本次用途 |
 |---|---|---|
-| 主菜单窗口 | Windows relay laptop | 选 1–9；构建/上传、绑定、采集、报告都从这里操作 |
-| SSH tunnel 新窗口 | 同一 Windows laptop，菜单 3 打开 | 输入两跳密码；真实采集时保持打开 |
-| 串口监视新窗口 | 同一 Windows laptop，菜单 8 打开 | 首次配对读取口令；不拍秘密，完成后关闭再拔 USB |
-| Ultra96 SSH 新窗口 | 同一 laptop，菜单 9 打开 | 录前检查/需要时启动当前服务；不是数据桥接 |
-| 浏览器 + 编辑器 | 同一 Windows laptop；A 阶段相机拍屏，B 阶段电脑录屏 | HTML 图解 + 源码 + A 阶段保存的日志 |
+| 终端 A | Windows relay laptop，自己打开的 PowerShell | A3 运行 S03 隧道；真实采集时保持运行 |
+| 终端 B | 同一 Windows laptop，另一 PowerShell | S00/S01/S02 设置；A5 运行 S04，结束后 A6 运行 S05 |
+| 串口终端 Left / Right | 同一 laptop；首次配对时自己另开，最多各一个 | 各自运行 S06 读取该板口令；完成后退出监视，再拔 USB |
+| Ultra96 服务终端 | 同一 laptop，按需另开 PowerShell | S07 录前检查；需要 S08 时该终端保持运行 |
+| VS Code 编辑器 + Markdown 预览 | 同一 laptop；A 阶段相机拍屏，B 阶段电脑录屏 | 图解、英文注释代码、A 阶段保存的日志 |
 
 ## 第一阶段 A：摄影手机拍 setup、包格式说明与真实通信
 
@@ -70,15 +75,15 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 **画面：** 摄影手机横拍，两块带标签的 FireBeetle、电源、relay laptop 和 Visualizer iPhone 同框。Ultra96 可通过部署说明交代位置，不把笔记本说成服务器。
 
-**操作：** 电脑显示 `Video-Demo.cmd` 的主菜单，录前选 **6** 打开的图源在旁边待用；确认尚无采集程序运行。摄影手机开始录像，先停留 5 秒拍清各设备。此时不要切换 Visualizer iPhone 去拍其他东西。
+**操作：** 电脑显示 VS Code 的展示稿预览，终端 B 已进入仓库；确认尚无采集程序运行。摄影手机开始录像，先停留 5 秒拍清各设备。此时不要切换 Visualizer iPhone 去拍其他东西。
 
 **英文口播：**
 
 > This is B07's communication subsystem. I will first show the FireBeetle setup, actual firmware upload and packet-format code with this camera, followed by a physical communication run. Later, a computer screen recording will explain the diagrams, encryption and concurrency. The filming phone and Visualizer iPhone are different devices.
 
-**镜头停在主菜单，补一句脚本说明（约 20 秒）：**
+**展示脚本文件列表，简述为什么运行这些文件：**
 
-> This menu is an operator shortcut. It calls our existing PlatformIO, pairing and demo tools. It builds and uploads in order, stopping on failure, and saves each capture separately with its evidence. It does not replace the BLE or TLS protocols. I enter the phone counts manually.
+> Each script performs one recording step using our existing tools. I run the files directly in the terminal, keep the tunnel open separately, and save the exact capture directory. The phone counts are observations that I enter manually.
 
 ### A1｜FireBeetle setup — [Video only]：真实编译、上传、供电与绑定
 
@@ -88,31 +93,61 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 > I am setting up both FireBeetle ESP32 boards. PlatformIO builds Arduino firmware for the firebeetle32 board. The left environment assigns device ID one, and the right environment assigns device ID two. I will upload both builds using USB during setup, then remove both USB connections before the BLE communication demonstration.
 
-**A1.2 菜单 1：核实并选择两块板的串口。** 录前只接左板，选 **8** 看串口列表、记下该板的 COM，然后输入 **q** 取消，**不打开 monitor**；拔下左板，只接右板，重复 **8 → 记 COM → q**，贴好 left / right 标签。再将两块都接上本机 USB。主菜单输入 **1**，脚本列出串口后，分别输入列表中 left 和 right 对应的**数字编号**。不能猜默认 COM3，也不能选同一个端口；脚本会拒绝同口。
+**A1.2 S00：核实两块板的串口。** 录前只接左板，在终端 B 运行下列命令，记下该板的 COM；拔下左板，只接右板，重复运行，贴好 left / right 标签。此脚本只列端口，不打开串口监视。
 
-脚本使用本机已安装的 PlatformIO，不需要你设置 `$b07Pio` 或把 `pio` 加入 PATH。选择前拍清左右标签，选择后拍清实际环境/COM 映射，避免左右刷反。
+```powershell
+python video_steps/00_ports.py
+```
 
-**A1.3 同一个菜单 1 自动构建并实际上传。** 完成端口选择后，脚本依次生成 fixture 头文件 → 编译 `firebeetle32-left` → 编译 `firebeetle32-right` → 上传左板 → 上传右板。某一步失败即停，不会继续假装全部成功。镜头保持在主菜单窗口；可以剪去等待，但保留左右两次 upload 的环境名和成功结尾。
+> This script lists the serial ports so I can identify the left and right boards before uploading.
+
+如果还有其他串口设备，通过插拔前后列表变化辨认，不能猜 COM3。把两块都接上本机 USB，再进行下一步。
+
+**A1.3 S01：真实构建并上传两块板。** 在终端 B 运行下列命令，按提示输入已经核实的 left 和 right 的实际 COM 名称，例如你刚才记下的 `COM数字`，不是列表顺序。两板不能同口。
+
+```powershell
+python video_steps/01_flash.py
+```
+
+> This script regenerates the fixture table, builds the two device profiles and uploads each build to its selected port. It stops if any step fails.
+
+脚本使用本机已安装的 PlatformIO，无需设置额外变量或把 pio 加入 PATH。依次生成 fixture 头文件 → 编译 `firebeetle32-left` → 编译 `firebeetle32-right` → 上传左板 → 上传右板。拍清实际环境/COM 映射及左右 upload 的成功结尾；可以剪去等待，不能剪掉失败后宣称成功。
 
 **预期：** 对应环境显示 `SUCCESS` 且退出码 0；失败不能接着口播已烧录成功。此时不需要打开 server 私钥或串口 dump。
 
 > The left and right uploads have completed successfully. Each board now contains the firmware built for its assigned device ID. A successful upload proves programming completed; the authenticated BLE checks and data capture will establish communication next.
 
-**A1.4 菜单 2：检查两块板的认证绑定。** 回主菜单输入 **2**，脚本依次检查 left `38:18:2B:19:82:AE` 和 right `38:18:2B:18:9D:6A`。每台应打印 `authenticated_bond: true`；正常已有绑定就复用，不清除、不强制重配。
+**A1.4 S02：检查两块板的认证绑定。** 已有认证绑定时，直接在终端 B 运行：
 
-**首次配对的顺序是 8 → 2，仍在 USB setup 阶段完成。** 暂停拍摄敏感屏幕，选 **8** 并选对应 COM，脚本以 115200 打开新的串口监视窗口；需要两块首次配对时，为两块分别打开对应窗口，再回主菜单选 **2**。在隐藏输入提示填入各自串口显示的六位口令。不要保存串口日志或拍到 `PAIR LOCALLY`。
+```powershell
+python video_steps/02_pair.py
+```
 
-若已经选 2 后才发现需要口令、但尚未开串口，先 Ctrl+C 取消本次等待，再按 8 → 2 重试；不要凭猜测填口令。完成后关闭本次打开的串口监视窗口，再拍两条安全的绑定结果。失败先排查，不能以未认证状态继续。
+> This script runs the existing authenticated pairing tool for both boards. Existing authenticated bonds are reused.
 
-**A1.5 明确拍到由 USB setup 切换为独立供电。** 摄影手机拍手拔掉两块板与 laptop 之间的 USB 线，然后各接独立电源并上电。沿两根线拍到电源，拍清 laptop 没有再连板子。回主菜单再选 **2**，拍到两台认证绑定检查通过；此时不再选 8、不再开串口。
+脚本依次检查 left `38:18:2B:19:82:AE` 和 right `38:18:2B:18:9D:6A`；每台应打印 `authenticated_bond: true`。正常已有绑定不清除、不强制重配。
+
+**首次配对必须先 S06，再 S02，仍在 USB setup 阶段完成。** 暂停拍摄敏感屏幕，自己打开独立 PowerShell，先进入仓库，再运行下列命令并按提示输入对应板的 COM。它在**当前终端**保持 115200 串口监视，不会另开窗口：
+
+```powershell
+python video_steps/06_serial.py
+```
+
+> This script opens the selected serial port at one hundred and fifteen thousand two hundred baud for initial pairing. I close this monitor before the wireless demonstration.
+
+需要两块首次配对时，先在 Left 和 Right **两个独立串口终端**各运行一次 S06，输入各自 COM，再在终端 B 运行 S02。在 S02 的隐藏提示填入各自串口显示的六位口令。不要保存串口日志或拍到 `PAIR LOCALLY`。
+
+若已经运行 S02 后才发现需要口令、但尚未开串口，先 Ctrl+C 取消本次等待，再按 S06 → S02 重试；不要凭猜测填口令。完成后在每个串口终端按 Ctrl+C 退出监视，再拍两条安全的绑定结果。失败先排查，不能以未认证状态继续。
+
+**A1.5 明确拍到由 USB setup 切换为独立供电。** 摄影手机拍手拔掉两块板与 laptop 之间的 USB 线，然后各接独立电源并上电。沿两根线拍到电源，拍清 laptop 没有再连板子。在终端 B 再运行一次 `python video_steps/02_pair.py`，拍到两台认证绑定检查通过；此时不再开串口。
 
 > USB setup is now finished. I have removed both USB connections to the relay laptop and powered each board independently. Both boards have authenticated Bluetooth bonds. From this point, their application data travels over BLE. The bridge will establish the active connections and subscribe to notifications when the capture starts.
 
 ### A2｜Explain FireBeetle: Device IDs / packet types / packet format — [Live + Video]
 
-**本段仍由摄影手机拍电脑屏幕，必须打开实际代码片段指出字段，不能只说有这些文件。** 主菜单选 **6** 打开图解。用页面导航到指定 G 页，点击下面的 C 按钮，代码就出现在**同一 HTML** 内；它显示真实源文件路径、原始行号和高亮行。点行号按钮可定位，Esc 或 **Back to Gxx** 返回图解，再点下一片段。此时尚未开始实际采集。
+**本段仍由摄影手机拍电脑屏幕，必须打开实际代码片段指出字段，不能只说有这些文件。** 在 VS Code 打开展示稿并按 Ctrl+Shift+V 预览。Ctrl+F 找 G02/G03/G04，点击对应的 Cxx 内部链接到代码区；每行的 `L原行号` 标记对应原文件，英文注释帮助解释。Ctrl+F 也可直接找 Cxx，再点 **Back to Gxx** 返回图解。此时尚未开始实际采集。
 
-| 镜头顺序 | 在 HTML 怎么点 | 当场指给镜头的内容 |
+| 镜头顺序 | 在 Markdown 预览中定位 | 当场指给镜头的内容 |
 |---|---|---|
 | Device IDs | G02 → **C02 Board + IDs** → L21 / L26 | left / right 的 ID=1 / 2；L6 / L7 为板型和 Arduino |
 | Sensor format | G03 → **C05 Sensor fields** → L11；返回后 **C06 Sensor codec** → L73 / L75 | struct、32-byte 长度校验、字段解码 |
@@ -120,7 +155,7 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 | BLE packet types | G04 → **C09 BLE types** → L10–L16；**C10 Control codec** → L90 / L98 | opcode、响应位、14-byte 头、B7/version=1 |
 | 网络类型/源端统计 | G04 → **C11 JSON types** → L8–L12；**C12 Source counters** → L49–L52 | SENSOR_BATCH/ACK/订阅/结果、source counters |
 
-以上是生成投屏文件时保存的源码快照，**不会随着仓库修改自动更新**。若刚才改过 fixture/代码，改动部分应在编辑器打开实际文件并配新日志说明，不能用旧 HTML 快照证明已更新。实际文件定位如下，编辑器 Ctrl+O 输入完整路径、Ctrl+F 输入定位词即可：
+以上是生成投屏文件时保存的源码快照，**不会随着仓库修改自动更新**。若刚才改过 fixture/代码，改动部分应在编辑器打开实际文件并配新日志说明，不能用旧展示稿快照证明已更新。实际文件定位如下，编辑器 Ctrl+O 输入完整路径、Ctrl+F 输入定位词即可：
 
 | 要讲什么 | 实际打开的文件 | Ctrl+F 定位并指给镜头 |
 |---|---|---|
@@ -164,15 +199,23 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 >
 > After decoding, the laptop sends SENSOR_BATCH JSON to Ultra96 and validates INGEST_ACK. The phone sends SUBSCRIBE, receives SUBSCRIBED, and then receives GESTURE_RESULT messages. These are distinct message types with different roles. I will show a real decoded sensor and matching acknowledgement from this capture at the end.
 
-**老师临时要求改 dummy 数据时：** 先结束采集，菜单选 **7** 打开 `dummy_fixtures.json`，例如把第二组第一项 `1200` 改为 `1500`；每组仍为八个 int16，数值 −32768..32767、总共 2–64 组。**保存文件后回菜单选 1**，脚本重新生成 fixture 头、构建和上传两块板。按 A1 再次拔掉两条 USB、独立供电，重复 A4–A6；菜单 4 记录新的 P0 和独立采集目录。
+**老师临时要求改 dummy 数据时：** 先结束采集，在 VS Code 用 Ctrl+O 打开 `D:\LetThemCook\common\dummy_fixtures.json`，例如把第二组第一项 `1200` 改为 `1500`；每组仍为八个 int16，数值 −32768..32767、总共 2–64 组。**保存后按 A1 再运行 S01**，重新生成 fixture 头、构建和上传两块板。再次拔掉两条 USB、独立供电，重复 A4–A6，记录新的 P0 和独立采集目录。
 
-在这次新显示的完整 sensor values 中找到更新值，才说明实体数据修改已生效。只改 JSON、只编译未上传、重看旧日志都不能证明 ESP 数据已更新。正常录像可解释此流程；真的执行修改时，把修改前后两次证据分开，HTML 旧快照不会自动更新。
+在这次新显示的完整 sensor values 中找到更新值，才说明实体数据修改已生效。只改 JSON、只编译未上传、重看旧日志都不能证明 ESP 数据已更新。正常录像可解释此流程；真的执行修改时，把修改前后两次证据分开，展示稿旧快照不会自动更新。
 
 > These fixtures are editable. To change the transmitted dummy values, I edit the JSON, regenerate the firmware table, rebuild and upload both boards, remove USB and start a new BLE capture. The updated decoded values in that new capture show that the change took effect.
 
 ### A3｜启动或展示本次 SSH 隧道
 
-**操作：** Windows 主菜单输入 **3**。脚本打开独立的 SSH tunnel 窗口；在那个窗口输入两跳密码，随后保持它打开，主菜单仍可继续选其他项。
+**S03 操作：** 自己打开终端 A，进入仓库后运行：
+
+```powershell
+python video_steps/03_tunnel.py
+```
+
+> This script calls the tunnel command already implemented in demo.py. I keep this terminal open during the capture.
+
+在**当前终端 A** 输入两跳密码，随后保持它运行；它不另开窗口。A5 要切到终端 B，不能在隧道终端输入下一条采集命令。
 
 若需输入两跳密码，暂时把镜头移开；也可以录前私下启动，镜头中说明它已运行。已有确认属于本项目、使用本地 18889 的隧道就直接复用，不开第二个实例。
 
@@ -199,9 +242,17 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 ### A5｜跑一次真实双设备采集，拍两条链路的现象
 
-**操作：** SSH tunnel 窗口保持运行，主菜单输入 **4**。按屏幕提示确认已拔掉两条 laptop USB、改独立供电、Visualizer 已 `Subscribed`，再填 A4 看到的起始计数 **[P0]**。脚本不能替你检查供电接线或读取手机屏幕；按提示如实操作。
+**S04 操作：** 保持终端 A 的隧道运行，在已进入仓库的终端 B 执行：
 
-菜单自动复用现有 `demo.py`，运行 60 秒、每台目标 10 Hz 的实体采集；不是最大速度测试。60 秒是两台都准备好后的共同观察时长，初始化和收尾会让实际等待略长。不要 Ctrl+C，让命令自然结束。结束后菜单会接着询问 **[P1]** 并完成 A6，不需要再输入报告命令。
+```powershell
+python video_steps/04_capture.py
+```
+
+> This script calls demo.py to capture both physical boards for sixty seconds at a target rate of ten hertz each. The existing launcher saves the logs and report.
+
+按屏幕提示确认已拔掉两条 laptop USB、改独立供电、Visualizer 已 `Subscribed`，并把 A4 的实际起始计数 **[P0] 写下来**；就绪后按 **Enter** 开始，尚未就绪输入 **q** 取消。脚本不能检查接线或读取手机屏幕；P0/P1 在 A6 报告脚本中人工输入。
+
+S04 复用现有 `demo.py`，运行 60 秒、每台目标 10 Hz 的实体采集；不是最大速度测试。60 秒是两台都准备好后的共同观察时长，初始化和收尾会让实际等待略长。不要 Ctrl+C，让命令自然结束；拍清并复制输出的 **`Saved in: ...` 完整路径**。结束后继续按 A6 单独运行 S05。
 
 **摄影手机在这一运行内依次拍：**
 
@@ -225,16 +276,23 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### A6｜看最终报告、核对手机、保存这一次证据
 
-1. 等 A5 自然结束。**菜单 4 会继续处理本次结果**：先显示准确的本次报告和两台匹配 sensor/ACK；等手机计数稳定，在提示处输入最终 **[P1]**，再显示并保存人工计数对账。想重看就回主菜单选 **5**，目录提示处按 Enter。
-2. 拍清报告路径、两台最终计数、`CAPTURE PASSED` 和 `Phone expected increase`。记录下面实际数字，不写死 1200。
-3. 拍清最终 **[P1]** 和菜单的 `P0=... P1=... delta=... expected=...`。通过时应看到 `MATCH: clean capture total equals the operator-entered phone increase.`；`PHONE OBSERVATION NOT PASSED` 就不是通过。停止发送约两秒后出现 `No live result` 是最新标签过期，计数仍可核对。
+1. 等 S04 自然结束，复制本次终端打印的 **`Saved in: ...` 完整目录**。等手机计数稳定，写下最终 **[P1]**；P0/P1 均应有本次手机画面佐证。
+2. 在终端 B 运行下列 S05 命令，按目录提示**粘贴刚才的精确目录**。它先显示报告、两台完整匹配 sensor/ACK，再提示人工输入本次 **P0** 和 **P1**：
+
+```powershell
+python video_steps/05_report.py
+```
+
+> This script reviews the exact capture folder I select, displays matching sensor and acknowledgement records, and compares the phone counts I enter manually.
+
+3. 拍清报告路径、两台最终计数、`CAPTURE PASSED` 和 `Phone expected increase`，再拍 `P0=... P1=... delta=... expected=...`。通过时应看到 `MATCH: clean capture total equals the operator-entered phone increase.`；出现 `REVIEW NOT PASSED` 或 `PHONE OBSERVATION NOT PASSED` 就不是通过。停止发送约两秒后出现 `No live result` 是最新标签过期，计数仍可核对。
 
 | 要记的量 | 从哪里抄 | 成功条件 |
 |---|---|---|
 | [N1] / [N2] | 报告 Device 1 / 2 的 Generated | 每台 Generated = Received = ACKed；MissingBLE / MissingACK 均 0 |
 | [E] | `Phone expected increase` | 本稿未开 keyboard，所以 E = N1 + N2 |
 | [P0] / [P1] | A4 / A6 实际手机画面 | P1 − P0 = E |
-| [CAPTURE] | 脚本显示的本次完整目录 | 位于 `D:\LetThemCook\.week7-local\video-menu\runs\<unique>\B07-...`，保留全部文件 |
+| [CAPTURE] | 脚本显示的本次完整目录 | 位于 `D:\LetThemCook\.week7-local\B07-...`，保留全部文件 |
 | 摘要状态 | 同一份报告 | `Exit=0 clean=True mock_input=False report_saved=True`，且 `CAPTURE PASSED` |
 
 运行中收到数与 ACK 数暂时不同可以正常；只用最终排空结果做核对。若额外加了 keyboard，预期手机数还要加 completed commands；不要沿用此稿无命令的公式。
@@ -247,23 +305,39 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 > This capture did not meet the acceptance checks. I will retain these results, investigate the mismatch, and record a new capture before claiming successful communication.
 
-**本次路径由菜单保存，不需要复制 PowerShell 变量。** 菜单 4 通过前置检查并收到 P0 后，为实际采集创建独立目录；`last-attempt.json` 在底层采集启动前保存这一次尝试的位置。此后的失败/中断不会自动退回上一次成功报告。若在填写 P0 前就取消或未通过隧道/串口检查，则还没有开始新采集。目录缺失、不完整就显示问题；不要为了得到绿色结论改选别次结果。
+**只使用本次 Saved in 的精确目录。** S05 要求明确路径，不靠全局“上一次”指针、不自动挑最新或成功的一次。目录缺失、不完整就保留失败信息；不要改选别次报告制造绿色结论。若 S04 没有打印保存目录，先解决本次启动/运行问题，不能拿旧目录补齐。
 
-**现在仍用摄影手机拍电脑，展示实际可读 packet。** 菜单 4 结束时，以及菜单 **5 → Enter** 重看时，都会显示两台设备各自匹配的 sensor/ACK。拍清 device_id / boot_id / seq、**完整八个 values**，以及同身份 ACK 的 `validation=accepted`。这是实际文件证据，不是教学假数据；找不到匹配时不借别次采集凑数。需要逐行查看时，再用编辑器打开该目录下的 `packets.log`。
+**现在仍用摄影手机拍电脑，展示实际可读 packet。** S05 显示两台设备各自匹配的 sensor/ACK。拍清 device_id / boot_id / seq、**完整八个 values**，以及同身份 ACK 的 `validation=accepted`。这是实际文件证据，不是教学假数据；找不到匹配时不借别次采集凑数。需要逐行查看时，再用编辑器打开该目录下的 `packets.log`。
 
 > These are decoded records from the capture that just finished. The sensor record shows the device, boot, sequence and eight values. The acknowledgement refers to the same identity and confirms ingestion by Ultra96. The separate iPhone count check establishes the aggregate phone observation.
 
-用文件资源管理器把摄影手机的本段视频副本、P0/P1 画面及 N1/N2/E 的简短备注放入**这个目录**的 `camera-clips` 子目录。保留原始 `live.log`、`packets.jsonl`、`packets.log`、`report.json`、`report-readable.json`、`exit-code.txt` 及菜单保存的手机人工观察信息，不覆盖失败尝试。仍记下完整路径：若之后又开了新尝试，另一天录 B 时可在菜单 5 粘贴明确的旧目录。
+用文件资源管理器把摄影手机的本段视频副本、P0/P1 画面及 N1/N2/E 的简短备注放入**这个目录**的 `camera-clips` 子目录。保留原始 `live.log`、`packets.jsonl`、`packets.log`、`report.json`、`report-readable.json`、`exit-code.txt` 及 S05 保存的手机人工观察信息，不覆盖失败尝试。把完整 Saved in 路径写入录像笔记，另一天录 B 时仍粘贴这个目录。
 
-至此可停止摄影手机录像。若 B 不接着做实时操作，可在本次自己打开的 SSH tunnel 窗口按 Ctrl+C 结束隧道；菜单 **0** 退出主界面。不为结束录像停止共享 Ultra96 服务，也不需要让实体设备等到代码讲解录完。
+至此可停止摄影手机录像。若 B 不接着做实时操作，可在本次自己运行的终端 A 按 Ctrl+C 结束隧道。不为结束录像停止共享 Ultra96 服务，也不需要让实体设备等到代码讲解录完。
 
 ## 第二阶段 B：电脑录屏，图解、加密与并发源码
 
-**开始前：** 双击 `Video-Demo.cmd`，选 **6** 打开图解；按 Home 到 G01，F 全屏，左右方向键 / PageUp / PageDown / 空格翻页。代码已内嵌到同一文件，无需切编辑器：点击 **Cxx + 英文名称** 打开片段，再点 **L行号** 按钮定位；Esc 或 **Back to Gxx** 返回所属图解。将浏览器缩放到投屏清楚的字号，本稿放在旁边。
+**开始前：** 在 VS Code 打开 `D:\LetThemCook\docs\B07-CO-video-presentation.en.md`，按 Ctrl+Shift+V 预览。Ctrl+F 找 G01，再依次定位 G02–G11；点击章节里的 **Cxx + 英文名称** 内部链接跳到代码区，或 Ctrl+F 找 Cxx。代码里的 `L行号` 是原文件行号标记，不是预览文件的行号；用 **Back to Gxx** 链接返回图解。本稿放在旁边。
 
-**统一节奏：** 先投 G 页 → 读“投屏英文旁白” → 点击表内标为“主讲”的 C 按钮 → 指定行号 → 读“代码口播” → Back 返回图解 → 下一页。B2–B4 只回顾 A 阶段已经录过的 setup / 格式，不重做操作；“备查”代码只在需要展开时打开，不需要逐条朗读全部 41 个片段。B 阶段不运行 hardware/bridge，不穿插拍实物；重看 A 的报告只读文件。
+**展示稿快速定位：** 下表数字是 `B07-CO-video-presentation.en.md` 的标题行。需要精确跳转时，先点回 VS Code 的 Markdown **编辑器标签页**，Ctrl+G 输入行号；再用 Ctrl+Shift+V 看预览。它和代码注释里的原源码 `L行号` 是两套行号，不要混用。
 
-代码片段标有原文件、原始行号和来源 hash，是生成 HTML 时的真实源码快照。若 A 之后改过代码，应展示相应实际文件/记录版本差异，不把快照说成自动同步编辑器。
+| 章节 | 内容 | Markdown 标题行 |
+|---|---|---|
+| G01 | 系统架构 | [展示稿第 40 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:40) |
+| G02 | FireBeetle setup / IDs | [展示稿第 91 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:91) |
+| G03 | Sensor packet / fixtures | [展示稿第 214 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:214) |
+| G04 | Packet types / control | [展示稿第 420 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:420) |
+| G05 | BLE FSM | [展示稿第 576 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:576) |
+| G06 | TCP frame / fragmentation | [展示稿第 632 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:632) |
+| G07 | Laptop–Ultra96 FSM | [展示稿第 723 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:723) |
+| G08 | Phone FSM | [展示稿第 825 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:825) |
+| G09 | 三条通道加密 | [展示稿第 917 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:917) |
+| G10 | Laptop 并发 | [展示稿第 1165 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1165) |
+| G11 | Ultra96 并发 | [展示稿第 1396 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1396) |
+
+**统一节奏：** 先展示 G 节图解 → 读“投屏英文旁白” → 打开表内“主讲”C 片段 → 指源码原行号及英文注释 → 读“代码口播” → Back to Gxx 返回，再到下一节。B2–B4 只回顾 A 已录过的 setup / 格式；备查片段只在需要时展开，不要求逐段朗读全部代码。B 阶段不运行 hardware/bridge，不穿插拍实物；重看 A 的报告只读取那次已保存的证据。
+
+展示稿中的代码保留源文件路径和原始行号，并添加英文解释注释。它是生成文档时的源码快照，讲解注释不代表项目源文件已被修改。若 A 之后改过代码，应展示相应实际文件/记录版本差异，不把快照说成自动同步编辑器；展示片段用于讲解，实际运行上面的独立脚本。
 
 **开头声明：**
 
@@ -271,45 +345,43 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B1 / G01｜系统架构：服务器和两条结果路径
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > Two FireBeetles send structured dummy sensor packets to the relay laptop over protected Bluetooth Low Energy. The laptop forwards both streams to Ultra96 and receives ingestion acknowledgements. The Visualizer iPhone has its own SSH and TLS connection to the board. Ultra96 sends gesture results directly to that phone. The application servers run on Ultra96. We use SSH for the deployed campus access route and do not use a message broker.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C41 Video menu** | [video_demo.py](D:/LetThemCook/video_demo.py:358)，358–377 | L359 / L360 / L361 / L377 |
-| 底层 launcher 备查 | **C01 Launcher** | [demo.py](D:/LetThemCook/demo.py:64)，64–81 | L67 / L69 / L72 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C01 Launcher** | [展示稿第 49 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:49) | [demo.py](D:/LetThemCook/demo.py:64)，64–81 | L67 / L69 / L72 |
 
+**投屏 G01：** 指 FireBeetle → laptop → Ultra96，再指独立的 Ultra96 → iPhone；读图解英文说明。指出应用服务运行在 Ultra96，未使用 message broker；SSH 是当前校园访问路线，不是 TCP 固有要求。
 
-**投屏 G01：** 指 FireBeetle → laptop → Ultra96，再指独立的 Ultra96 → iPhone；读图页英文说明。指出应用服务运行在 Ultra96，未使用 message broker；SSH 是当前校园访问路线，不是 TCP 固有要求。
+**代码画面：** G01 → C01，指 `demo.py` 的 capture_command() 启动 laptop.dual_bridge、固定 session / ACK window、保存 report / evidence。S03/S04/S05 调用既有 tunnel/run/report 逻辑，独立脚本只减少录制时输入的参数；不重新实现协议。展示稿的 S00–S08 有每个脚本的简述，需要回顾时 Ctrl+F 定位；本阶段不重新运行这些实体操作。
 
-**代码画面：** G01 → **C41 Video menu**，指 L359–L361 的数字到操作映射，再指 L377 调用所选操作。这里只解释菜单如何调用已实现的工具；不在录屏阶段执行烧录、配对、隧道或新采集。
+| 独立脚本 | 复用的既有职责；只作讲解，不另跑一次 |
+|---|---|
+| S03 / 03_tunnel.py | `demo.py tunnel`：SSH 路由 |
+| S04 / 04_capture.py | `demo.py run`：双设备采集、证据和报告 |
+| S05 / 05_report.py | `demo.py` 的 report/show_report：明确目录的报告；再展示匹配数据并保存人工计数 |
 
-**代码口播（约 10–15 秒）：**
-
-> This table maps menu numbers to upload, pairing, tunnel, capture and review operations. The selected number calls one method, which reuses our existing tools. The menu simplifies operation; the bridge and server implement communication.
-
-**底层 launcher 备查：** 需要展开菜单复用的实现时，G01 → C01，指 `demo.py` 的 capture_command() 启动 laptop.dual_bridge、固定 session / ACK window、保存 report / evidence。这里解释底层 launcher 的职责，不重新运行 tunnel 或 capture。
-
-**底层 launcher 备查口播（可略过）：**
+**代码口播：**
 
 > This launcher has three commands. Tunnel opens the SSH route. Run launches the existing dual-device bridge, saves its logs and report, and prints the outcome. Report reopens saved evidence. The launcher does not start the Ultra96 server or connect the iPhone. The actual concurrent communication is implemented in the bridge and server modules shown later.
 
 ### B2 / G02｜FireBeetle setup 和 Device IDs 图解回顾
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > PlatformIO builds our Arduino firmware for the firebeetle32 board. The left profile assigns device ID one, and the right profile assigns device ID two. We upload over USB during setup and then disconnect both USB cables. During the BLE demonstration, each board uses its own power source. We complete authenticated pairing before streaming. The BLE address selects the physical board, while the device ID identifies its application packets.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| A 已讲；本段回顾/备查 | **C02 Board + IDs** | [firmware/esp32/platformio.ini](D:/LetThemCook/firmware/esp32/platformio.ini:4)，4–26 | L6 / L7 / L21 / L26 |
-| setup 细节备查 | **C03 Boot setup** | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:404)，404–423 | L406 / L421 |
-| 配对实现备查 | **C04 Pairing** | [laptop/windows_pairing.py](D:/LetThemCook/laptop/windows_pairing.py:116)，116–127 | L119 / L120 / L123 / L125 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| A 已讲；本段回顾/备查 | **C02 Board + IDs** | [展示稿第 100 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:100) | [firmware/esp32/platformio.ini](D:/LetThemCook/firmware/esp32/platformio.ini:4)，4–26 | L6 / L7 / L21 / L26 |
+| setup 细节备查 | **C03 Boot setup** | [展示稿第 143 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:143) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:404)，404–423 | L406 / L421 |
+| 配对实现备查 | **C04 Pairing** | [展示稿第 181 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:181) | [laptop/windows_pairing.py](D:/LetThemCook/laptop/windows_pairing.py:116)，116–127 | L119 / L120 / L123 / L125 |
 
 
 **投屏 G02：** 回顾 A1 已由摄影手机拍到的真实构建/上传、双板 ID、认证绑定，以及 USB setup → 拔线 → 独立供电的切换。这里不再执行上传，也不把 setup 第一次放到本段才解释。
@@ -322,19 +394,19 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B3 / G03｜Sensor packet format 图解回顾
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > Each sensor notification contains thirty-two bytes. The fields are the W7 marker, version, device ID, boot ID, sequence number, uptime and eight signed sixteen-bit channel values. Multi-byte fields use little-endian encoding. Version two randomly selects from several editable fixtures. Device, boot and sequence identify the sample. The packet has no custom application CRC field. Our dummy values follow the sensor packet schema, and the decoded log shows the actual values transmitted.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| A 已讲；本段回顾/备查 | **C05 Sensor fields** | [common/sensor.py](D:/LetThemCook/common/sensor.py:11)，11–38 | L11 / L12 / L23 / L27 |
-| A 已讲；本段回顾/备查 | **C06 Sensor codec** | [common/sensor.py](D:/LetThemCook/common/sensor.py:63)，63–80 | L67 / L73 / L75 / L78 |
-| A 已讲；本段回顾/备查 | **C07 Fixtures** | [common/dummy_fixtures.json](D:/LetThemCook/common/dummy_fixtures.json:1)，1–6 | L2 / L3 / L4 / L5 |
-| A 已讲；本段回顾/备查 | **C40 Random source** | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:87)，87–96 | L89 / L94 |
-| A 已讲；本段回顾/备查 | **C08 Sensor send** | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:483)，483–511 | L500 / L503 / L507 / L508 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| A 已讲；本段回顾/备查 | **C05 Sensor fields** | [展示稿第 223 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:223) | [common/sensor.py](D:/LetThemCook/common/sensor.py:11)，11–38 | L11 / L12 / L23 / L27 |
+| A 已讲；本段回顾/备查 | **C06 Sensor codec** | [展示稿第 273 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:273) | [common/sensor.py](D:/LetThemCook/common/sensor.py:63)，63–80 | L67 / L73 / L75 / L78 |
+| A 已讲；本段回顾/备查 | **C07 Fixtures** | [展示稿第 311 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:311) | [common/dummy_fixtures.json](D:/LetThemCook/common/dummy_fixtures.json:1)，1–6 | L2 / L3 / L4 / L5 |
+| A 已讲；本段回顾/备查 | **C40 Random source** | [展示稿第 392 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:392) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:87)，87–96 | L89 / L94 |
+| A 已讲；本段回顾/备查 | **C08 Sensor send** | [展示稿第 338 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:338) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:483)，483–511 | L500 / L503 / L507 / L508 |
 
 
 **投屏 G03：** 用清晰图解回顾 A2 相机镜头里的 _PACKET / decode_packet，顺着 32 个 byte 的位置讲，不需要重复上传或生成数据。源码为 [sensor.py](D:/LetThemCook/common/sensor.py)、[dummy_fixtures.json](D:/LetThemCook/common/dummy_fixtures.json)、[week7_packet.h](D:/LetThemCook/firmware/esp32/include/week7_packet.h)。
@@ -343,18 +415,18 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B4 / G04｜Packet types 与 BLE control format 图解回顾
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > The sensor characteristic sends W7 notifications. The laptop reads W7S1 source counters for reconciliation. Commands use a separate B7 control header containing the opcode, device ID, status, request ID and offset. A response sets bit seven of the opcode. The command payload carries a complete version-two sensor packet. The control header itself remains version one. The laptop then uses SENSOR_BATCH and INGEST_ACK messages with Ultra96, while the phone uses subscription and gesture-result messages.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| A 已讲；本段回顾/备查 | **C09 BLE types** | [common/control.py](D:/LetThemCook/common/control.py:8)，8–17 | L10 / L11 / L12 / L15 |
-| A 已讲；本段回顾/备查 | **C10 Control codec** | [common/control.py](D:/LetThemCook/common/control.py:88)，88–101 | L90 / L97 / L98 / L100 |
-| A 已讲；本段回顾/备查 | **C11 JSON types** | [ultra96/protocol.py](D:/LetThemCook/ultra96/protocol.py:3)，3–13 | L7 / L8 / L9 / L10 |
-| A 已讲；本段回顾/备查 | **C12 Source counters** | [firmware/esp32/include/week7_source_stats.h](D:/LetThemCook/firmware/esp32/include/week7_source_stats.h:34)，34–53 | L41 / L44 / L45 / L49 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| A 已讲；本段回顾/备查 | **C09 BLE types** | [展示稿第 429 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:429) | [common/control.py](D:/LetThemCook/common/control.py:8)，8–17 | L10 / L11 / L12 / L15 |
+| A 已讲；本段回顾/备查 | **C10 Control codec** | [展示稿第 460 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:460) | [common/control.py](D:/LetThemCook/common/control.py:88)，88–101 | L90 / L97 / L98 / L100 |
+| A 已讲；本段回顾/备查 | **C11 JSON types** | [展示稿第 494 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:494) | [ultra96/protocol.py](D:/LetThemCook/ultra96/protocol.py:3)，3–13 | L7 / L8 / L9 / L10 |
+| A 已讲；本段回顾/备查 | **C12 Source counters** | [展示稿第 528 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:528) | [firmware/esp32/include/week7_source_stats.h](D:/LetThemCook/firmware/esp32/include/week7_source_stats.h:34)，34–53 | L41 / L44 / L45 / L49 |
 
 
 **投屏 G04：** 回顾 A2 已实际打开的 [control.py](D:/LetThemCook/common/control.py) 和 [protocol.py](D:/LetThemCook/ultra96/protocol.py)。指 W7 notification、W7S1 source counters、B7 control request / response，再指网络消息类型。控制头为 14 bytes；响应置 bit 7；控制 version=1 与 sensor version=2 分开。
@@ -363,18 +435,18 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B5 / G05｜BLE 协议 FSM
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > On power-up, the FireBeetle advertises its BLE service. After the laptop connects, the firmware checks authenticated encryption. A valid peer can enable notifications. Sensor streaming requires a subscription and an ATT MTU of at least thirty-five. Our rate-control operation additionally requires an MTU of at least sixty-four. On disconnection, the device clears connection state and advertises again. This diagram summarizes the implemented control flow.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C13 BLE gates** | [firmware/esp32/include/week7_security.h](D:/LetThemCook/firmware/esp32/include/week7_security.h:7)，7–25 | L10 / L11 / L14 / L16 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C13 BLE gates** | [展示稿第 585 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:585) | [firmware/esp32/include/week7_security.h](D:/LetThemCook/firmware/esp32/include/week7_security.h:7)，7–25 | L10 / L11 / L14 / L16 |
 
 
-**投屏 G05：** 广播 → 连接/认证 → ready → 通知发送；断开后重新广播/重连。这是行为概括，不声称源码存在同名 enum。读图页英文说明。
+**投屏 G05：** 广播 → 连接/认证 → ready → 通知发送；断开后重新广播/重连。这是行为概括，不声称源码存在同名 enum。读图解英文说明。
 
 **代码画面：** G05 → C13，指 canNotify、sensorFitsMtu、canAcceptControl，把图里的安全/订阅/MTU 门槛对应到真实条件。
 
@@ -384,19 +456,19 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B6 / G06｜TCP 分帧与 fragmentation
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > TCP delivers a byte stream, so one application frame can arrive in several pieces. Our encoder prefixes the JSON body with its four-byte big-endian byte length. The receiver first reads exactly four bytes, checks that the length is between one and sixteen thousand three hundred and eighty-four, and then reads exactly that many body bytes. It parses and validates the complete JSON object. TLS provides encryption around these application frames.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C14 Frame encode** | [common/wire.py](D:/LetThemCook/common/wire.py:35)，35–46 | L43 / L45 / L46 |
-| 主讲 | **C15 Partial reads** | [common/wire.py](D:/LetThemCook/common/wire.py:49)，49–76 | L53 / L58 / L59 / L62 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C14 Frame encode** | [展示稿第 641 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:641) | [common/wire.py](D:/LetThemCook/common/wire.py:35)，35–46 | L43 / L45 / L46 |
+| 主讲 | **C15 Partial reads** | [展示稿第 671 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:671) | [common/wire.py](D:/LetThemCook/common/wire.py:49)，49–76 | L53 / L58 / L59 / L62 |
 
 
-**投屏 G06：** 4-byte big-endian 长度 + UTF-8 JSON；读图页英文说明，指一个应用帧跨多个 TCP chunk 的图。
+**投屏 G06：** 4-byte big-endian 长度 + UTF-8 JSON；读图解英文说明，指一个应用帧跨多个 TCP chunk 的图。
 
 **源码：** [wire.py](D:/LetThemCook/common/wire.py) 的 `encode_frame()` / `read_frame()`，指出 `struct.pack("!I", ...)`、`readexactly(4)`、`readexactly(length)` 和 1..16384 限制。
 
@@ -408,20 +480,20 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B7 / G07｜Laptop ↔ Ultra96 协议 FSM 和录制证据
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > The laptop connects through the configured SSH route and verifies Ultra96's TLS certificate and hostname. In the active state it sends SENSOR_BATCH messages and validates matching INGEST_ACK messages. Sending and acknowledgement reading progress concurrently, with up to thirty-two outstanding messages per device. A connection failure retires the transport before retrying with a capped delay. Sent but unconfirmed packets are recorded as ambiguous drops, so reconnection does not imply complete outage replay.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C16 TLS connect** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349)，349–353 | L351 / L352 / L353 |
-| 主讲 | **C17 ACK identity** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:375)，375–386 | L376 / L379 / L381 / L382 |
-| 备查 | **C39 Retry delay** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:656)，656–670 | L660 / L667 / L669 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C16 TLS connect** | [展示稿第 732 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:732) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349)，349–353 | L351 / L352 / L353 |
+| 主讲 | **C17 ACK identity** | [展示稿第 755 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:755) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:375)，375–386 | L376 / L379 / L381 / L382 |
+| 备查 | **C39 Retry delay** | [展示稿第 787 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:787) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:656)，656–670 | L660 / L667 / L669 |
 
 
-**投屏 G07：** 建连/验证 TLS → active → 匹配 ACK；错误关闭重试与正常 drain 分开。读图页英文说明。
+**投屏 G07：** 建连/验证 TLS → active → 匹配 ACK；错误关闭重试与正常 drain 分开。读图解英文说明。
 
 **代码画面：** G07 → C16 看 TLS 建连 → 返回 → C17 看 ACK 身份检查；需要讲故障重试时再点 C39，退避间隔有上限，不是重试次数有固定上限。v2 request_id：stream 为 null，command 为非零 ID；本次只运行 stream。流水线的实际任务创建在 B10 / G10 展示，板端接入代码在 B11 / G11 展示。
 
@@ -431,27 +503,27 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 >
 > The active state uses pipelined sending and acknowledgement reading, with up to thirty-two outstanding messages per device. This is not a stop-and-wait protocol. When the capture ends, the bridge drains pending work before producing its final source audit.
 
-**重开 A 阶段证据，明确不是重跑：** 回主菜单选 **5**。如果保存的“本次目录”仍是 A 的那次，目录提示处按 **Enter**；如果后来做过别的尝试，粘贴 A6 记下的准确历史目录。先拍清打印的报告路径与录制那次一致，再看其报告和两设备的匹配数据。不要选菜单 4，那会开始新的实体采集。
+**重开 A 阶段证据，明确不是重跑：** 在终端 B 再运行 `python video_steps/05_report.py`，粘贴 A6 笔记中的**准确 Saved in 目录**。先拍清输出路径与录制那次一致，再看其报告和两设备匹配数据。此处不能运行 S04，那会开始新实体采集。
 
-停在同一身份的 sensor / sensor_ack，指出完整八个 values 和 accepted。若找不到匹配记录，不拼接其他运行补齐；查看本次报告解释问题。说明原始 `demo.py` 的 `_clean_capture()` / `show_report()` 检查源端/接收/ACK；菜单新增的是操作和人工计数记录，**不会读取 iPhone 屏幕**。
+S05 提示计数时，输入 A 阶段保存画面中的 P0/P1，明确是重看先前人工观察，不读取今天手机上的计数。停在同一身份的 sensor / sensor_ack，指出完整八个 values 和 accepted；找不到匹配就解释本次问题，不拼接别次记录。`demo.py` 的 `_clean_capture()` / `show_report()` 检查源端/接收/ACK；S05 补充匹配数据展示和人工计数记录，**不会读取 iPhone 屏幕**。
 
 > This is saved evidence from the physical capture shown earlier. These decoded sensor and acknowledgement records share the same device, boot and sequence. The final report reconciles source generation, laptop reception and board acknowledgements. The phone's actual reception was checked separately using its observed count increase.
 
 ### B8 / G08｜Ultra96 ↔ phone 订阅 FSM
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > After Connect, the iPhone verifies the SSH hosts and establishes verified TLS to the board's result service. It sends SUBSCRIBE and waits for SUBSCRIBED. It then validates GESTURE_RESULT messages and updates the received count and display. Version-two results use simulated random gesture labels. If the application becomes inactive, it pauses and requires an explicit Connect after returning. The filming phone is a different device, allowing this iPhone to remain in the foreground.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C18 Phone subscribe** | [ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift:24)，24–50 | L28 / L31 / L37 / L41 |
-| 主讲 | **C19 Phone pause** | [ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift:24)，24–37 | L26 / L27 / L28 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C18 Phone subscribe** | [展示稿第 834 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:834) | [ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Subscriber.swift:24)，24–50 | L28 / L31 / L37 / L41 |
+| 主讲 | **C19 Phone pause** | [展示稿第 883 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:883) | [ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Bridge/IntegrationController.swift:24)，24–37 | L26 / L27 / L28 |
 
 
-**投屏 G08：** Connect → SSH/TLS 验证 → SUBSCRIBE / SUBSCRIBED → 收结果；失活进入 Paused，需要用户重连。读图页英文说明。
+**投屏 G08：** Connect → SSH/TLS 验证 → SUBSCRIBE / SUBSCRIBED → 收结果；失活进入 Paused，需要用户重连。读图解英文说明。
 
 **代码画面：** G08 → C18 指 TLS handshake 后调用 Week7Protocol.subscribe、收 SUBSCRIBED 后调用 result 校验；返回 → C19 指 willResignActiveNotification 导致 Paused。校验函数的完整定义在 Protocol.swift；当前投屏片段显示调用点，不冒充整段解析器。随机 gesture 的生成在 B11 的 C35 显示。
 
@@ -463,27 +535,27 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B9 / G09｜Every channel：三条通道加密源码
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > The FireBeetle link uses BLE Secure Connections with authenticated pairing and bonding. Its stack provides link encryption. The laptop independently verifies the Ultra96 TLS certificate against our CA and checks the expected hostname. The native iPhone performs its own TLS verification and pins the SSH host keys for its route. Both TLS clients require version one point two or newer. These are separate protected connections. We will now inspect the enforcement points in the source code.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C20 BLE security** | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:243)，243–262 | L251 / L253 / L254 / L255 |
-| 主讲 | **C22 GATT access** | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:391)，391–398 | L396 / L397 |
-| 备查 | **C21 Peer check** | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:196)，196–208 | L198 / L200 / L201 / L208 |
-| 主讲 | **C23 Python TLS** | [common/tls.py](D:/LetThemCook/common/tls.py:4)，4–19 | L9 / L10 / L11 / L12 |
-| B7 已讲；需要时回看 | **C16 TLS connect** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349)，349–353 | L351 / L352 / L353 |
-| 主讲 | **C24 iPhone TLS** | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:88)，88–95 | L89 / L91 / L92 / L94 |
-| 主讲 | **C25 Phone route** | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:128)，128–150 | L138 / L140 / L142 / L144 |
-| 主讲 | **C26 SSH pins** | [ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift:4)，4–10 | L7 / L8 / L9 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C20 BLE security** | [展示稿第 926 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:926) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:243)，243–262 | L251 / L253 / L254 / L255 |
+| 主讲 | **C22 GATT access** | [展示稿第 1001 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1001) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:391)，391–398 | L396 / L397 |
+| 备查 | **C21 Peer check** | [展示稿第 968 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:968) | [firmware/esp32/src/main.cpp](D:/LetThemCook/firmware/esp32/src/main.cpp:196)，196–208 | L198 / L200 / L201 / L208 |
+| 主讲 | **C23 Python TLS** | [展示稿第 1025 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1025) | [common/tls.py](D:/LetThemCook/common/tls.py:4)，4–19 | L9 / L10 / L11 / L12 |
+| B7 已讲；需要时回看 | **C16 TLS connect** | [展示稿第 732 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:732) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:349)，349–353 | L351 / L352 / L353 |
+| 主讲 | **C24 iPhone TLS** | [展示稿第 1064 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1064) | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:88)，88–95 | L89 / L91 / L92 / L94 |
+| 主讲 | **C25 Phone route** | [展示稿第 1093 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1093) | [ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Week7Client.swift:128)，128–150 | L138 / L140 / L142 / L144 |
+| 主讲 | **C26 SSH pins** | [展示稿第 1138 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1138) | [ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift](D:/LetThemCook/ios-visualizer/Week7Native/Sources/Week7Transport/Trust.swift:4)，4–10 | L7 / L8 / L9 |
 
 
-**投屏 G09：** 读图页英文说明，依次指 BLE、laptop–Ultra96、Ultra96–phone 的保护边界。以下三段源码都录，不能只投一张图结束。
+**投屏 G09：** 读图解英文说明，依次指 BLE、laptop–Ultra96、Ultra96–phone 的保护边界。以下三段源码都录，不能只投一张图结束。
 
-**① FireBeetle ↔ laptop。** 在 G09 点击 **C20 BLE security**，指 `ESP_LE_AUTH_REQ_SC_MITM_BOND`；Back 返回后点 **C22 GATT access**，指两个 `ENC_MITM` 权限。如果展开认证结果如何用于当前连接，再点 **C21 Peer check**，指 `currentPeer`。Windows 认证绑定的实际检查已在 A1 拍到；需要看实现可回 G02 的 C04。
+**① FireBeetle ↔ laptop。** 在 G09 点击 **C20 BLE security**，指 `ESP_LE_AUTH_REQ_SC_MITM_BOND`；Back to Gxx 返回后点 **C22 GATT access**，指两个 `ENC_MITM` 权限。如果展开认证结果如何用于当前连接，再点 **C21 Peer check**，指 `currentPeer`。Windows 认证绑定的实际检查已在 A1 拍到；需要看实现可回 G02 的 C04。
 
 > BLE uses authenticated Secure Connections with bonding and man-in-the-middle protection. These permissions require authenticated encryption for the protected GATT operations. The authentication callback applies the result only to the current peer, and the laptop requires an authenticated bond. Encryption is implemented by the Bluetooth stack; the application packet has no separate custom encryption function or CRC field.
 
@@ -491,7 +563,7 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 > The Python client requires TLS one point two or newer. It verifies the server certificate against our configured CA and checks the hostname ultra96 dot week7 dot internal. The server loads its certificate and private key here, while the bridge supplies the verified context and hostname when connecting. In this deployment, TLS runs inside an SSH tunnel with host-key verification on both hops. SSH provides the route and authenticates the SSH hosts; TLS authenticates the application server.
 
-**③ Ultra96 ↔ iPhone。** G09 → **C24 iPhone TLS** 指 `trustRoots`、`.fullVerification`、`.tlsv12`；返回 → **C25 Phone route** 指 `NIOSSLClientHandler` 的 `serverHostname`；返回 → **C26 SSH pins** 指 `validateHostKey()` 的匹配和拒绝分支。三段都在同一 HTML，按下列英文逐步讲。
+**③ Ultra96 ↔ iPhone。** G09 → **C24 iPhone TLS** 指 `trustRoots`、`.fullVerification`、`.tlsv12`；返回 → **C25 Phone route** 指 `NIOSSLClientHandler` 的 `serverHostname`；返回 → **C26 SSH pins** 指 `validateHostKey()` 的匹配和拒绝分支。三段都在同一 Markdown 展示稿，按下列英文逐步讲。
 
 > The native iPhone transport performs its own full certificate verification using the configured CA, TLS one point two or newer, and the same expected application hostname. Its SSH connections check pinned host keys, including the jump host. This protects the result connection independently of the laptop's ingestion connection. JSON serialization, length prefixes and SHA-two-fifty-six digests are not themselves encryption.
 
@@ -499,23 +571,23 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B10 / G10｜Laptop concurrency / threading
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > Each device has its own BLE input task, bounded inbox and TLS sender. Its acknowledgement reader validates replies and releases slots in the thirty-two-message window. Waiting for one device's I/O allows the other device's tasks to progress. BLE callbacks enter through a thread-safe queue boundary. A separate worker thread writes packet evidence from another bounded queue. The main network concurrency uses asyncio tasks, while logging uses an actual operating-system thread.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C27 Device tasks** | [laptop/dual_bridge.py](D:/LetThemCook/laptop/dual_bridge.py:91)，91–111 | L94 / L106 / L109 |
-| 主讲 | **C29 Callback queue** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:122)，122–147 | L125 / L128 / L135 / L137 |
-| 主讲 | **C30 ACK window** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:533)，533–544 | L535 / L541 |
-| 主讲 | **C31 Send / ACK tasks** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:632)，632–642 | L633 / L634 / L637 |
-| 主讲 | **C32 Log thread** | [laptop/evidence.py](D:/LetThemCook/laptop/evidence.py:13)，13–34 | L17 / L33 / L34 |
-| 备查 | **C28 Inbox state** | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:87)，87–101 | L91 / L92 / L93 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C27 Device tasks** | [展示稿第 1174 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1174) | [laptop/dual_bridge.py](D:/LetThemCook/laptop/dual_bridge.py:91)，91–111 | L94 / L106 / L109 |
+| 主讲 | **C29 Callback queue** | [展示稿第 1246 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1246) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:122)，122–147 | L125 / L128 / L135 / L137 |
+| 主讲 | **C30 ACK window** | [展示稿第 1295 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1295) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:533)，533–544 | L535 / L541 |
+| 主讲 | **C31 Send / ACK tasks** | [展示稿第 1323 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1323) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:632)，632–642 | L633 / L634 / L637 |
+| 主讲 | **C32 Log thread** | [展示稿第 1354 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1354) | [laptop/evidence.py](D:/LetThemCook/laptop/evidence.py:13)，13–34 | L17 / L33 / L34 |
+| 备查 | **C28 Inbox state** | [展示稿第 1213 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1213) | [laptop/bridge.py](D:/LetThemCook/laptop/bridge.py:87)，87–101 | L91 / L92 / L93 |
 
 
-**投屏 G10：** 指两套 input → RawInbox → TLS sender / ACK reader；再指独立日志线程，读图页英文说明。
+**投屏 G10：** 指两套 input → RawInbox → TLS sender / ACK reader；再指独立日志线程，读图解英文说明。
 
 **源码顺序：** [dual_bridge.py](D:/LetThemCook/laptop/dual_bridge.py) 的 `DualBridge.run()`：`writers` / `inputs` 的 `asyncio.create_task()`；[bridge.py](D:/LetThemCook/laptop/bridge.py) 的 `RawInbox` / `call_soon_threadsafe`、`_pipeline_epoch()` 内 `sender()` / `receiver()` / `asyncio.Semaphore`；C32 展示 evidence.py 的有界 queue.Queue 和真实 threading.Thread。
 
@@ -525,23 +597,23 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### B11 / G11｜Ultra96 concurrency / threading
 
-**投屏英文旁白（与 HTML 一致）：**
+**投屏英文旁白（与展示稿一致）：**
 
 > Ultra96 has separate accept tasks for ingestion and the phone gateway. Each client connection gets a task. Ingestion validates and deduplicates a message, creates a simulated result for a new input and returns an acknowledgement. The phone gateway runs a result sender and a connection monitor. A bounded result queue connects the two paths. An ingestion acknowledgement does not confirm phone receipt, which is why the physical demonstration separately compares the phone's received-count increase.
 
-**点击代码顺序（范围是原文件行号，按钮名与 HTML 相同）：**
+**代码讲解顺序（范围是原文件行号，标题与展示稿相同）：**
 
-| 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
-|---|---|---|---|
-| 主讲 | **C33 Two listeners** | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:136)，136–153 | L139 / L150 / L151 |
-| 主讲 | **C34 Client task** | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:179)，179–188 | L187 / L188 |
-| 主讲 | **C35 Ingest + ACK** | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:246)，246–275 | L248 / L265 / L266 / L272 |
-| 主讲 | **C36 Gateway tasks** | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:309)，309–337 | L310 / L331 / L334 / L336 |
-| 主讲 | **C38 Queue freshness** | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:56)，56–77 | L58 / L62 / L72 / L73 |
-| 备查 | **C37 Queue capacity** | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:32)，32–41 | L35 |
+| 用法 | 代码标题/内部链接 | 展示稿标题行（Ctrl+G） | 源文件与片段范围 | 要指出的原行号 |
+|---|---|---|---|---|
+| 主讲 | **C33 Two listeners** | [展示稿第 1405 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1405) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:136)，136–153 | L139 / L150 / L151 |
+| 主讲 | **C34 Client task** | [展示稿第 1441 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1441) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:179)，179–188 | L187 / L188 |
+| 主讲 | **C35 Ingest + ACK** | [展示稿第 1467 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1467) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:246)，246–275 | L248 / L265 / L266 / L272 |
+| 主讲 | **C36 Gateway tasks** | [展示稿第 1522 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1522) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:309)，309–337 | L310 / L331 / L334 / L336 |
+| 主讲 | **C38 Queue freshness** | [展示稿第 1601 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1601) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:56)，56–77 | L58 / L62 / L72 / L73 |
+| 备查 | **C37 Queue capacity** | [展示稿第 1573 行](D:/LetThemCook/docs/B07-CO-video-presentation.en.md:1573) | [ultra96/server.py](D:/LetThemCook/ultra96/server.py:32)，32–41 | L35 |
 
 
-**投屏 G11：** 两个 accept tasks、每个连接的 client task、订阅结果队列、结果发送与 EOF/额外输入监控，读图页英文说明。
+**投屏 G11：** 两个 accept tasks、每个连接的 client task、订阅结果队列、结果发送与 EOF/额外输入监控，读图解英文说明。
 
 **源码：** [server.py](D:/LetThemCook/ultra96/server.py) 的 `start()` / `_accept()` / `_client()`；再 `_ingest()`、`_gateway()`、`_send_results()`、`ResultQueue`。在 `_gateway()` 指到发送任务与 `reader.read(1)` 监控任务。
 
@@ -570,22 +642,35 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ## 附录：只在录前需要时检查或启动 Ultra96
 
-**不需要复制 SSH 命令。** 主菜单选 **9**，出现 Ultra96 服务子菜单：
+**S07：只读检查。** 另开 PowerShell 并进入仓库，运行：
 
-1. **子项 1：只读检查状态。** 脚本开新的交互 SSH 窗口，按 SSH 提示输入两跳密码。查看监听端口、属主、进程和部署信息，正常应为 `xilinx` 的同一个 `ultra96.server` 持有 `127.0.0.1:8888` / `127.0.0.1:9999`。已有匹配服务就复用，不选启动。
-2. **子项 2：需要时启动当前部署。** 仅当服务不存在且两个端口都空闲时使用。脚本在板端核实端口空闲后，以现有证书和当前部署目录启动服务；端口被占时不启动、不终止占用者。密码仍只输入新 SSH 窗口的交互提示。
+```powershell
+python video_steps/07_service_status.py
+```
 
-当前目录为 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z`。预期出现 `listening`；保留启动服务的前台窗口，再用 **9 → 1** 检查实际端口/进程。菜单不会自动停止共享服务，退出主菜单也不能当作远端状态证明。当前目录缺失或版本不符时先解决部署，不退回旧 `source-observer-20260921T080754Z`。
+> This script checks the listening ports and server process on Ultra96 through SSH.
 
-2026-09-28 记录中的 PID `105159` 只是历史信息，不要照抄用来操作当天的进程。菜单 9 用于录前检查/启动；真正采集仍由 **3 → 手机 Connect → 4** 完成。
+按当前终端的 SSH 提示输入两跳密码。查看监听端口、属主、进程和部署信息，正常应为 `xilinx` 的同一个 `ultra96.server` 持有 `127.0.0.1:8888` / `127.0.0.1:9999`。已有匹配服务就复用；检查脚本结束后返回此终端。
+
+**S08：仅在服务不存在且两端口空闲时启动。** 在服务终端运行：
+
+```powershell
+python video_steps/08_service_start.py
+```
+
+> This script starts the existing Ultra96 service only after the port check succeeds and both service ports are free.
+
+先核实屏幕打印的部署目录和设备版本匹配、服务确实不存在，再按 **Enter**；不满足则输入 **q** 取消。密码只输入当前终端的交互提示，避开镜头。脚本核实端口空闲后，以已有证书和 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z` 启动服务；端口被占时不启动、不终止占用者。预期出现 `listening`；**保留此服务终端运行**，需要复查时在另一个终端运行 S07。当前目录缺失或版本不符先解决部署，不退回旧 `source-observer-20260921T080754Z`。
+
+2026-09-28 记录中的 PID `105159` 只是历史信息，不要照抄用来操作当天进程。S07/S08 只用于录前检查/需要时启动；真实采集顺序仍是 **S03 → 手机 Connect → S04 → S05**。不要关闭共享服务来结束录像。
 
 | 录前/录中问题 | 处理 |
 |---|---|
-| 隧道静止不输出 | 正常等待；后续 ACK 才证明通信。不要反复选 3 开同端口 |
-| Pairing 不通过 | 核地址和固件；首次需要口令时 8 → 2，完成后关监视器；不降级安全 |
+| 隧道静止不输出 | 正常等待；后续 ACK 才证明通信。不要再运行 S03 抢同一端口 |
+| Pairing 不通过 | 核地址和固件；首次先各自 S06 再 S02，完成后退出串口；不降级安全 |
 | 手机 Paused | 显式重新 Connect，记录新 P0，再开启独立新采集 |
 | ACK 增长但手机不增 | 查订阅、VPN、竞争接收器、v2 App；不把 ACK 当手机收据 |
 | CAPTURE NOT PASSED / N/A / 手机增量不符 | 保留失败证据，排查后另开新采集；不混用两次计数 |
-| 第二阶段找不到这次报告 | 选 5，粘贴 A6 保存的完整目录；不随意取“最新成功的一次” |
+| 第二阶段找不到这次报告 | S05 粘贴 A6 保存的完整目录；不随意取“最新成功的一次” |
 
 来源：[当前 CO v2 协议](D:/LetThemCook/docs/co-protocol-v2.md)、[2026-09-28 部署与实体测试记录](D:/LetThemCook/docs/co-live-deployment-2026-09-28.md)及上述当前源码。本文是录制步骤，编写时没有重跑硬件测试。
