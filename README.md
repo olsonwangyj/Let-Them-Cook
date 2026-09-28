@@ -7,7 +7,9 @@ Start with the two current reports:
 - [System technical report](docs/week7-system-technical-report.md) · [简体中文版](docs/week7-system-technical-report.zh-CN.md): architecture, parallel processing, packet formats, code walkthroughs, and a file-by-file guide.
 - [Testing and Week 7 demo guide](docs/week7-testing-and-demo-guide.md) · [简体中文版](docs/week7-testing-and-demo-guide.zh-CN.md): which commands to run on each machine, expected observations, acceptance criteria, troubleshooting, and a professor-facing demonstration.
 
-For the individual video submission, use the [B07 CO short local recording guide](docs/B07-CO-subsystem-video-guide.zh-CN.md): Chinese instructions for the configured Windows laptop, short English narration, source-code locations, and recovery tests. The submission filename is `B07_CO_subsystem.mp4`.
+The [B07 CO subsystem requirements](docs/B07-CO-subsystem-requirements.md) map the instructor's full guideline to existing capabilities, missing features, acceptance criteria, and implementation order. The current transport demo does not yet cover that entire guideline.
+
+For recording the existing transport baseline, use the [B07 CO short local recording guide](docs/B07-CO-subsystem-video-guide.zh-CN.md): Chinese instructions for the configured Windows laptop, short English narration, source-code locations, and recovery tests. Extend the recording to cover the requirements above after the remaining features are implemented. The submission filename is `B07_CO_subsystem.mp4`.
 
 From the configured repository, run `python demo.py tunnel` in terminal A. In terminal B, after the iPhone shows `Subscribed, Received: 0`, run `python demo.py run`. This captures both ESPs for 60 seconds, displays live logs, saves each capture under `.week7-local/B07-*`, and prints per-device counts and capture pass/fail. Use `python demo.py report` to reopen the latest capture summary, or `python demo.py run --duration 600` for a ten-minute capture.
 
