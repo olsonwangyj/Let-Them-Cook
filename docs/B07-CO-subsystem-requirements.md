@@ -106,7 +106,9 @@ Each accepted demo keystroke shall select a random valid dummy packet, send it f
 
 **Scope:** part of the Live-only full pipeline.
 
-Ultra96 shall select a random valid event when it accepts a new relevant dummy input. This is a communications demonstration using dummy AI output; no trained AI model is required.
+Ultra96 shall select a random valid event when it accepts a new relevant dummy input, send it to the phone, and display it there. For example, it may randomly choose `REST`, `FIST`, `OPEN`, or `POINT` from the supported event set.
+
+**Scope clarification:** the event is simulated AI output for testing communication. It does not need to be derived from the sensor values. Model training, datasets, trained-model inference, hardware AI execution, and classification accuracy are outside this requirement. Successful generation, transmission, reception, and display of the random event satisfy its purpose.
 
 **Acceptance:**
 
@@ -114,6 +116,7 @@ Ultra96 shall select a random valid event when it accepts a new relevant dummy i
 - Replace the current `seq % 4` assumption in the board and phone validators consistently. The existing `confidence = 1.0` may remain if documented; random confidence is not required by the guideline.
 - A repeated input identity shall not create a second independent random event effect. Define duplicate handling and test it.
 - Demonstrate valid randomly selected events on the actual installed iPhone app. Repeated event labels are allowed.
+- Describe these results as dummy/random events in the demonstration; do not present them as predictions produced by a trained model.
 
 **Implementation impact:** `ultra96/server.py`, `ultra96/protocol.py`, native Swift result validation/tests, and any supported Python/C# consumers. The selected iPhone route requires building and installing the updated native receiver on a Mac when its validator changes.
 
