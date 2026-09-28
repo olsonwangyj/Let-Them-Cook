@@ -1,14 +1,10 @@
-"""Offline packet examples and explicitly manual phone observations for one capture."""
+"""Matched sensor/ACK examples from one saved capture; phone reception is filmed separately."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import hashlib
 import json
 import math
 from pathlib import Path
-import uuid
 
-import demo
 from common.sensor import SensorPacket, decode_packet
 from ultra96.protocol import validate_session
 
@@ -132,94 +128,3 @@ def show_packet_examples(folder: Path) -> bool:
         print("ACK: " + json.dumps(ack, ensure_ascii=False, sort_keys=True))
     print("Examples show board ingestion ACKs, not phone receipts or a complete capture audit.")
     return True
-
-
-def _completed_commands(report):
-    total = 0
-    for identity, device, _ in demo._device_rows(report):
-        commands = device.get("commands")
-        if commands is None:
-            continue
-        if not isinstance(commands, dict):
-            raise ValueError(f"device {identity} commands must be an object or null")
-        for field in ("accepted", "rejected", "completed", "failed", "pending"):
-            if type(commands.get(field)) is not int or commands[field] < 0:
-                raise ValueError(f"device {identity} has invalid command count: {field}")
-        if commands["failed"] or commands["pending"] or commands["accepted"] != commands["completed"]:
-            raise ValueError(f"device {identity} has incomplete or failed commands")
-        total += commands["completed"]
-    return total
-
-
-def _entered_value(value):
-    if type(value) in (int, bool, str) or value is None:
-        return value
-    if type(value) is float and math.isfinite(value):
-        return value
-    return repr(value)
-
-
-def record_phone_observation(folder: Path, p0: int, p1: int, *, launcher_exit_code=None) -> int:
-    """Save a unique manual aggregate observation, including unsuccessful attempts.
-
-    Zero means valid counters, a clean physical capture, a matching aggregate,
-    and a successfully saved observation. When supplied, the launcher exit code
-    must also be an integer zero. It never means per-result receipts
-    were collected or that board ingestion ACKs established phone delivery.
-    """
-    folder = Path(folder).expanduser().resolve()
-    now = datetime.now(timezone.utc)
-    record = {
-        "source": "operator-entered", "timestamp_utc": now.isoformat(),
-        "capture_directory": str(folder), "report_file": str(folder / "report.json"),
-        "exit_code_file": str(folder / "exit-code.txt"),
-        "p0": _entered_value(p0), "p1": _entered_value(p1),
-        "launcher_exit_code": _entered_value(launcher_exit_code),
-        "delta": None, "expected": None, "capture_clean": False,
-        "matched": False, "passed": False, "reason": None,
-        "evidence_scope": "Manual aggregate phone counter observation; not a per-result receipt audit. Board ACKs alone do not prove phone receipt.",
-    }
-    try:
-        if type(p0) is not int or type(p1) is not int or p0 < 0 or p1 < p0:
-            raise ValueError("P0 and P1 must be nonnegative integers with P1 >= P0")
-        record["delta"] = p1 - p0
-        report_bytes = (folder / "report.json").read_bytes()
-        record["report_sha256"] = hashlib.sha256(report_bytes).hexdigest()
-        report = _json(report_bytes.decode("utf-8-sig"))
-        exit_bytes = (folder / "exit-code.txt").read_bytes()
-        record["exit_code_sha256"] = hashlib.sha256(exit_bytes).hexdigest()
-        exit_code = int(exit_bytes.decode("utf-8-sig").strip())
-        record["exit_code"] = exit_code
-        record["capture_clean"] = demo._clean_capture(report, exit_code)
-        if not record["capture_clean"]:
-            raise ValueError("capture did not pass demo._clean_capture with its saved exit code")
-        if launcher_exit_code is not None and (
-                type(launcher_exit_code) is not int or launcher_exit_code != 0):
-            raise ValueError("launcher did not finish successfully with integer exit code 0")
-        commands = _completed_commands(report)
-        generated = sum(source["generated"] for _, _, source in demo._device_rows(report))
-        record.update(generated=generated, completed_commands=commands, expected=generated + commands)
-        record["matched"] = record["delta"] == record["expected"]
-        if not record["matched"]:
-            raise ValueError("manual phone count increase differs from the clean capture's expected total")
-        record["passed"] = True
-    except (OSError, UnicodeError, ValueError, TypeError) as error:
-        record["reason"] = str(error)
-
-    print(f"Phone observation (operator-entered): {folder}")
-    print(f"P0={p0} P1={p1} delta={record['delta']} expected={record['expected']}")
-    print(record["evidence_scope"])
-    path = folder / ("phone-observation-" + now.strftime("%Y%m%dT%H%M%S%fZ") + "-" + uuid.uuid4().hex + ".json")
-    try:
-        serialized = json.dumps(record, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-        with path.open("x", encoding="utf-8") as stream:
-            stream.write(serialized)
-    except (OSError, ValueError, TypeError) as error:
-        print(f"PHONE OBSERVATION NOT PASSED: could not save observation: {error}")
-        return 1
-    print(f"Saved observation: {path}")
-    if record["passed"]:
-        print("MATCH: clean capture total equals the operator-entered phone increase.")
-        return 0
-    print(f"PHONE OBSERVATION NOT PASSED: {record['reason']}")
-    return 1

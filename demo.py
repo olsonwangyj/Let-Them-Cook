@@ -41,23 +41,30 @@ def _parser():
     tunnel.add_argument("--target", default="xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg")
     tunnel.add_argument("--port", type=_port, default=18889)
 
-    run = commands.add_parser("run", help="capture both real ESPs and save logs/reports")
-    run.add_argument("--duration", type=_duration, default=60.0, help="seconds; default: 60")
-    run.add_argument("--ca", type=Path, default=Path.home() / ".codex" / "private" /
-                     "cg4002-week7-20260906" / "ca-cert.pem")
-    run.add_argument("--left-address", default="38:18:2B:19:82:AE")
-    run.add_argument("--right-address", default="38:18:2B:18:9D:6A")
-    run.add_argument("--port", type=_port, default=18889)
-    run.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
-    run.add_argument("--keyboard", action="store_true", help="individual keys 1/2 command the selected ESP")
-    run.add_argument("--rate", type=_source_rate, help="set BOTH physical ESP sources to 1..200 Hz")
-    run.add_argument("--file", type=Path, help="send a 1..65536 byte file through BLE")
-    run.add_argument("--file-device", type=int, choices=(1, 2), default=1)
-    run.add_argument("--seed", type=int, help="repeat laptop random fixture selection")
+    # The same capture implementation serves recording and live keyboard demos.
+    for mode, seconds, keyboard in (("run", 60.0, False), ("live", 120.0, True)):
+        run = commands.add_parser(mode, help=f"{seconds:g}s physical capture; keyboard={keyboard}")
+        run.add_argument("--duration", type=_duration, default=seconds,
+                         help=f"seconds; default: {seconds:g}")
+        run.add_argument("--ca", type=Path, default=Path.home() / ".codex" / "private" /
+                         "cg4002-week7-20260906" / "ca-cert.pem")
+        run.add_argument("--left-address", default="38:18:2B:19:82:AE")
+        run.add_argument("--right-address", default="38:18:2B:18:9D:6A")
+        run.add_argument("--port", type=_port, default=18889)
+        run.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
+        run.add_argument("--keyboard", action="store_true", default=keyboard,
+                         help="individual keys 1/2 command the selected ESP")
+        run.add_argument("--rate", type=_source_rate, default=10,
+                         help="set BOTH physical ESP sources to 1..200 Hz; default: 10")
+        run.add_argument("--file", type=Path, help="send a 1..65536 byte file through BLE")
+        run.add_argument("--file-device", type=int, choices=(1, 2), default=1)
+        run.add_argument("--seed", type=int, help="repeat laptop random fixture selection")
 
     report = commands.add_parser("report", help="view the latest capture, or a given report")
     report.add_argument("path", nargs="?", type=Path, help="capture folder or report.json")
     report.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
+    service = commands.add_parser("service", help="inspect the Ultra96 service before the demo")
+    service.add_argument("--start", action="store_true", help="start only after confirming both ports are free")
     return parser
 
 
@@ -190,10 +197,15 @@ def show_report(path, *, save_readable=False):
     if not _clean_capture(report, exit_code):
         print("CAPTURE NOT PASSED: inspect report.json and live.log; do not infer a phone total.")
         return 1
+    # Review this exact run automatically; no separate report script or phone input.
+    from tools.video_evidence import show_packet_examples
+    if not show_packet_examples(path.parent):
+        print("CAPTURE NOT PASSED: packet evidence could not be verified.")
+        return 1
     total = sum(source["generated"] for _, _, source in _device_rows(report)) + command_total
     print("CAPTURE PASSED: physical ESP input through Ultra96 ingestion ACKs.")
     print(f"Phone expected increase: {total}")
-    print("Compare with the actual iPhone Received increase; phone receipt is not checked here.")
+    print("Film the iPhone Received count before and after with your camera; phone receipt is not checked here.")
     return 0
 
 
@@ -264,8 +276,11 @@ def main(argv=None):
     try:
         if args.action == "tunnel":
             return run_tunnel(args)
-        if args.action == "run":
+        if args.action in ("run", "live"):
             return run_capture(args)
+        if args.action == "service":
+            from tools.demo_service import main as service_main
+            return service_main(start=args.start)
         return show_report(args.path if args.path is not None else latest_report(args.output_root))
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"Demo could not complete: {error}", file=sys.stderr)

@@ -58,6 +58,17 @@ def dummy_ca(tmp_path):
     return path
 
 
+def packet_lines():
+    rows = []
+    for device in (1, 2):
+        identity = dict(device_id=device, boot_id=7, seq=0)
+        rows.append(dict(identity, type="sensor", direction="ESP->laptop", version=2,
+                         uptime_ms=100, values=list(range(8)), validation="decoded"))
+        rows.append(dict(identity, type="sensor_ack", direction="Ultra96->laptop",
+                         validation="accepted"))
+    return "".join(json.dumps(row) + "\n" for row in rows)
+
+
 def child_command(report_path, payload, exit_code=0, *, check_live=False):
     """A real local child emits both streams and writes the requested evidence."""
     program = """
@@ -82,12 +93,13 @@ if sys.argv[4] == "live":
         raise SystemExit(19)
 if sys.argv[2] != "MISSING":
     path.write_text(sys.argv[2], encoding="utf-8")
+path.with_name("packets.jsonl").write_text(sys.argv[5], encoding="utf-8")
 raise SystemExit(int(sys.argv[3]))
 """
     encoded = "MISSING" if payload is None else (
         payload if isinstance(payload, str) else json.dumps(payload))
     return [sys.executable, "-u", "-c", program, str(report_path), encoded,
-            str(exit_code), "live" if check_live else "normal"]
+            str(exit_code), "live" if check_live else "normal", packet_lines()]
 
 
 def install_child(monkeypatch, payload, exit_code=0, *, check_live=False):
@@ -100,6 +112,7 @@ def install_child(monkeypatch, payload, exit_code=0, *, check_live=False):
 def saved_capture(root, name="B07-saved", payload=None, exit_code="0"):
     directory = root / name
     directory.mkdir(parents=True)
+    (directory / "packets.jsonl").write_text(packet_lines(), encoding="utf-8")
     report = directory / "report.json"
     report.write_text(json.dumps(physical_report() if payload is None else payload),
                       encoding="utf-8")
@@ -123,6 +136,7 @@ def cli_status(argv):
 
 def test_run_streams_both_child_streams_and_saves_a_unique_capture(
         tmp_path, dummy_ca, monkeypatch, capsys):
+    monkeypatch.setattr(builtins, "input", lambda _: pytest.fail("Capture must not ask for phone counters"))
     install_child(monkeypatch, physical_report(), check_live=True)
     root = tmp_path / "captures"
     argv = ["run", "--ca", str(dummy_ca), "--output-root", str(root)]
@@ -140,6 +154,8 @@ def test_run_streams_both_child_streams_and_saves_a_unique_capture(
     assert "CAPTURE PASSED" in first_output
     assert "Phone expected increase: 1240" in first_output
     assert "Generated" in first_output and "Received" in first_output and "ACKed" in first_output
+    assert "Matched identity:" in first_output and "Sensor:" in first_output
+    assert not list(first.glob("phone-observation-*.json"))
 
     assert demo.main(argv) == 0
     assert len(list(root.glob("B07-*"))) == 2

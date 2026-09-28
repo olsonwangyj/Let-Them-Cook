@@ -2,25 +2,23 @@
 
 Two FireBeetles · one relay laptop · Ultra96 · Visualizer iPhone
 
-The diagrams and annotated excerpts below support the recorded physical demonstration. Comments have been added for this walkthrough; the implementation statements are preserved. `L` labels refer to original source-file lines, not the line numbers of this Markdown document. In VS Code Markdown preview, Code links jump to the annotated excerpts below; Source links open the original file at the indicated line.
+The diagrams and annotated excerpts below support the recorded physical demonstration. Comments have been added for this walkthrough; the implementation statements are preserved. `L` labels refer to original source-file lines, not the line numbers of this Markdown document. In VS Code Markdown preview, Code links jump to the annotated excerpts below; Source links open the original file at the indicated line. Each code excerpt is followed by a Read aloud paragraph explaining the file, key lines and observable behavior. Use the Chinese operator guide to choose the main excerpts for each recording section; the remaining excerpts support optional detail.
 
-## Recording scripts
+## Recording and live commands
 
-The existing `demo.py` handles the SSH tunnel, physical capture and report. The short scripts below provide one recording step per file and reuse those operations. [D01 — Change dummy packets, rebuild and rerun](#d01) explains the second physical capture.
+Two entry files cover the routine: `flash.py` programs the boards, and `demo.py` runs the communication demonstration. [D01 — Change dummy packets, rebuild and rerun](#d01) uses the same two files. Film the iPhone's Received count and results directly; there is no phone-counter input step.
 
-Run from `D:\LetThemCook`. Use separate terminals where a tunnel, serial monitor or server must remain running.
+Run from `D:\LetThemCook`. Keep the SSH tunnel in terminal A and run the capture in terminal B. One USB cable is sufficient for sequential programming; both boards use independent power during BLE communication.
 
-| Step | Run in the terminal | Purpose |
+| Use | Command | When |
 |---|---|---|
-| [S00](#s00) | `python video_steps/00_ports.py` | Identify serial ports |
-| [S01](#s01) | `python video_steps/01_flash.py` | Build and upload both boards |
-| [S02](#s02) | `python video_steps/02_pair.py` | Check authenticated pairing |
-| [S03](#s03) | `python video_steps/03_tunnel.py` | Keep the laptop SSH tunnel open |
-| [S04](#s04) | `python video_steps/04_capture.py` | Capture physical data |
-| [S05](#s05) | `python video_steps/05_report.py` | Review this capture and compare phone counts |
-| [S06](#s06) | `python video_steps/06_serial.py` | Read a first-pairing passkey privately |
-| [S07](#s07) | `python video_steps/07_service_status.py` | Inspect the deployed Ultra96 service |
-| [S08](#s08) | `python video_steps/08_service_start.py` | Start the deployed service only when needed |
+| [R01 — Flash](#r01) | `python flash.py` | Initial setup or after editing dummy data |
+| [R02 — Tunnel](#r02) | `python demo.py tunnel` | Once per session; keep it running |
+| [R03 — Video](#r03) | `python demo.py run` | 60 seconds; report appears automatically |
+| [R04 — Live](#r04) | `python demo.py live` | 120 seconds with keyboard commands |
+| [R05 — Review](#r05) | `python demo.py report "<exact Saved in directory>"` | Only when reopening saved evidence |
+
+First-time pairing, serial monitoring and service maintenance are occasional setup options: [R06](#r06), [R07](#r07), [R08](#r08).
 
 ## Diagrams and implemented code
 
@@ -48,7 +46,7 @@ Two FireBeetles send structured dummy sensor packets to the relay laptop over pr
 <a id="c01"></a>
 ### C01 — Launcher
 
-Source: [demo.py](../demo.py#L64) · original lines **64–81**.
+Source: [demo.py](../demo.py#L71) · original lines **71–88**.
 
 The launcher selects explicit transport settings and evidence paths, then delegates communication to the dual-device bridge.
 
@@ -56,20 +54,20 @@ The launcher selects explicit transport settings and evidence paths, then delega
 def capture_command(args, report_path):
     """Keep physical input and current protocol settings explicit in the child."""
     command = [sys.executable, "-u", "-m", "laptop.dual_bridge",
-            # L67: Use the configured CA and ingestion endpoint; the launcher does not
+            # L74: Use the configured CA and ingestion endpoint; the launcher does not
             # disable TLS verification.
             "--ca", str(args.ca.expanduser().resolve()), "--port", str(args.port),
             "--left-address", args.left_address, "--right-address", args.right_address,
-            # L69: Keep both device streams in the same configured session and use one
+            # L76: Keep both device streams in the same configured session and use one
             # requested observation duration.
             "--duration", str(args.duration), "--session-id", "week7-demo",
-            # L70: Allow up to 32 outstanding ingestion messages per device; progress
+            # L77: Allow up to 32 outstanding ingestion messages per device; progress
             # printing is separate from accounting.
             "--ack-window", "32", "--progress-interval", "1",
-            # L71: Save the report and packet evidence in this capture's directory so
+            # L78: Save the report and packet evidence in this capture's directory so
             # later review uses the same run.
             "--report", str(report_path), "--evidence", str(report_path.with_name("packets.jsonl"))]
-    # L72: Keyboard commands are optional; a sensor-only recording must not count
+    # L79: Keyboard commands are optional; a sensor-only recording must not count
     # command results that were never requested.
     if args.keyboard:
         command.append("--keyboard")
@@ -82,6 +80,9 @@ def capture_command(args, report_path):
 
 
 ```
+**Read aloud:**
+
+In demo.py, capture_command builds the command that starts the existing dual-device bridge with explicit settings. Line 74 passes the trusted CA file and ingestion port, while line 76 fixes the session name and passes the requested capture duration. The next lines set the acknowledgement window and give this capture its own report and packet-log paths. At line 79, keyboard commands are included only when enabled: run leaves them off by default, while live enables them. These saved files describe the laptop and board exchange; the iPhone screen remains separate evidence of phone reception.
 
 [Back to G01](#g01)
 
@@ -92,7 +93,7 @@ def capture_command(args, report_path):
 
 ![FireBeetle setup and device IDs](B07-video-diagrams/G02.svg)
 
-PlatformIO builds our Arduino firmware for the firebeetle32 board. The left profile assigns device ID one, and the right profile assigns device ID two. We upload over USB during setup and then disconnect both USB cables. During the BLE demonstration, each board uses its own power source. We complete authenticated pairing before streaming. The BLE address selects the physical board, while the device ID identifies its application packets.
+PlatformIO builds our Arduino firmware for the firebeetle32 board. The left profile assigns device ID one, and the right profile assigns device ID two. We use one USB cable to upload to the left board and then the right board, and disconnect the laptop USB after programming. During the BLE demonstration, each board uses its own power source. We complete authenticated pairing before streaming. The BLE address selects the physical board, while the device ID identifies its application packets.
 
 **Code:** [C02 Board + IDs](#c02) · [C03 Boot setup](#c03) · [C04 Pairing](#c04)
 
@@ -136,6 +137,9 @@ build_flags =
     ; remain attributable to their source.
     -DWEEK7_DEVICE_ID=2
 ```
+**Read aloud:**
+
+In firmware/esp32/platformio.ini, the shared environment selects the actual hardware and build framework. Lines 6 and 7 select FireBeetle32 and Arduino, so both device profiles start from the same platform configuration. Line 21 compiles the left profile with device ID one, and line 26 compiles the right profile with device ID two. These IDs travel inside application packets, whereas Bluetooth addresses select the physical boards during connection. The commented legacy and seed options are optional build choices; the current protected profiles use the normal version-two fixture path unless those options are deliberately added.
 
 [Back to G02](#g02)
 
@@ -174,6 +178,9 @@ void setup() {
   BLEDevice::setCustomGapHandler(gapCallback);
   BLEDevice::setCustomGattsHandler(gattsCallback);
 ```
+**Read aloud:**
+
+In firmware/esp32/src/main.cpp, setup prepares the identity and shared state before normal BLE operation begins. Line 406 obtains a random boot ID and stores it in the source statistics, helping distinguish samples from different startups when sequence numbers restart. The control engine receives the same device and boot identity, while allocation failures stop this setup path instead of continuing with missing state. After creating the mutex, line 421 requires security configuration to succeed. This is startup preparation; the later notification path still checks connection, subscription and authentication before sending sensor data.
 
 [Back to G02](#g02)
 
@@ -205,6 +212,9 @@ async def pair_address(address, pin_provider):
     finally:
         device.close()
 ```
+**Read aloud:**
+
+In laptop/windows_pairing.py, pair_address checks Windows pairing information for the selected Bluetooth address. At lines 119 and 120, an existing pairing is inspected rather than blindly accepted: check_bond requires encryption and authentication before the function returns. If there is no pairing, line 123 runs the custom passkey flow, then line 125 checks the refreshed protection state. The finally block closes the temporary device handle even when an error occurs. This prepares an authenticated bond for later BLE connections; first-time passkeys come from the private serial monitor and should stay outside the recording.
 
 [Back to G02](#g02)
 
@@ -266,6 +276,9 @@ class SensorPacket:
         for value in self.values:
             _integer(value, -32768, 32767, "channel")
 ```
+**Read aloud:**
+
+In common/sensor.py, line 11 defines the binary layout shared by the sender and receiver. The little-endian struct contains the two-byte marker, version and device bytes, three unsigned thirty-two-bit fields, and eight signed sixteen-bit channel values, totalling thirty-two bytes. The SensorPacket class names those fields, and lines 35 to 38 reject the wrong channel count or values outside the signed range. The version-one default on line 28 supports legacy construction; it does not make today's firmware version one. The current fixture firmware sends version two, and decoding preserves that received version.
 
 [Back to G03](#g03)
 
@@ -304,6 +317,9 @@ def decode_packet(data: bytes) -> SensorPacket:
         raise ValueError("unsupported W7 packet version")
     return SensorPacket(device_id, boot_id, seq, uptime_ms, tuple(values), version)
 ```
+**Read aloud:**
+
+In common/sensor.py, encode_packet and decode_packet provide the two directions of the same sensor format. Line 67 writes the W7 marker and identity fields before the eight values, using the struct defined earlier. On reception, line 73 requires exactly thirty-two bytes, line 75 unpacks the fields, and line 78 rejects unsupported versions. Constructing the final SensorPacket also applies its device, integer-range and channel checks. These checks establish that the bytes follow our schema; they are not an application checksum, an encryption step, or proof that Ultra96 or the phone received the sample.
 
 [Back to G03](#g03)
 
@@ -331,6 +347,9 @@ Several editable eight-channel fixtures provide varied, schema-valid dummy paylo
   [32767, -32768, -1, 0, 1, 123, -456, 789]
 ]
 ```
+**Read aloud:**
+
+In common/dummy_fixtures.json, lines 2 to 5 contain four complete eight-channel samples. The values include positive, negative and boundary cases, while the firmware randomly chooses one whole row for each version-two sensor sample. To demonstrate an edit, I can change the first value on line 3, regenerate the firmware header, and build and upload both device profiles. The source validator requires two to sixty-four rows, each containing eight signed sixteen-bit integers. I then look for the complete changed row in fresh logs from both devices, because random selection does not guarantee that the first displayed example uses it.
 
 [Back to G03](#g03)
 
@@ -385,6 +404,9 @@ Firmware paces independently sequenced sensor samples, checks readiness and MTU,
         // does not prove laptop or phone receipt.
         week7::recordSensorSubmission(sensorStats, submitted);
 ```
+**Read aloud:**
+
+In firmware/esp32/src/main.cpp, this part of the loop sends sensor data when the configured sampling interval has elapsed. Line 500 checks whether sensor notifications are allowed, and the next line checks that the negotiated MTU can carry the complete packet. Line 503 allocates the packet buffer, then lines 507 and 508 serialize a randomly selected fixture with the device, boot, sequence and uptime fields. Line 511 records whether serialization and submission succeeded. A successful submission means the BLE stack accepted the notification attempt; laptop reception and Ultra96 acknowledgement are measured separately.
 
 [Back to G03](#g03)
 
@@ -411,6 +433,9 @@ uint32_t fixtureRandomWord() {
 #endif
 }
 ```
+**Read aloud:**
+
+In firmware main.cpp, fixtureRandomWord supplies randomness to the fixture selection shown in G03. With an explicit WEEK7_FIXTURE_SEED build setting, Line 90 maintains a separate deterministic state, making fixture choices reproducible for testing without using the packet sequence as the random source. In the normal branch, Line 94 returns esp_random, so consecutive packets can select the same editable fixture and are not required to cycle through every row. This explains why the dummy-edit demonstration may need to inspect several transmitted samples before the updated eight-value fixture appears in the saved evidence.
 
 [Back to G03](#g03)
 
@@ -453,6 +478,9 @@ HEADER_SIZE = 14
 _HEADER = struct.Struct('<2sBBBBII')
 _OPCODES = (COMMAND, SET_RATE, FILE_BEGIN, FILE_CHUNK, FILE_END, FILE_ABORT)
 ```
+**Read aloud:**
+
+In common/control.py, these constants describe the separate BLE control protocol. Lines 10 and 11 assign operations for commands, source-rate changes and file transfer, while line 12 marks responses by setting bit seven of the opcode. Lines 15 and 16 define a fourteen-byte little-endian header containing the marker, version, opcode, device, status, request ID and offset. The control and response UUIDs identify their own characteristics, separate from normal sensor notifications. File chunks and command replies therefore have explicit meanings; they should not be mistaken for fragments of the ordinary thirty-two-byte sensor stream.
 
 [Back to G04](#g04)
 
@@ -487,6 +515,9 @@ def decode_control(data, *, mtu=517):
     frame = ControlFrame(opcode, device, request, offset, bytes(data[HEADER_SIZE:]), status)
     _validate(frame, mtu)
 ```
+**Read aloud:**
+
+In common/control.py, encode_control validates the frame before line 90 packs the B7 header and appends its payload. The decoder first rejects a short header, then lines 97 and 98 unpack it and require the expected marker and control version. Line 100 rebuilds the ControlFrame, and the following validation checks its operation, identity, payload and negotiated size limits. The outer control header remains version one even when a command carries a complete version-two sensor packet. Keeping those two version fields distinct prevents a valid command payload from being confused with a different control format.
 
 [Back to G04](#g04)
 
@@ -521,6 +552,9 @@ _FIELDS = {
     "GESTURE_RESULT": _BASE | _TRACE | {"result_id", "gesture", "confidence"},
 }
 ```
+**Read aloud:**
+
+In ultra96/protocol.py, this field table separates the roles of the network messages. Line 8 describes sensor data sent from the laptop, and line 9 describes the board's ingestion acknowledgement with the same device, boot and sequence identity. Lines 10 and 11 describe subscription setup, while line 12 describes the result sent to the phone. Later validation adds request_id for version-two data, acknowledgements and results; subscription envelopes remain version one. This table is a schema definition, so receiving a valid board acknowledgement establishes ingestion, while actual phone reception must be observed on the phone.
 
 [Back to G04](#g04)
 
@@ -567,6 +601,9 @@ Protected source-counter reads provide boot-specific sequence boundaries and sub
   return true;
 }
 ```
+**Read aloud:**
+
+In firmware/esp32/include/week7_source_stats.h, serializeSourceStats builds the twenty-four-byte source-counter record. Lines 40 to 44 write the W7S1 marker and device ID, followed by reserved bytes and the boot ID. Lines 49 to 51 then write the next sequence number, successful submissions and failed submissions as little-endian integers. These are cumulative counters for that boot, so the capture compares appropriate beginning and ending observations with its received and acknowledged samples. They make missing data measurable at the source boundary, but a submitted notification counter alone cannot establish laptop reception or phone delivery.
 
 [Back to G04](#g04)
 
@@ -623,6 +660,9 @@ inline bool canAcceptControl(bool connected, bool subscribed, bool authenticated
       // security gate, preventing accepted work without its response path.
       canNotify(connected, subscribed, authenticated, diagnostic);
 ```
+**Read aloud:**
+
+In firmware/esp32/include/week7_security.h, these small predicates define when BLE work is permitted. Line 11 requires a successful authentication result containing all the required Secure Connections, MITM and bonding bits. Line 16 also requires a connection and subscription before notifications can proceed; the diagnostic bypass belongs to an explicitly unprotected build, not this protected demonstration. Line 19 requires an MTU of at least thirty-five bytes for the thirty-two-byte sensor value and ATT overhead. Lines 24 and 25 additionally bind control writes to the current connection, preventing a different connection handle from satisfying the normal send conditions.
 
 [Back to G05](#g05)
 
@@ -664,6 +704,9 @@ def encode_frame(message):
     # supplies boundaries that TCP itself does not provide.
     return struct.pack("!I", len(body)) + body
 ```
+**Read aloud:**
+
+In common/wire.py, encode_frame converts one network message into an explicit application frame. The JSON object is encoded as compact UTF-8, and line 43 rejects data that cannot be represented safely, including non-finite numeric values. Lines 44 and 45 limit the encoded body to between one and sixteen thousand three hundred and eighty-four bytes. Line 46 adds a four-byte network-order length prefix before that body. This framing is needed because TCP delivers a byte stream whose reads may split or combine writes; it is separate from the fixed binary format used on the BLE sensor characteristic.
 
 [Back to G06](#g06)
 
@@ -714,6 +757,9 @@ async def read_frame(reader, timeout=5.0):
 
 async def write_frame(writer, message, timeout=5.0):
 ```
+**Read aloud:**
+
+In common/wire.py, read_frame reverses the length-prefixed encoding while handling TCP stream boundaries. Line 53 reads exactly four header bytes, then lines 58 and 59 decode and validate the body length before line 62 reads exactly that many bytes. Line 66 parses UTF-8 JSON with checks for duplicate keys and invalid numeric values, and the result must be an object. One timeout covers the complete header-and-body operation, so receiving small fragments does not continually reset the budget. A partial header or body is an error; a clean end between frames remains distinguishable for the connection handler.
 
 [Back to G06](#g06)
 
@@ -748,6 +794,9 @@ Each bridge opens its own verified and time-bounded TLS connection through the c
             # stalled device path cannot wait forever.
             ssl_handshake_timeout=self.config.io_timeout), self.config.io_timeout)
 ```
+**Read aloud:**
+
+In laptop/bridge.py, _connect_tls opens the verified application connection used to forward decoded sensor data. Line 351 uses the configured destination and creates a client TLS context from the trusted CA file. Line 352 supplies the expected server name, so certificate identity is checked even when the TCP destination is the laptop's local SSH forwarding port. Line 353 bounds both the TLS handshake and the overall connection attempt with the configured timeout. This verifies the board's TLS server through the existing route; it does not replace BLE authentication or prove that a particular sensor sample has been acknowledged.
 
 [Back to G07](#g07) · [Back to G09](#g09)
 
@@ -780,6 +829,9 @@ The bridge releases work only for an acknowledgement whose schema and complete i
         if ack["status"] not in ("accepted", "duplicate"):
             raise ProtocolError("invalid acknowledgement status")
 ```
+**Read aloud:**
+
+In laptop/bridge.py, _check_ack ties an ingestion acknowledgement to the exact packet being sent. Line 376 builds the expected version, message type, session, device, boot and sequence fields; line 379 also includes request_id for version two. The code rejects missing or extra fields, and lines 382 and 383 require both the value and its Python type to match. Only accepted or duplicate is a valid status, with a null request ID for streaming telemetry and a nonzero ID for commands. This confirms a correlated board response, while the phone has its own independent result connection.
 
 [Back to G07](#g07)
 
@@ -816,6 +868,9 @@ The bridge retries failed transport epochs with a capped asynchronous backoff an
                     # delay, not the number of retry attempts.
                     delay = min(5.0, delay * 2)
 ```
+**Read aloud:**
+
+In laptop/bridge.py, _pipeline_writer_loop owns the bridge's ingestion socket through the asynchronous forward lock while retrying failed transport lifetimes. Line 660 starts the retry delay at half a second, and Line 667 resets it only when the failed lifetime made actual ACK progress. Line 669 sleeps asynchronously before retrying, and Line 670 doubles the delay up to five seconds, allowing other device and display tasks to run during the wait. This supplies the retry branch in G07; the five-second value caps the delay between attempts, not the total number of attempts or the duration of an outage.
 
 [Back to G07](#g07)
 
@@ -876,6 +931,9 @@ The native phone waits for verified TLS, performs a subscription handshake, then
                     subscribed = true; onSubscribed()
                 } else { onResult(try Week7Protocol.result(body, session: session)) }
 ```
+**Read aloud:**
+
+In Subscriber.swift, the phone begins its application subscription after the TLS handshake completes. The first method prevents duplicate subscription sends, and line 31 writes the session-specific SUBSCRIBE frame before starting its response timer. In channelRead, line 45 feeds incoming bytes to the frame decoder; lines 48 to 50 require SUBSCRIBED first, then validate later messages as results. Lines 41 to 43 explain the timing rule: clean idle is allowed, but the first fragment starts a frame deadline that later fragments cannot extend. These callbacks describe phone-side processing, separate from the laptop's ingestion acknowledgement checks.
 
 [Back to G08](#g08)
 
@@ -908,6 +966,9 @@ The visualizer deliberately pauses networking when inactive, so the filming phon
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
 ```
+**Read aloud:**
+
+In IntegrationController.swift, the application registers for iPhone lifecycle changes during setup. Line 26 observes the moment the app is about to become inactive, and line 27 disconnects with a message telling the user to return and connect again. The observer at lines 29 and 30 restores the button when the app becomes active; it does not automatically restart the result connection. During recording, I therefore keep the Visualizer in the foreground and use a different phone as the camera. If the app becomes inactive, I reconnect and record a fresh starting count before interpreting a new capture.
 
 [Back to G08](#g08)
 
@@ -961,6 +1022,9 @@ void gattsCallback(esp_gatts_cb_event_t event, esp_gatt_if_t interface,
   // BLEServer's getGattsIf() is private in Arduino 2.0.17. Capture the public
   // registration event for this process's sole GATT application instead.
 ```
+**Read aloud:**
+
+In firmware/esp32/src/main.cpp, configureSecurity asks the BLE stack to enforce the protected pairing policy. Line 251 requests Secure Connections, MITM protection and bonding, while the following settings select display capability, a maximum key size of sixteen bytes, and encryption and identity key distribution. Line 256 requires the specified authentication mode, and the chained checks return failure if any security setting cannot be applied. The stack creates a fresh pairing passkey rather than using a static PIN helper that would change the authentication mode. The earlier diagnostic branch is explicitly unprotected and is not evidence for this protected demonstration.
 
 [Back to G09](#g09)
 
@@ -994,6 +1058,9 @@ Authentication completion authorizes only the current peer and rejects connectio
     // operations cannot continue in a downgraded state.
     if (currentPeer && !approved) server->disconnect(rejectedConnection);
 ```
+**Read aloud:**
+
+In main.cpp, onAuthenticationComplete decides whether the current BLE connection may become authenticated. Line 198 compares the callback address with the connected peer, so a callback belonging to another device cannot change this connection's authorization. Line 200 also requires successful authentication with the required security mode and blocks approval during bond erasure; Line 208 disconnects a current peer that fails these checks. This implements the authentication gate in G09, and the printed completion fields let us inspect the decision without printing the callback structure, which contains key material.
 
 [Back to G09](#g09)
 
@@ -1018,6 +1085,9 @@ BLECharacteristic* addNotify(BLEService* service, const char* uuid, BLE2902** de
     (*descriptor)->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENC_MITM);
   }
 ```
+**Read aloud:**
+
+In main.cpp, addNotify creates a notification characteristic together with its client configuration descriptor, which controls subscription. For the protected profile, Line 396 applies encrypted, MITM-authenticated read permission, and Line 397 applies the corresponding protected read and write permissions to the descriptor. Protecting that descriptor matters because enabling notifications is itself a GATT operation, not merely a local phone or laptop setting. This is one layer of the BLE protection shown in G09; the authentication callback and the firmware's notification gate provide the related connection checks used during the demonstration.
 
 [Back to G09](#g09)
 
@@ -1057,6 +1127,9 @@ def server_context(cert_file, key_file):
     # require client certificates or implement mutual TLS.
     context.load_cert_chain(certfile=str(cert_file), keyfile=str(key_file))
 ```
+**Read aloud:**
+
+In common/tls.py, client_context builds the TLS policy used by the Python connection to Ultra96. Lines 9 through 12 require TLS version 1.2 or newer, certificate verification, hostname checking and the configured certificate authority, so opening an encrypted socket alone is not enough to accept the server. The server_context function loads Ultra96's certificate and private key at Line 19 and sets the same minimum protocol version. This is the application TLS layer in G09, separate from the SSH route, and this configuration authenticates the server without requiring client certificates.
 
 [Back to G09](#g09)
 
@@ -1086,6 +1159,9 @@ The phone independently configures TLS certificate trust and distinct SSH host-k
             // well.
             let jumpPin = try route.jump.map { try PinnedHostKey($0.hostKey) }
 ```
+**Read aloud:**
+
+In Week7Client.swift, the connect function constructs the iPhone's own TLS configuration before opening its result connection. Line 89 installs the supplied certificate roots, while Lines 91 and 92 require full certificate verification and at least TLS version 1.2. Lines 94 and 95 then create separate SSH host-key checks for the board and, when configured, the jump host. G09 shows these as distinct protections because trusting the application certificate and trusting each SSH server are different checks, and the phone performs its own checks rather than borrowing the laptop's connection.
 
 [Back to G09](#g09)
 
@@ -1131,6 +1207,9 @@ The native client opens a board-loopback result channel through SSH, layers veri
                                 self.retryDelay = self.options.retryMinimum
                                 self.emitResult(result, epoch: token)
 ```
+**Read aloud:**
+
+In Week7Client.swift, connect first reaches the board over SSH, then opens the result service on board loopback. Line 138 rejects an obsolete connection attempt, and Line 142 places a TLS client handler over that byte stream with ultra96.week7.internal as the expected server hostname. The subscription callback at Line 144 checks the current connection generation again before announcing Subscribed, preventing a late callback from an earlier attempt from updating the active connection's state. This connects the security layers in G09 with G08's subscription state, which we also show on the physical phone.
 
 [Back to G09](#g09)
 
@@ -1156,6 +1235,9 @@ final class PinnedHostKey: NIOSSHClientServerAuthenticationDelegate {
         validationCompletePromise.succeed(())
     }
 ```
+**Read aloud:**
+
+In Trust.swift, PinnedHostKey implements the SSH library's server authentication delegate. The constructor parses the configured public key, and Line 8 compares that key with the key actually presented by the remote SSH server, failing the authentication promise on a mismatch. Only the successful comparison reaches Line 9, so a different server key is not silently accepted during reconnection. This explains the pinned SSH identities in G09: the board and jump host have their own expected keys, while the separate TLS configuration checks the application server's certificate.
 
 [Back to G09](#g09)
 
@@ -1206,6 +1288,9 @@ The laptop schedules independent device inputs and ingestion writers, with optio
                            name=f"commands-{device}")
                            for device, bridge in self.bridges.items() if bridge.commands is not None}
 ```
+**Read aloud:**
+
+In laptop/dual_bridge.py, DualBridge.run creates separate asynchronous work for both device streams. Line 94 starts one writer task per bridge, and Line 106 starts each input task using the physical BLE path unless mock mode was explicitly requested. Line 109 adds command workers when the corresponding command support exists, allowing live keyboard work alongside telemetry. These asyncio tasks cooperate at their suspension points, which is the concurrency shown in G10: while one device waits for input or network progress, the other device's tasks can continue, with their identities kept separate in the evidence.
 
 [Back to G10](#g10)
 
@@ -1239,6 +1324,9 @@ class RawInbox:
 
     @property
 ```
+**Read aloud:**
+
+In laptop/bridge.py, RawInbox is the small handoff between BLE callback delivery and asynchronous packet processing. Line 91 stores a capacity limit, Line 92 creates a threading lock for shared queue state, and Line 93 creates an asyncio event for the waiting consumer. The lock protects operations that may originate outside the event loop, while the event lets the consumer wait without blocking the loop's other work. This is the callback boundary in G10, and its generation and drop counters make reconnection or overload losses visible instead of hiding them as unlimited buffering.
 
 [Back to G10](#g10)
 
@@ -1288,6 +1376,9 @@ The callback queue rejects obsolete generations, records bounded-buffer losses a
                 self._event.clear()
             await self._event.wait()
 ```
+**Read aloud:**
+
+In laptop/bridge.py, RawInbox.put performs only the bounded handoff needed by the BLE callback. Under the lock at Line 128, it rejects an inactive connection generation, removes the oldest item if capacity is full, and copies the incoming bytes with their receive time at Line 135. Line 138 schedules a thread-safe wakeup, while the pending flag coalesces repeated notifications until that wakeup runs. The consumer then waits asynchronously at Line 147, matching G10's queue boundary and allowing the recording to report buffer or generation losses separately from successful downstream acknowledgements.
 
 [Back to G10](#g10)
 
@@ -1316,6 +1407,9 @@ The ingestion pipeline bounds messages awaiting acknowledgement while allowing s
                 await slots.acquire()
                 item = await self.inbox.get()
 ```
+**Read aloud:**
+
+In laptop/bridge.py, _pipeline_epoch creates the per-device acknowledgement window for one TLS connection lifetime. Line 535 initializes a semaphore from ack_window, which the recording launcher sets to thirty-two, and Line 543 acquires a slot before the sender consumes another item. The normal successful receive path validates the corresponding ingestion ACK before releasing capacity, so sending can overlap acknowledgement reception without accumulating an unlimited number of outstanding messages. This is G10's ACK window, and its count measures work awaiting Ultra96 acknowledgement rather than packets confirmed as received by the phone.
 
 [Back to G10](#g10)
 
@@ -1347,6 +1441,9 @@ Sender and ACK-reader tasks share one owned TLS epoch, with coordinated failure 
                 error = None if task.cancelled() else task.exception()
                 if failure is None and error is not None:
 ```
+**Read aloud:**
+
+In laptop/bridge.py, _pipeline_epoch starts the sender at Line 633 and the ACK reader at Line 634 as separate asyncio tasks on the same owned connection. This allows a new frame to be sent while the receive task validates earlier acknowledgements and releases window capacity. Line 639 waits for a worker exception, after which the surrounding cleanup retires that connection lifetime and coordinates the companion task, keeping old replies from being treated as current progress. G10 therefore shows concurrent send and receive work, while the error counters and reconnect behavior still belong to one coherent ingestion pipeline.
 
 [Back to G10](#g10)
 
@@ -1387,6 +1484,9 @@ class PacketEvidence:
         # owner later drains and closes it during cleanup.
         self._thread.start()
 ```
+**Read aloud:**
+
+In laptop/evidence.py, PacketEvidence moves record writing to a dedicated Python thread. Line 17 creates a bounded queue, and Lines 33 and 34 create and start the packet-evidence thread, which drains records into the saved JSON and text files and the sampled console display. Keeping that disk work outside the network event loop helps the two device pipelines continue processing, while queue drops and write errors remain explicit evidence counters. This is the actual logging thread shown in G10, and the saved files support our later packet-to-ACK comparison without claiming phone receipt.
 
 [Back to G10](#g10)
 
@@ -1434,6 +1534,9 @@ Ultra96 owns two loopback TCP services with independent asynchronous accept task
                 self._accept_tasks.add(task)
                 task.add_done_callback(self._accept_done)
 ```
+**Read aloud:**
+
+In ultra96/server.py, Week7Server.start creates separate TCP listeners for ingestion and the phone result gateway. Line 149 binds each listener to board loopback, so the deployed SSH route provides access to these local services, and Line 151 creates an asynchronous accept task for each listener. Line 150 sets the pending connection backlog; the separate accepted-client check controls how many live sockets the server owns. These are the two service entrances in G11, allowing the laptop's ingestion connections and the phone's subscription connection to make progress through the same server event loop.
 
 [Back to G11](#g11)
 
@@ -1460,6 +1563,9 @@ Each accepted socket gets a tracked asynchronous client task, within the server'
             # completion cleanup can account for it.
             self._tasks.add(task)
 ```
+**Read aloud:**
+
+In ultra96/server.py, Week7Server._accept checks each new socket before handing it to application processing. Line 181 refuses connections during shutdown or when the server already owns eight sockets, and Line 187 creates an asyncio client task for an accepted connection. Tracking that task at Line 188 gives shutdown and completion handling an explicit record of the work being owned. In G11, the two laptop ingestion clients and the phone gateway client therefore have separate tasks whose I/O waits can overlap, without implying a dedicated operating-system thread for every connection.
 
 [Back to G11](#g11)
 
@@ -1515,6 +1621,9 @@ Ultra96 validates and deduplicates input, creates one simulated result for a new
             # duplicate input is acknowledged without producing another result.
             await write_frame(writer, ack)
 ```
+**Read aloud:**
+
+In ultra96/server.py, _ingest validates each framed SENSOR_BATCH at Line 248 and checks whether its identity has already been accepted. A new identity produces a result with preserved trace fields, while Line 266 selects a simulated gesture; confidence 1.0 is dummy data, not a trained model's confidence. Line 272 queues that result only when a subscriber exists, and Line 275 separately writes the ingestion acknowledgement to the laptop. This is G11's split between result delivery and ACK return: duplicates are acknowledged without creating another result, and actual phone reception is demonstrated by the recorded phone screen.
 
 [Back to G11](#g11)
 
@@ -1566,6 +1675,9 @@ The result gateway owns one subscription at a time and separates result sending 
             # subscription and clean up its companion task.
             finished, _ = await asyncio.wait((sender, monitor), return_when=asyncio.FIRST_COMPLETED)
 ```
+**Read aloud:**
+
+In ultra96/server.py, _gateway first validates SUBSCRIBE at Line 310 and establishes a new subscriber generation with its own result queue. If a previous subscriber exists, its connection is closed, and Line 331 writes SUBSCRIBED before result streaming begins. Lines 334 and 336 create separate tasks for sending results and monitoring EOF or unexpected incoming data, while Line 337 waits for either task to finish so ownership can be retired. This is G11's gateway branch and G08's subscription handshake; writing the confirmation on the server is distinct from observing Subscribed on the phone.
 
 [Back to G11](#g11)
 
@@ -1594,6 +1706,9 @@ class ResultQueue:
         self.subscriber_id = subscriber_id
         self.retirement_reason = None
 ```
+**Read aloud:**
+
+In ultra96/server.py, ResultQueue gives the current phone subscriber a bounded live result buffer. Line 35 creates an asyncio queue with space for thirty-two items, while Lines 36 and 37 initialize separate overflow and stale-result counters. Line 40 stores the subscriber identity so observations can be attributed to a particular subscription lifetime, including after a reconnect replaces an earlier subscriber. This is the shared result queue in G11: it receives results arising from both ingestion streams, and its finite capacity is separate from each laptop bridge's thirty-two-slot ingestion ACK window.
 
 [Back to G11](#g11)
 
@@ -1636,122 +1751,128 @@ The live result queue bounds memory and latency by recording overflow and discar
                 continue
             return received_at, message
 ```
+**Read aloud:**
+
+In ultra96/server.py, ResultQueue.put and get_timed implement the freshness policy behind G11's live result queue. Line 58 removes the oldest queued result when the queue is full, while Line 62 adds the new result without awaiting transmission to the phone. During dequeue, Line 72 uses a monotonic clock and Line 73 rejects an item at least two seconds old, so a slow or disconnected consumer does not turn this queue into an outage replay archive. The loss counters document that tradeoff, and these server-side decisions do not guarantee the age of a result when the phone finally renders it.
 
 [Back to G11](#g11)
 
 ---
 
-## Short introductions for the recording scripts
+## Command walkthroughs
 
-Read the relevant sentence just before running that script. Physical actions, the selected capture folder and phone counters come from the actual recording.
+Routine operation uses R01 when programming is needed, R02 for the tunnel, and R03 or R04 for capture. Reports appear automatically. R05–R08 are used only when their specific task is needed.
 
-<a id="s00"></a>
-### S00 — Identify serial ports
+<a id="r01"></a>
+### R01 — Build and upload using one programming USB cable
 
-File: [00_ports.py](../video_steps/00_ports.py)
-
-```powershell
-python video_steps/00_ports.py
-```
-
-This script lists the serial ports so I can identify the left and right boards before uploading.
-
-<a id="s01"></a>
-### S01 — Build and upload both boards
-
-File: [01_flash.py](../video_steps/01_flash.py)
+File: [flash.py](../flash.py)
 
 ```powershell
-python video_steps/01_flash.py
+python flash.py
 ```
 
-This script regenerates the fixture table, builds the two device profiles and uploads each build to its selected port. It stops if any step fails.
+This script regenerates the fixture table and builds both device profiles. I connect the left board, then swap it for the right board when prompted. The script detects the serial port for each upload and stops if a step fails.
 
-<a id="s02"></a>
-### S02 — Check authenticated pairing
+At each board prompt, confirm the physical left/right label and press Enter. One detected serial port is selected automatically; if several are listed, choose the connected board explicitly. Windows assigns COM numbers to connected serial devices, so the two uploads may use the same COM number. `--ports` only lists ports when needed for first-time setup.
 
-File: [02_pair.py](../video_steps/02_pair.py)
+<a id="r02"></a>
+### R02 — Keep the SSH tunnel open
+
+File: [demo.py](../demo.py)
 
 ```powershell
-python video_steps/02_pair.py
+python demo.py tunnel
 ```
 
-This script runs the existing authenticated pairing tool for both boards. Existing authenticated bonds are reused.
+This command opens the existing SSH route to Ultra96. I keep this terminal open during the demonstration.
 
-<a id="s03"></a>
-### S03 — Keep the laptop SSH tunnel open
+<a id="r03"></a>
+### R03 — Record the physical communication run
 
-File: [03_tunnel.py](../video_steps/03_tunnel.py)
+File: [demo.py](../demo.py)
 
 ```powershell
-python video_steps/03_tunnel.py
+python demo.py run
 ```
 
-This script calls the tunnel command already implemented in demo.py. I keep this terminal open during the capture.
+This command captures both physical boards for sixty seconds at ten hertz each, then automatically shows the report and matching sensor and acknowledgement records. The camera records the phone reception.
 
-<a id="s04"></a>
-### S04 — Capture physical data
+<a id="r04"></a>
+### R04 — Run the live keyboard demonstration
 
-File: [04_capture.py](../video_steps/04_capture.py)
+File: [demo.py](../demo.py)
 
 ```powershell
-python video_steps/04_capture.py
+python demo.py live
 ```
 
-This script calls demo.py to capture both physical boards for sixty seconds at a target rate of ten hertz each. The existing launcher saves the logs and report.
+This command starts a two-minute live capture with keyboard input enabled. Pressing one or two sends a command to the corresponding board. The same launcher saves the evidence and displays the report.
 
-<a id="s05"></a>
-### S05 — Review this capture and compare phone counts
+The default source rate is ten hertz per board. Maximum-rate, file-transfer and interruption demonstrations are separate runs using the existing rate, file and duration options; ten hertz is not a maximum-speed claim.
 
-File: [05_report.py](../video_steps/05_report.py)
+<a id="r05"></a>
+### R05 — Reopen saved evidence when needed
+
+File: [demo.py](../demo.py)
 
 ```powershell
-python video_steps/05_report.py
+python demo.py report "<exact Saved in directory>"
 ```
 
-This script reviews the exact capture folder I select, displays matching sensor and acknowledgement records, and compares the phone counts I enter manually.
+This command reopens the exact saved capture and displays its report and matching packets. The phone observation remains in the corresponding camera footage.
 
-<a id="s06"></a>
-### S06 — Read a first-pairing passkey privately
+Replace the placeholder with the real Saved in directory from that capture. There is no need to run this immediately after a normal capture because its report is already displayed.
 
-File: [06_serial.py](../video_steps/06_serial.py)
+<a id="r06"></a>
+### R06 — Initial authenticated pairing
+
+File: [flash.py](../flash.py)
 
 ```powershell
-python video_steps/06_serial.py
+python flash.py --pair left
 ```
 
-This script opens the selected serial port at one hundred and fifteen thousand two hundred baud for initial pairing. I close this monitor before the wireless demonstration.
+This setup option uses the existing authenticated pairing tool for the selected board. I use left and right in turn during first-time setup; existing authenticated bonds are reused.
 
-<a id="s07"></a>
-### S07 — Inspect the deployed Ultra96 service
+For the right board, use `python flash.py --pair right`. With an existing bond on both boards, `python flash.py --pair` checks both. During first pairing with one programming USB cable, monitor and pair one board at a time.
 
-File: [07_service_status.py](../video_steps/07_service_status.py)
+<a id="r07"></a>
+### R07 — Private serial monitor for first pairing
+
+File: [flash.py](../flash.py)
 
 ```powershell
-python video_steps/07_service_status.py
+python flash.py --monitor COM4
 ```
 
-This script checks the listening ports and server process on Ultra96 through SSH.
+This setup option opens the selected serial port at one hundred and fifteen thousand two hundred baud. I keep pairing passkeys off camera and close the monitor before uploading or starting the wireless demonstration.
 
-<a id="s08"></a>
-### S08 — Start the deployed service only when needed
+Replace COM4 with the actual port shown by `python flash.py --ports`. The monitor occupies its terminal; run the selected board's pairing option in another terminal, then close the monitor before swapping boards.
 
-File: [08_service_start.py](../video_steps/08_service_start.py)
+<a id="r08"></a>
+### R08 — Service maintenance before the demonstration
+
+File: [demo.py](../demo.py)
 
 ```powershell
-python video_steps/08_service_start.py
+python demo.py service
 ```
 
-This script starts the existing Ultra96 service only after the port check succeeds and both service ports are free.
+This command checks the Ultra96 service. If no service is running, the start option checks that both ports are free before starting the existing deployment.
+
+Only if the service is absent, use `python demo.py service --start` in a separate terminal and keep it open. Reuse a healthy running service.
 
 ---
 
 <a id="d01"></a>
 ## D01 — Change dummy packets, rebuild and rerun
 
-**Baseline capture → edit fixture → rebuild and upload → independent power → new capture → compare evidence**
+**Baseline capture → edit fixture → `flash.py` → independent power → `demo.py run` or `live` → automatic report**
 
 Source: [editable fixture, line 3](../common/dummy_fixtures.json#L3) · [generated firmware table, line 9](../firmware/esp32/include/week7_fixtures.h#L9) · [generator](../tools/generate_dummy_fixtures.py#L6) · [random firmware selection](../firmware/esp32/include/week7_packet.h#L55).
+
+**Editable values:** Any channel in any fixture may be changed. Keep exactly eight integers per fixture, each between −32768 and 32767, and two to sixty-four fixtures in valid JSON. Decimals, strings and comments are not accepted. The 1200-to-1500 change below is an example; if you choose different values, adjust the narration and search for your complete updated vector. The flash script validates the data before building or uploading.
 
 | Fixture | All eight channel values |
 |---|---|
@@ -1762,18 +1883,18 @@ I am changing the first channel of the second dummy fixture from twelve hundred 
 
 | Step | Action | Evidence to show |
 |---|---|---|
-| Edit | Save the change in `common/dummy_fixtures.json` | The actual file changes from 1200 to 1500 |
-| Rebuild and upload | Run `python video_steps/01_flash.py` with the verified left/right COM ports | Regenerated fixture header and both successful uploads |
-| Prepare the new run | Remove both laptop USB connections, restore separate power, run `python video_steps/02_pair.py` | Authenticated bonds; iPhone Subscribed; a newly recorded starting count |
-| Rerun | Run `python video_steps/04_capture.py` | New physical capture and its exact Saved in directory |
-| Review | Run `python video_steps/05_report.py` for that directory and its own phone counts; inspect its `packets.log` | Updated values from both devices, matching ACKs, passing report and phone count check |
+| Edit | Save the change in `common/dummy_fixtures.json` after the previous capture has finished | The actual file changes from 1200 to 1500 |
+| Rebuild and upload | Run `python flash.py`; connect left, then swap to right at the prompts | Regenerated fixture header and both successful uploads using one programming USB cable |
+| Prepare | Disconnect laptop USB; power both boards independently; keep the tunnel open and the iPhone Subscribed | Both boards on separate power; film the starting Received count |
+| Rerun | Run `python demo.py run` for Video or `python demo.py live` for Live | New physical capture, authenticated BLE connections and its exact Saved in directory |
+| Observe | Read the automatically displayed report; inspect this capture's `packets.log`; film the final phone count | Updated values from both devices, matching ACKs and camera evidence of phone reception |
 
-I am running the upload script again. It regenerates the firmware fixture table, rebuilds both device profiles and uploads them to the selected boards. I then remove both USB connections, restore independent power and start a new physical capture using the existing capture script.
+I run the same flash script again, using one programming USB cable for the two boards in turn. After restoring independent power, I start a new capture with demo.py. It displays the report automatically, while the camera records the phone's received count.
 
-Random selection means the first displayed sample may come from another fixture. Search the new capture's saved log for the complete updated vector, then match each sensor record to its acknowledgement using device, boot and sequence. Keep the baseline and modified captures, fixture copies and phone counts separate. The fixture excerpt in C07 is a snapshot; open the actual source or saved copy to show the edit. The phone shows result events and a received count; it need not display the raw sensor value 1500.
+Random selection means the first displayed sample may come from another fixture. Search the new capture's saved log for the complete updated vector, then match each sensor record to its acknowledgement using device, boot and sequence. Keep the baseline and modified captures, fixture copies and camera clips separate. The fixture excerpt in C07 is a snapshot; open the actual source or saved copy to show the edit. The phone shows result events and a received count; it need not display the raw sensor value 1500.
 
 **After verifying the recorded evidence:**
 
-The earlier capture contains the original fixture starting with twelve hundred. In this new capture, both devices have transmitted the updated fixture starting with fifteen hundred. Each displayed sample has a matching Ultra96 acknowledgement. The new report passes its checks, and the phone's separately observed count increase matches this new capture.
+The earlier capture contains the original fixture starting with twelve hundred. In this new capture, both devices have transmitted the updated fixture starting with fifteen hundred. Each displayed sample has a matching Ultra96 acknowledgement. The new report passes its checks. The corresponding camera footage shows the phone receiving results and its count increasing.
 
 [Back to G03](#g03)
