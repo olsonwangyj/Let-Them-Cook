@@ -1,11 +1,30 @@
 # B07 CO 录像操作稿：先拍实物，再录电脑
 
+**先双击 [Video-Demo.cmd](D:/LetThemCook/Video-Demo.cmd)。录像时选数字即可，不需要再粘贴长串命令。** 备用方式是在 `D:\LetThemCook` 运行 `python video_demo.py`。启动只显示菜单，不会自动烧录、采集或停止服务。
+
+## 数字菜单与最短录制顺序
+
+| 输入数字 | 做什么 | 你还需要做什么 |
+|---|---|---|
+| **1** | 生成 fixtures → 编译左右固件 → 上传两块板；失败即停 | 按列出的数字选择已核实的 left / right 串口，不能同口 |
+| **2** | 检查两块板的认证绑定；需要时交互输入 PIN | 已绑定直接复用；首次口令按下面的 8 → 2 流程 |
+| **3** | 新窗口启动 SSH tunnel | 在新窗口输入密码并保持窗口打开 |
+| **4** | 录制 60 秒、每台 10 Hz；结束显示报告、匹配数据与人工计数对账 | 先拔两条 USB、独立供电、手机 Subscribed；按提示填 P0，结束填 P1 |
+| **5** | 重新显示准确的本次报告和两设备匹配 sensor/ACK | Enter 用保存的本次目录；也可粘贴明确的历史目录 |
+| **6** | 打开图解与源码投屏 HTML | 按 Gxx / Cxx 链接展示即可 |
+| **7** | 打开 `dummy_fixtures.json` 编辑 | 保存后回 1，重新生成、编译、上传；再拔 USB 做新采集 |
+| **8** | 为选定 COM 开一个 115200 串口监视窗口 | 首次配对时先选 8，再回 2；口令避开镜头，完成后关监视器 |
+| **9** | Ultra96 服务子菜单：1 只读检查；2 端口空闲时启动当前部署 | 新 SSH 窗口手输密码；已有正常服务只检查，不重复启动 |
+| **0** | 退出主菜单 | 独立的隧道/串口/板端窗口按各段说明处理 |
+
+**最短操作路线：** 录前 `9 → 1` 检查板端、选 `6` 打开图源 → 摄影手机开始 → A1 选 `1` 烧录、需要时 `8 → 2` 配对、拔 USB 独立供电后再选 `2` → A2 拍图源的 ID/包格式代码 → A3 选 `3` → A4 手动连 Visualizer → A5 选 `4`（包含 A6 的报告和对账）→ 保存画面 → B 阶段选 `6` 录图解/代码，B7 选 `5` 重看同次证据。
+
 **本次只使用两个主文件：**
 
 | 文件 | 用途 | 怎么打开 |
 |---|---|---|
 | [B07-CO-video-visuals.en.html](D:/LetThemCook/docs/B07-CO-video-visuals.en.html) | 独立投屏文件：G01–G11 图解、配套英文说明、可点击跳转的源码片段 | 浏览器打开；左右方向键 / PageUp / PageDown / 空格翻页，Home / End 跳到首尾，F 切换全屏；代码页 Esc / Back 返回图解 |
-| [B07-CO-video-operator-script.zh-CN.md](D:/LetThemCook/docs/B07-CO-video-operator-script.zh-CN.md) | 本操作稿：中文步骤、运行命令、英文口播、源码定位 | 放在旁边参考，不必把整篇投屏 |
+| [B07-CO-video-operator-script.zh-CN.md](D:/LetThemCook/docs/B07-CO-video-operator-script.zh-CN.md) | 本操作稿：中文步骤、数字菜单操作、英文口播、源码定位 | 放在旁边参考，不必把整篇投屏 |
 
 **录像顺序固定为 A → B。** 第一阶段用**摄影手机**拍 FireBeetle 的真实设置、同一台 Windows laptop 上的 USB 烧录操作、电脑屏幕里的 ID/包格式源码，以及实际通信现象；第二阶段才用电脑屏幕录制图解、加密和并发源码。**“手机录像”也包括用相机拍电脑屏幕，不是只拍硬件外观。** 摄影手机和 **Visualizer iPhone** 是不同设备。Visualizer iPhone 全程运行 Unity，摄影手机负责相机和收音；不要在 Visualizer iPhone 打开相机、锁屏或切出 Unity。
 
@@ -26,10 +45,10 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 ## 开录前准备：不计入口播
 
-1. 当前目录是 `D:\LetThemCook`。Windows 的 `python` 应能运行项目；本机核实过 Python 3.12.7 和 Bleak 3.0.1。日常命令使用 PowerShell 5.1 或 7；附录的直接 SSH shell 命令需要 PowerShell 7.3+。
+1. 双击 `D:\LetThemCook\Video-Demo.cmd` 打开主菜单；无需预先设置 PowerShell 变量。Windows 的 Python 应能运行项目；本机核实过 Python 3.12.7 和 Bleak 3.0.1。备用入口是在仓库根目录运行 `python video_demo.py`。
 2. 本机已准备 PlatformIO 和串口驱动；本次在 A1 用**同一台 laptop** 拍真实构建/上传过程。**USB 只用于 setup；实际 BLE 通信前拔掉两条 USB，改独立供电。** Ultra96 和已安装的原生 iPhone App 都支持匹配的 v2。更新仓库不等于更新已经烧录/安装的程序；不要为了录像无理由清除既有认证绑定。
 3. Windows 蓝牙开启；Windows 和 Visualizer iPhone 均开启所需 VPN。关闭连接这两块板子的其他 BLE 客户端。
-4. Ultra96 当前服务需监听板端 `127.0.0.1:8888` 和 `127.0.0.1:9999`。按附录检查并复用正常服务，不重复启动。当前部署源码目录为 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z`；历史 PID 不能当作当天状态。
+4. Ultra96 当前服务需监听板端 `127.0.0.1:8888` 和 `127.0.0.1:9999`。菜单 **9 → 1** 检查并复用正常服务，不重复启动；仅不存在时按附录用 **9 → 2**。当前部署源码目录为 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z`；历史 PID 不能当作当天状态。
 5. 手机是本次唯一结果订阅者。不要另跑 `phone.receiver`、`laptop.phone_simulator`、`tools.rehearse_remote_week7`；新订阅者会替换旧订阅者。
 6. 准备两个独立电源，例如不会因低电流自动关机的充电宝。A1 烧录/首次串口配对时可以 USB 接这台 laptop；A5 开始实体 BLE 采集前，两块板都必须**完全断开 laptop USB**，各自使用独立电源，即使另有电源也不能保留 laptop USB 线。
 7. 默认 CA 是 `C:\Users\Yanjie Wang\.codex\private\cg4002-week7-20260906\ca-cert.pem`。这是已有可信公开证书，不为普通录像重新生成 PKI；不打开任何私钥文件。
@@ -37,11 +56,11 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 | 窗口名称 | 机器 | 本次用途 |
 |---|---|---|
-| 终端 A | Windows relay laptop | `demo.py tunnel`，运行后保留打开 |
-| 终端 B | 同一 Windows laptop | 绑定检查、`demo.py run`、本次报告 |
-| setup 终端 P + 编辑器 | 同一 Windows laptop | 打开固件项目、构建/USB 上传、首次配对时串口读取；完成后拔 USB |
-| 控制终端 C | 同一 laptop，PowerShell 7.3+ | 仅录前需要时进入 Ultra96 检查；不是数据桥接 |
-| 浏览器 + 编辑器 | 第二阶段的录屏电脑 | HTML 图解 + 源码 + A 阶段保存的日志 |
+| 主菜单窗口 | Windows relay laptop | 选 1–9；构建/上传、绑定、采集、报告都从这里操作 |
+| SSH tunnel 新窗口 | 同一 Windows laptop，菜单 3 打开 | 输入两跳密码；真实采集时保持打开 |
+| 串口监视新窗口 | 同一 Windows laptop，菜单 8 打开 | 首次配对读取口令；不拍秘密，完成后关闭再拔 USB |
+| Ultra96 SSH 新窗口 | 同一 laptop，菜单 9 打开 | 录前检查/需要时启动当前服务；不是数据桥接 |
+| 浏览器 + 编辑器 | 同一 Windows laptop；A 阶段相机拍屏，B 阶段电脑录屏 | HTML 图解 + 源码 + A 阶段保存的日志 |
 
 ## 第一阶段 A：摄影手机拍 setup、包格式说明与真实通信
 
@@ -51,11 +70,15 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 **画面：** 摄影手机横拍，两块带标签的 FireBeetle、电源、relay laptop 和 Visualizer iPhone 同框。Ultra96 可通过部署说明交代位置，不把笔记本说成服务器。
 
-**操作：** 电脑只打开终端 A/B；确认尚无采集程序运行。摄影手机开始录像，先停留 5 秒拍清各设备。此时不要切换 Visualizer iPhone 去拍其他东西。
+**操作：** 电脑显示 `Video-Demo.cmd` 的主菜单，录前选 **6** 打开的图源在旁边待用；确认尚无采集程序运行。摄影手机开始录像，先停留 5 秒拍清各设备。此时不要切换 Visualizer iPhone 去拍其他东西。
 
 **英文口播：**
 
 > This is B07's communication subsystem. I will first show the FireBeetle setup, actual firmware upload and packet-format code with this camera, followed by a physical communication run. Later, a computer screen recording will explain the diagrams, encryption and concurrency. The filming phone and Visualizer iPhone are different devices.
+
+**镜头停在主菜单，补一句脚本说明（约 20 秒）：**
+
+> This menu is an operator shortcut. It calls our existing PlatformIO, pairing and demo tools. It builds and uploads in order, stopping on failure, and saves each capture separately with its evidence. It does not replace the BLE or TLS protocols. I enter the phone counts manually.
 
 ### A1｜FireBeetle setup — [Video only]：真实编译、上传、供电与绑定
 
@@ -65,63 +88,29 @@ General 要求放在相应段落：实际格式的多组随机 dummy 数据、�
 
 > I am setting up both FireBeetle ESP32 boards. PlatformIO builds Arduino firmware for the firebeetle32 board. The left environment assigns device ID one, and the right environment assigns device ID two. I will upload both builds using USB during setup, then remove both USB connections before the BLE communication demonstration.
 
-**A1.2 识别实际 COM 端口。** setup 终端 P 运行：
+**A1.2 菜单 1：核实并选择两块板的串口。** 录前只接左板，选 **8** 看串口列表、记下该板的 COM，然后输入 **q** 取消，**不打开 monitor**；拔下左板，只接右板，重复 **8 → 记 COM → q**，贴好 left / right 标签。再将两块都接上本机 USB。主菜单输入 **1**，脚本列出串口后，分别输入列表中 left 和 right 对应的**数字编号**。不能猜默认 COM3，也不能选同一个端口；脚本会拒绝同口。
 
-```powershell
-Set-Location 'D:\LetThemCook'
-$b07Pio = Join-Path $env:USERPROFILE '.platformio\penv\Scripts\platformio.exe'
-& $b07Pio --version
-& $b07Pio device list
-```
+脚本使用本机已安装的 PlatformIO，不需要你设置 `$b07Pio` 或把 `pio` 加入 PATH。选择前拍清左右标签，选择后拍清实际环境/COM 映射，避免左右刷反。
 
-本机 PlatformIO 实际入口是 `C:\Users\Yanjie Wang\.platformio\penv\Scripts\platformio.exe`，不能假设裸 `pio` 可用。一次只接一块板，分别用 `device list` 核实左/右端口并贴标签，再接上两块板。终端 P 输入刚刚核实的端口；不要猜 COM3，也不要给两块板输入同一个端口：
-
-```powershell
-$b07LeftCom = Read-Host 'Verified COM port for device 1 / left'
-$b07RightCom = Read-Host 'Verified COM port for device 2 / right'
-if ($b07LeftCom -eq $b07RightCom) { throw 'The two connected boards must have different COM ports.' }
-```
-
-**A1.3 构建并实际上传。** 镜头停在终端 P，每一步成功后才继续。可以剪去等待，但左右两次 upload 的环境名和成功结尾都保留：
-
-```powershell
-& $b07Pio run -d firmware/esp32 -e firebeetle32-left
-if ($LASTEXITCODE -ne 0) { throw 'Left build failed.' }
-& $b07Pio run -d firmware/esp32 -e firebeetle32-right
-if ($LASTEXITCODE -ne 0) { throw 'Right build failed.' }
-& $b07Pio run -d firmware/esp32 -e firebeetle32-left -t upload --upload-port $b07LeftCom
-if ($LASTEXITCODE -ne 0) { throw 'Left upload failed.' }
-& $b07Pio run -d firmware/esp32 -e firebeetle32-right -t upload --upload-port $b07RightCom
-if ($LASTEXITCODE -ne 0) { throw 'Right upload failed.' }
-```
+**A1.3 同一个菜单 1 自动构建并实际上传。** 完成端口选择后，脚本依次生成 fixture 头文件 → 编译 `firebeetle32-left` → 编译 `firebeetle32-right` → 上传左板 → 上传右板。某一步失败即停，不会继续假装全部成功。镜头保持在主菜单窗口；可以剪去等待，但保留左右两次 upload 的环境名和成功结尾。
 
 **预期：** 对应环境显示 `SUCCESS` 且退出码 0；失败不能接着口播已烧录成功。此时不需要打开 server 私钥或串口 dump。
 
 > The left and right uploads have completed successfully. Each board now contains the firmware built for its assigned device ID. A successful upload proves programming completed; the authenticated BLE checks and data capture will establish communication next.
 
-**A1.4 检查绑定；需要首次口令时仍在 USB setup 阶段处理。** 终端 B：
+**A1.4 菜单 2：检查两块板的认证绑定。** 回主菜单输入 **2**，脚本依次检查 left `38:18:2B:19:82:AE` 和 right `38:18:2B:18:9D:6A`。每台应打印 `authenticated_bond: true`；正常已有绑定就复用，不清除、不强制重配。
 
-```powershell
-Set-Location 'D:\LetThemCook'
-python -m laptop.windows_pairing --address 38:18:2B:19:82:AE
-python -m laptop.windows_pairing --address 38:18:2B:18:9D:6A
-```
+**首次配对的顺序是 8 → 2，仍在 USB setup 阶段完成。** 暂停拍摄敏感屏幕，选 **8** 并选对应 COM，脚本以 115200 打开新的串口监视窗口；需要两块首次配对时，为两块分别打开对应窗口，再回主菜单选 **2**。在隐藏输入提示填入各自串口显示的六位口令。不要保存串口日志或拍到 `PAIR LOCALLY`。
 
-每台应打印 `authenticated_bond: true`。正常已有认证绑定就复用，不清除、不强制重配。若提示输入口令而尚未打开串口，先 Ctrl+C 取消本次等待；暂时停止拍摄敏感屏幕，在终端 P 打开相应板串口，再重新运行对应的 pairing 命令：
+若已经选 2 后才发现需要口令、但尚未开串口，先 Ctrl+C 取消本次等待，再按 8 → 2 重试；不要凭猜测填口令。完成后关闭本次打开的串口监视窗口，再拍两条安全的绑定结果。失败先排查，不能以未认证状态继续。
 
-```powershell
-& $b07Pio device monitor --port $b07LeftCom --baud 115200
-```
-
-终端 B 运行左板 pairing，在隐藏输入提示填入串口的六位口令；右板改用 `$b07RightCom` 和自己的地址重复。不要保存串口日志或录到 `PAIR LOCALLY`。完成后关闭串口监视器，再拍两条安全的认证绑定结果。若绑定检查失败，先排查，不能以未认证状态继续。
-
-**A1.5 明确拍到由 USB setup 切换为独立供电。** 摄影手机拍手拔掉两块板与 laptop 之间的 USB 线，然后各接独立电源并上电。沿两根线拍到电源，拍清 laptop 没有再连板子。完成后再执行一遍上述两条 pairing 检查并拍通过结果；不要重新打开串口。
+**A1.5 明确拍到由 USB setup 切换为独立供电。** 摄影手机拍手拔掉两块板与 laptop 之间的 USB 线，然后各接独立电源并上电。沿两根线拍到电源，拍清 laptop 没有再连板子。回主菜单再选 **2**，拍到两台认证绑定检查通过；此时不再选 8、不再开串口。
 
 > USB setup is now finished. I have removed both USB connections to the relay laptop and powered each board independently. Both boards have authenticated Bluetooth bonds. From this point, their application data travels over BLE. The bridge will establish the active connections and subscribe to notifications when the capture starts.
 
 ### A2｜Explain FireBeetle: Device IDs / packet types / packet format — [Live + Video]
 
-**本段仍由摄影手机拍电脑屏幕，必须打开实际代码片段指出字段，不能只说有这些文件。** 在浏览器打开 `D:\LetThemCook\docs\B07-CO-video-visuals.en.html`。用页面导航到指定 G 页，点击下面的 C 按钮，代码就出现在**同一 HTML** 内；它显示真实源文件路径、原始行号和高亮行。点行号按钮可定位，Esc 或 **Back to Gxx** 返回图解，再点下一片段。此时尚未开始实际采集。
+**本段仍由摄影手机拍电脑屏幕，必须打开实际代码片段指出字段，不能只说有这些文件。** 主菜单选 **6** 打开图解。用页面导航到指定 G 页，点击下面的 C 按钮，代码就出现在**同一 HTML** 内；它显示真实源文件路径、原始行号和高亮行。点行号按钮可定位，Esc 或 **Back to Gxx** 返回图解，再点下一片段。此时尚未开始实际采集。
 
 | 镜头顺序 | 在 HTML 怎么点 | 当场指给镜头的内容 |
 |---|---|---|
@@ -175,24 +164,15 @@ python -m laptop.windows_pairing --address 38:18:2B:18:9D:6A
 >
 > After decoding, the laptop sends SENSOR_BATCH JSON to Ultra96 and validates INGEST_ACK. The phone sends SUBSCRIBE, receives SUBSCRIBED, and then receives GESTURE_RESULT messages. These are distinct message types with different roles. I will show a real decoded sensor and matching acknowledgement from this capture at the end.
 
-**老师临时要求改 dummy 数据时：** 在 `D:\LetThemCook\common\dummy_fixtures.json` 把例如第二组第一项 `1200` 改为 `1500`；保留每组八个 int16、数值 −32768..32767、总共 2–64 组。先结束任何采集，再在仓库根目录执行：
+**老师临时要求改 dummy 数据时：** 先结束采集，菜单选 **7** 打开 `dummy_fixtures.json`，例如把第二组第一项 `1200` 改为 `1500`；每组仍为八个 int16，数值 −32768..32767、总共 2–64 组。**保存文件后回菜单选 1**，脚本重新生成 fixture 头、构建和上传两块板。按 A1 再次拔掉两条 USB、独立供电，重复 A4–A6；菜单 4 记录新的 P0 和独立采集目录。
 
-```powershell
-python -m tools.generate_dummy_fixtures
-```
-
-它更新 `firmware\esp32\include\week7_fixtures.h`。随后按 A1.2/A1.3 重新核实 USB 端口、构建并上传两块板；仍用本机做 setup，上传后再次拔掉两条 USB 并独立供电。重复 A4–A6，使用新的手机起点和新采集目录，在新 `sensor` 日志里找到更新值才说明已生效。只改 JSON、只编译未上传、重看旧日志都不能证明 ESP 数据已更新。正常本次录制可解释此流程；若真的执行修改，把修改前后两次证据分开。
+在这次新显示的完整 sensor values 中找到更新值，才说明实体数据修改已生效。只改 JSON、只编译未上传、重看旧日志都不能证明 ESP 数据已更新。正常录像可解释此流程；真的执行修改时，把修改前后两次证据分开，HTML 旧快照不会自动更新。
 
 > These fixtures are editable. To change the transmitted dummy values, I edit the JSON, regenerate the firmware table, rebuild and upload both boards, remove USB and start a new BLE capture. The updated decoded values in that new capture show that the change took effect.
 
 ### A3｜启动或展示本次 SSH 隧道
 
-**机器/窗口：** Windows 终端 A。
-
-```powershell
-Set-Location 'D:\LetThemCook'
-python demo.py tunnel
-```
+**操作：** Windows 主菜单输入 **3**。脚本打开独立的 SSH tunnel 窗口；在那个窗口输入两跳密码，随后保持它打开，主菜单仍可继续选其他项。
 
 若需输入两跳密码，暂时把镜头移开；也可以录前私下启动，镜头中说明它已运行。已有确认属于本项目、使用本地 18889 的隧道就直接复用，不开第二个实例。
 
@@ -219,14 +199,9 @@ python demo.py tunnel
 
 ### A5｜跑一次真实双设备采集，拍两条链路的现象
 
-**机器/窗口：** Windows 终端 B；终端 A 保持运行。
+**操作：** SSH tunnel 窗口保持运行，主菜单输入 **4**。按屏幕提示确认已拔掉两条 laptop USB、改独立供电、Visualizer 已 `Subscribed`，再填 A4 看到的起始计数 **[P0]**。脚本不能替你检查供电接线或读取手机屏幕；按提示如实操作。
 
-```powershell
-Set-Location 'D:\LetThemCook'
-python demo.py run --duration 60 --rate 10
-```
-
-`--rate 10` 给两块已安装 v2 固件的板子设置 10 Hz 目标；不是最大速度测试。60 秒是两台都准备好后的共同观察时长，初始化和收尾会让实际等待略长。不要 Ctrl+C，让命令自然结束。
+菜单自动复用现有 `demo.py`，运行 60 秒、每台目标 10 Hz 的实体采集；不是最大速度测试。60 秒是两台都准备好后的共同观察时长，初始化和收尾会让实际等待略长。不要 Ctrl+C，让命令自然结束。结束后菜单会接着询问 **[P1]** 并完成 A6，不需要再输入报告命令。
 
 **摄影手机在这一运行内依次拍：**
 
@@ -250,16 +225,16 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 ### A6｜看最终报告、核对手机、保存这一次证据
 
-1. 等 A5 自然结束。终端 B 会自动打印摘要；如需再显示，执行 `python demo.py report`。此时未进行其他 B07 采集，它应仍指向刚才这次。
+1. 等 A5 自然结束。**菜单 4 会继续处理本次结果**：先显示准确的本次报告和两台匹配 sensor/ACK；等手机计数稳定，在提示处输入最终 **[P1]**，再显示并保存人工计数对账。想重看就回主菜单选 **5**，目录提示处按 Enter。
 2. 拍清报告路径、两台最终计数、`CAPTURE PASSED` 和 `Phone expected increase`。记录下面实际数字，不写死 1200。
-3. 等手机计数稳定，拍清最终 **[P1]**。停止发送约两秒后出现 `No live result` 是最新标签过期，计数仍可核对。
+3. 拍清最终 **[P1]** 和菜单的 `P0=... P1=... delta=... expected=...`。通过时应看到 `MATCH: clean capture total equals the operator-entered phone increase.`；`PHONE OBSERVATION NOT PASSED` 就不是通过。停止发送约两秒后出现 `No live result` 是最新标签过期，计数仍可核对。
 
 | 要记的量 | 从哪里抄 | 成功条件 |
 |---|---|---|
 | [N1] / [N2] | 报告 Device 1 / 2 的 Generated | 每台 Generated = Received = ACKed；MissingBLE / MissingACK 均 0 |
 | [E] | `Phone expected increase` | 本稿未开 keyboard，所以 E = N1 + N2 |
 | [P0] / [P1] | A4 / A6 实际手机画面 | P1 − P0 = E |
-| [CAPTURE] | `Saved in:` 后的完整目录 | 就是本次 `D:\LetThemCook\.week7-local\B07-...`，保留全部文件 |
+| [CAPTURE] | 脚本显示的本次完整目录 | 位于 `D:\LetThemCook\.week7-local\video-menu\runs\<unique>\B07-...`，保留全部文件 |
 | 摘要状态 | 同一份报告 | `Exit=0 clean=True mock_input=False report_saved=True`，且 `CAPTURE PASSED` |
 
 运行中收到数与 ACK 数暂时不同可以正常；只用最终排空结果做核对。若额外加了 keyboard，预期手机数还要加 completed commands；不要沿用此稿无命令的公式。
@@ -272,39 +247,21 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 
 > This capture did not meet the acceptance checks. I will retain these results, investigate the mismatch, and record a new capture before claiming successful communication.
 
-**固定本次路径，供第二阶段使用：** 在终端 B 执行，输入刚才完整的 `Saved in:` 路径，不含额外引号：
+**本次路径由菜单保存，不需要复制 PowerShell 变量。** 菜单 4 通过前置检查并收到 P0 后，为实际采集创建独立目录；`last-attempt.json` 在底层采集启动前保存这一次尝试的位置。此后的失败/中断不会自动退回上一次成功报告。若在填写 P0 前就取消或未通过隧道/串口检查，则还没有开始新采集。目录缺失、不完整就显示问题；不要为了得到绿色结论改选别次结果。
 
-```powershell
-$b07Capture = Read-Host 'Paste the full Saved in directory from this capture'
-if (-not (Test-Path -LiteralPath (Join-Path $b07Capture 'report.json'))) { throw 'This is not a completed capture directory.' }
-python demo.py report "$b07Capture"
-```
-
-**现在仍用摄影手机拍电脑，展示实际可读 packet。** 编辑器 Ctrl+O 打开 `[CAPTURE]\packets.log`，先搜 `type=sensor`，选一条并记住其 device_id / boot_id / seq；再定位同身份的 `type=sensor_ack`。也可以直接在终端 B 执行下面的只读筛选，让匹配两行一起显示：
-
-```powershell
-$b07Rows = @(Get-Content -LiteralPath (Join-Path $b07Capture 'packets.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
-$b07Sample = $b07Rows | Where-Object { $_.type -eq 'sensor' } | Select-Object -First 1
-$b07Rows | Where-Object {
-    $_.type -in @('sensor', 'sensor_ack') -and
-    $_.device_id -eq $b07Sample.device_id -and
-    $_.boot_id -eq $b07Sample.boot_id -and $_.seq -eq $b07Sample.seq
-} | Select-Object timestamp_utc,type,direction,device_id,boot_id,seq,@{Name='values';Expression={ $_.values -join ', ' }},validation | Format-List
-```
-
-拍清 sensor 的八个 values，以及同身份 ACK 的 `validation=accepted`。没有找到匹配就检查本次证据，不借别次采集凑数。
+**现在仍用摄影手机拍电脑，展示实际可读 packet。** 菜单 4 结束时，以及菜单 **5 → Enter** 重看时，都会显示两台设备各自匹配的 sensor/ACK。拍清 device_id / boot_id / seq、**完整八个 values**，以及同身份 ACK 的 `validation=accepted`。这是实际文件证据，不是教学假数据；找不到匹配时不借别次采集凑数。需要逐行查看时，再用编辑器打开该目录下的 `packets.log`。
 
 > These are decoded records from the capture that just finished. The sensor record shows the device, boot, sequence and eight values. The acknowledgement refers to the same identity and confirms ingestion by Ultra96. The separate iPhone count check establishes the aggregate phone observation.
 
-用文件资源管理器把摄影手机的本段视频副本、P0/P1 画面及 N1/N2/E 的简短备注放入**这个目录**的 `camera-clips` 子目录。保留原始 `live.log`、`packets.jsonl`、`packets.log`、`report.json`、`report-readable.json`、`exit-code.txt`，不要覆盖失败尝试。记下此完整路径供另一天录 B；新开的终端不会继承变量。
+用文件资源管理器把摄影手机的本段视频副本、P0/P1 画面及 N1/N2/E 的简短备注放入**这个目录**的 `camera-clips` 子目录。保留原始 `live.log`、`packets.jsonl`、`packets.log`、`report.json`、`report-readable.json`、`exit-code.txt` 及菜单保存的手机人工观察信息，不覆盖失败尝试。仍记下完整路径：若之后又开了新尝试，另一天录 B 时可在菜单 5 粘贴明确的旧目录。
 
-至此可停止摄影手机录像。若 B 不接着做实时操作，可关闭本次自己启动的终端 A 隧道；不为结束录像停止共享 Ultra96 服务。无需让实体设备等到代码讲解录完。
+至此可停止摄影手机录像。若 B 不接着做实时操作，可在本次自己打开的 SSH tunnel 窗口按 Ctrl+C 结束隧道；菜单 **0** 退出主界面。不为结束录像停止共享 Ultra96 服务，也不需要让实体设备等到代码讲解录完。
 
 ## 第二阶段 B：电脑录屏，图解、加密与并发源码
 
-**开始前：** 浏览器打开 `D:\LetThemCook\docs\B07-CO-video-visuals.en.html`；按 Home 到 G01，F 全屏，左右方向键 / PageUp / PageDown / 空格翻页。代码已内嵌到同一文件，无需切编辑器：点击 **Cxx + 英文名称** 打开片段，再点 **L行号** 按钮定位；Esc 或 **Back to Gxx** 返回所属图解。将浏览器缩放到投屏清楚的字号，本稿放在旁边。
+**开始前：** 双击 `Video-Demo.cmd`，选 **6** 打开图解；按 Home 到 G01，F 全屏，左右方向键 / PageUp / PageDown / 空格翻页。代码已内嵌到同一文件，无需切编辑器：点击 **Cxx + 英文名称** 打开片段，再点 **L行号** 按钮定位；Esc 或 **Back to Gxx** 返回所属图解。将浏览器缩放到投屏清楚的字号，本稿放在旁边。
 
-**统一节奏：** 先投 G 页 → 读“投屏英文旁白” → 点击表内标为“主讲”的 C 按钮 → 指定行号 → 读“代码口播” → Back 返回图解 → 下一页。B2–B4 只回顾 A 阶段已经录过的 setup / 格式，不重做操作；“备查”代码只在需要展开时打开，不需要逐条朗读全部 40 个片段。B 阶段不运行 hardware/bridge，不穿插拍实物；重看 A 的报告只读文件。
+**统一节奏：** 先投 G 页 → 读“投屏英文旁白” → 点击表内标为“主讲”的 C 按钮 → 指定行号 → 读“代码口播” → Back 返回图解 → 下一页。B2–B4 只回顾 A 阶段已经录过的 setup / 格式，不重做操作；“备查”代码只在需要展开时打开，不需要逐条朗读全部 41 个片段。B 阶段不运行 hardware/bridge，不穿插拍实物；重看 A 的报告只读文件。
 
 代码片段标有原文件、原始行号和来源 hash，是生成 HTML 时的真实源码快照。若 A 之后改过代码，应展示相应实际文件/记录版本差异，不把快照说成自动同步编辑器。
 
@@ -322,14 +279,21 @@ $b07Rows | Where-Object {
 
 | 用法 | 点击按钮 | 源文件与片段范围 | 可点的定位行 |
 |---|---|---|---|
-| 主讲 | **C01 Launcher** | [demo.py](D:/LetThemCook/demo.py:64)，64–81 | L67 / L69 / L72 |
+| 主讲 | **C41 Video menu** | [video_demo.py](D:/LetThemCook/video_demo.py:358)，358–377 | L359 / L360 / L361 / L377 |
+| 底层 launcher 备查 | **C01 Launcher** | [demo.py](D:/LetThemCook/demo.py:64)，64–81 | L67 / L69 / L72 |
 
 
 **投屏 G01：** 指 FireBeetle → laptop → Ultra96，再指独立的 Ultra96 → iPhone；读图页英文说明。指出应用服务运行在 Ultra96，未使用 message broker；SSH 是当前校园访问路线，不是 TCP 固有要求。
 
-**代码画面：** G01 → C01，指 capture_command() 启动 laptop.dual_bridge、固定 session / ACK window、保存 report / evidence。这里解释 launcher 的职责，不重新运行 tunnel 或 capture。
+**代码画面：** G01 → **C41 Video menu**，指 L359–L361 的数字到操作映射，再指 L377 调用所选操作。这里只解释菜单如何调用已实现的工具；不在录屏阶段执行烧录、配对、隧道或新采集。
 
-**代码口播：**
+**代码口播（约 10–15 秒）：**
+
+> This table maps menu numbers to upload, pairing, tunnel, capture and review operations. The selected number calls one method, which reuses our existing tools. The menu simplifies operation; the bridge and server implement communication.
+
+**底层 launcher 备查：** 需要展开菜单复用的实现时，G01 → C01，指 `demo.py` 的 capture_command() 启动 laptop.dual_bridge、固定 session / ACK window、保存 report / evidence。这里解释底层 launcher 的职责，不重新运行 tunnel 或 capture。
+
+**底层 launcher 备查口播（可略过）：**
 
 > This launcher has three commands. Tunnel opens the SSH route. Run launches the existing dual-device bridge, saves its logs and report, and prints the outcome. Report reopens saved evidence. The launcher does not start the Ultra96 server or connect the iPhone. The actual concurrent communication is implemented in the bridge and server modules shown later.
 
@@ -467,22 +431,9 @@ $b07Rows | Where-Object {
 >
 > The active state uses pipelined sending and acknowledgement reading, with up to thirty-two outstanding messages per device. This is not a stop-and-wait protocol. When the capture ends, the bridge drains pending work before producing its final source audit.
 
-**重开 A 阶段证据，明确不是重跑：** 新终端执行下列命令，输入 A6 保存的同一个完整目录。
+**重开 A 阶段证据，明确不是重跑：** 回主菜单选 **5**。如果保存的“本次目录”仍是 A 的那次，目录提示处按 **Enter**；如果后来做过别的尝试，粘贴 A6 记下的准确历史目录。先拍清打印的报告路径与录制那次一致，再看其报告和两设备的匹配数据。不要选菜单 4，那会开始新的实体采集。
 
-```powershell
-Set-Location 'D:\LetThemCook'
-$b07Capture = Read-Host 'Paste the saved capture directory from phase A'
-python demo.py report "$b07Capture"
-$b07Rows = @(Get-Content -LiteralPath (Join-Path $b07Capture 'packets.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
-$b07Sample = $b07Rows | Where-Object { $_.type -eq 'sensor' } | Select-Object -First 1
-$b07Rows | Where-Object {
-    $_.type -in @('sensor', 'sensor_ack') -and
-    $_.device_id -eq $b07Sample.device_id -and
-    $_.boot_id -eq $b07Sample.boot_id -and $_.seq -eq $b07Sample.seq
-} | Select-Object timestamp_utc,type,direction,device_id,boot_id,seq,@{Name='values';Expression={ $_.values -join ', ' }},validation | Format-List
-```
-
-停在同一身份的 sensor / sensor_ack，指出 values 和 accepted。若找不到匹配记录，不拼接其他运行补齐；查看本次报告解释问题。再打开 [demo.py](D:/LetThemCook/demo.py) 的 `_clean_capture()` / `show_report()`，解释它不会读取 iPhone 屏幕。
+停在同一身份的 sensor / sensor_ack，指出完整八个 values 和 accepted。若找不到匹配记录，不拼接其他运行补齐；查看本次报告解释问题。说明原始 `demo.py` 的 `_clean_capture()` / `show_report()` 检查源端/接收/ACK；菜单新增的是操作和人工计数记录，**不会读取 iPhone 屏幕**。
 
 > This is saved evidence from the physical capture shown earlier. These decoded sensor and acknowledgement records share the same device, boot and sequence. The final report reconciles source generation, laptop reception and board acknowledgements. The phone's actual reception was checked separately using its observed count increase.
 
@@ -619,45 +570,22 @@ $b07Rows | Where-Object {
 
 ## 附录：只在录前需要时检查或启动 Ultra96
 
-**Windows 控制终端 C，PowerShell 7.3+**，密码只填 SSH 自己的提示：
+**不需要复制 SSH 命令。** 主菜单选 **9**，出现 Ultra96 服务子菜单：
 
-```powershell
-if ($PSVersionTable.PSVersion -lt [version]'7.3') { throw 'Use PowerShell 7.3 or newer for this direct SSH command.' }
-$b07Proxy = 'ssh -o StrictHostKeyChecking=yes -o BatchMode=no -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -W "[%h]:%p" yanjie@stujump.comp.nus.edu.sg'
-$b07SshOptions = @('-o','Port=22','-o','StrictHostKeyChecking=yes','-o','BatchMode=no','-o','ConnectTimeout=60','-o',"ProxyCommand=$b07Proxy")
-ssh @b07SshOptions xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg
-```
+1. **子项 1：只读检查状态。** 脚本开新的交互 SSH 窗口，按 SSH 提示输入两跳密码。查看监听端口、属主、进程和部署信息，正常应为 `xilinx` 的同一个 `ultra96.server` 持有 `127.0.0.1:8888` / `127.0.0.1:9999`。已有匹配服务就复用，不选启动。
+2. **子项 2：需要时启动当前部署。** 仅当服务不存在且两个端口都空闲时使用。脚本在板端核实端口空闲后，以现有证书和当前部署目录启动服务；端口被占时不启动、不终止占用者。密码仍只输入新 SSH 窗口的交互提示。
 
-**进入 Ultra96 的 Linux shell 后：**
+当前目录为 `/var/tmp/cg4002-week7-yanjie-20260907/source-co-v2-20260928T122047Z`。预期出现 `listening`；保留启动服务的前台窗口，再用 **9 → 1** 检查实际端口/进程。菜单不会自动停止共享服务，退出主菜单也不能当作远端状态证明。当前目录缺失或版本不符时先解决部署，不退回旧 `source-observer-20260921T080754Z`。
 
-```sh
-ss -ltnp
-ps -u "$(id -u)" -o pid=,args=
-```
-
-识别属于 `xilinx` 的同一个 `ultra96.server` 进程，确认它持有 `127.0.0.1:8888` 和 `127.0.0.1:9999`。结合实际 PID 检查 `/proc/<PID>/cwd` 与 `/proc/<PID>/cmdline`，应为当前部署或之后明确升级的匹配版本。2026-09-28 记录的 PID `105159` 只是历史信息；不要照抄用来停进程。
-
-**仅在已确认服务不存在、两端口都空闲、下列目录仍是当前正确版本时启动：**
-
-```sh
-b07_root=/var/tmp/cg4002-week7-yanjie-20260907
-b07_source="$b07_root/source-co-v2-20260928T122047Z"
-cd "$b07_source" && /usr/bin/python3 -u -m ultra96.server \
-  --cert "$b07_root/tls/server-cert.pem" \
-  --key "$b07_root/tls/server-key.pem" \
-  --session-id week7-demo \
-  --ingest-port 8888 --gateway-port 9999
-```
-
-预期出现 `listening`；保留这个前台窗口，从另一个板端 shell 用 `ss -ltnp` 复核。当前路径缺失或版本不符时先解决部署问题，不退回旧 `source-observer-20260921T080754Z`。
+2026-09-28 记录中的 PID `105159` 只是历史信息，不要照抄用来操作当天的进程。菜单 9 用于录前检查/启动；真正采集仍由 **3 → 手机 Connect → 4** 完成。
 
 | 录前/录中问题 | 处理 |
 |---|---|
-| 隧道静止不输出 | 正常等待；后续 ACK 才证明通信。不要重复开同端口 |
-| Pairing 不通过 | 核地址和固件，按 A1 完成认证配对后重录；不降级安全 |
+| 隧道静止不输出 | 正常等待；后续 ACK 才证明通信。不要反复选 3 开同端口 |
+| Pairing 不通过 | 核地址和固件；首次需要口令时 8 → 2，完成后关监视器；不降级安全 |
 | 手机 Paused | 显式重新 Connect，记录新 P0，再开启独立新采集 |
 | ACK 增长但手机不增 | 查订阅、VPN、竞争接收器、v2 App；不把 ACK 当手机收据 |
 | CAPTURE NOT PASSED / N/A / 手机增量不符 | 保留失败证据，排查后另开新采集；不混用两次计数 |
-| 第二阶段找不到这次报告 | 使用 A6 保存的完整目录，不随意取“最新成功的一次” |
+| 第二阶段找不到这次报告 | 选 5，粘贴 A6 保存的完整目录；不随意取“最新成功的一次” |
 
 来源：[当前 CO v2 协议](D:/LetThemCook/docs/co-protocol-v2.md)、[2026-09-28 部署与实体测试记录](D:/LetThemCook/docs/co-live-deployment-2026-09-28.md)及上述当前源码。本文是录制步骤，编写时没有重跑硬件测试。
