@@ -4,6 +4,8 @@ Two FireBeetles · one relay laptop · Ultra96 · Visualizer iPhone
 
 The diagrams and annotated excerpts below support the recorded physical demonstration. Comments have been added for this walkthrough; the implementation statements are preserved. `L` labels refer to original source-file lines, not the line numbers of this Markdown document. In VS Code Markdown preview, Code links jump to the annotated excerpts below; Source links open the original file at the indicated line. Each code excerpt is followed by a Read aloud paragraph explaining the file, key lines and observable behavior. Use the Chinese operator guide to choose the main excerpts for each recording section; the remaining excerpts support optional detail.
 
+**Recording order:** First use the filming phone for actual firmware upload, independent power, communication, and the dummy-edit/rebuild/rerun demonstration. Then record the computer screen for the architecture, FireBeetle device IDs, packet types, packet format, FSMs, encryption and concurrency. The diagrams and code below are the computer-screen walkthrough; saved logs refer to the earlier physical capture.
+
 ## Recording and live commands
 
 Two entry files cover the routine: `flash.py` programs the boards, and `demo.py` runs the communication demonstration. [D01 — Change dummy packets, rebuild and rerun](#d01) uses the same two files. Film the iPhone's Received count and results directly; there is no phone-counter input step.
@@ -19,6 +21,18 @@ Run from `D:\LetThemCook`. Keep the SSH tunnel in terminal A and run the capture
 | [R05 — Review](#r05) | `python demo.py report "<exact Saved in directory>"` | Only when reopening saved evidence |
 
 First-time pairing, serial monitoring and service maintenance are occasional setup options: [R06](#r06), [R07](#r07), [R08](#r08).
+
+## Explain FireBeetle: Device IDs / packet types / packet format
+
+Record this complete explanation on the computer screen after the physical demonstration. Follow G02 → G03 → G04, open the code links in the order below, and read the paragraph immediately after each code block. G02 also connects the device profiles to the setup already shown on camera.
+
+| Part | Diagram and code order | Files and points to explain |
+|---|---|---|
+| Device IDs | [G02](#g02) → [C02](#c02) | `platformio.ini`: left/right profiles assign IDs 1/2; distinguish the application ID from the BLE address. |
+| Sensor packet format and random payload | [G03](#g03) → [C05](#c05) → [C06](#c06) → [C07](#c07) → [C40](#c40) → [C08](#c08) | `sensor.py`: fields, 32-byte layout and decoding. `dummy_fixtures.json`: editable rows. Firmware `main.cpp`: random selection and sending. Compare with saved sensor/ACK records from the filmed run. |
+| Packet types and control format | [G04](#g04) → [C09](#c09) → [C10](#c10) → [C11](#c11) | `control.py`: opcodes and the 14-byte B7 header. `ultra96/protocol.py`: sensor, ACK, subscription and result message roles. |
+
+[C03](#c03) and [C04](#c04) provide optional startup/pairing detail; [C12](#c12) explains source counters when needed. The dummy-edit procedure remains the physical demonstration in [D01](#d01); here, reopen its saved evidence to explain what changed.
 
 ## Diagrams and implemented code
 
@@ -675,6 +689,10 @@ In firmware/esp32/include/week7_security.h, these small predicates define when B
 
 TCP delivers a byte stream, so one application frame can arrive in several pieces. Our encoder prefixes the JSON body with its four-byte big-endian byte length. The receiver first reads exactly four bytes, checks that the length is between one and sixteen thousand three hundred and eighty-four, and then reads exactly that many body bytes. It parses and validates the complete JSON object. TLS provides encryption around these application frames.
 
+**Example to explain while pointing at the diagram:**
+
+Suppose the JSON body is one thousand bytes. It might arrive as two hundred, then three hundred, then five hundred bytes. After reading the length header, readexactly keeps waiting until all one thousand body bytes are available. It does not parse the first two hundred bytes as a complete message. If several messages arrive together, bytes belonging to the next frame remain buffered for the next call. These sizes illustrate possible stream delivery; they are not measured chunk sizes from the recorded capture.
+
 **Code:** [C14 Frame encode](#c14) · [C15 Partial reads](#c15)
 
 <a id="c14"></a>
@@ -759,7 +777,7 @@ async def write_frame(writer, message, timeout=5.0):
 ```
 **Read aloud:**
 
-In common/wire.py, read_frame reverses the length-prefixed encoding while handling TCP stream boundaries. Line 53 reads exactly four header bytes, then lines 58 and 59 decode and validate the body length before line 62 reads exactly that many bytes. Line 66 parses UTF-8 JSON with checks for duplicate keys and invalid numeric values, and the result must be an object. One timeout covers the complete header-and-body operation, so receiving small fragments does not continually reset the budget. A partial header or body is an error; a clean end between frames remains distinguishable for the connection handler.
+In common/wire.py, read_frame handles TCP stream boundaries. Line 53 reads exactly four header bytes; lines 58 and 59 decode and validate the length before line 62 reads the complete body. These readexactly calls wait across partial deliveries, keeping any later frame's bytes buffered. Line 66 parses UTF-8 JSON, rejecting duplicate keys and invalid numbers, and requires an object. One timeout covers the header and body; if the connection closes before all required bytes arrive, the incomplete frame is rejected. Normal fragmentation is supported, and a clean end between frames remains distinguishable.
 
 [Back to G06](#g06)
 
