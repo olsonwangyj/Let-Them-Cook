@@ -39,4 +39,4 @@ The phone owns its SSH connection to Ultra96 TCP 22 and a nested stream to board
 
 New app builds write public settings and the verified public CA under `Application Support/Comms` (`comms-ca.pem`). They can read the corresponding files from the old `Application Support/Week7` directory when no new file exists; saving settings writes only to the new directory. Passwords remain in memory only.
 
-The end-to-end operator commands and evidence checks are in the [communications quickstart](../docs/communications-quickstart.md); packet and result schemas are in [protocol v2](../docs/co-protocol-v2.md).
+See the [repository README](../README.md#communications) for launcher entry points and the original deployment's session setting. The [sensor codec](../common/sensor.py), [BLE controls](../common/control.py) and [network protocol](../ultra96/protocol.py) define the packet and result formats.

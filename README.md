@@ -2,15 +2,12 @@
 
 A cooking AR game inspired by Overcooked.
 
-This repository handoff contains the Communications subsystem: protected dummy-data streams from two FireBeetle32 boards through a Windows relay and Ultra96 to the installed Unity iPhone visualizer. Start with the [communications quickstart](docs/communications-quickstart.md) for setup, `flash.py`, `demo.py`, evidence and the source-only iOS boundary.
+This repository handoff contains the Communications subsystem: protected dummy-data streams from two FireBeetle32 boards through a Windows relay and Ultra96 to the installed Unity iPhone visualizer.
 
-## Communications guides
+## Communications
 
-- [Live demonstration, English](docs/B07-CO-live-demo-guide.en.md) · [中文](docs/B07-CO-live-demo-guide.zh-CN.md): the instructor's item order, actions, observations and pass conditions.
-- [Protocol version 2](docs/co-protocol-v2.md) · [中文入门讲解](docs/B07-CO-protocol-explained.zh-CN.md): sensor, control, file and result formats.
-- [Video operator script, 中文](docs/B07-CO-video-operator-script.zh-CN.md) · [English presentation](docs/B07-CO-video-presentation.en.md): physical recording and on-screen explanation.
-- [28 September physical deployment evidence](docs/co-live-deployment-2026-09-28.md): measured results under the recorded conditions.
+- [flash.py](flash.py): build, upload and pair the LEFT and RIGHT boards; run `python flash.py --help` for options.
+- [demo.py](demo.py): open the SSH tunnel, capture both streams and review reports; run `python demo.py --help` or `python demo.py run --help` for options.
 - [iOS source and integration boundary](ios-visualizer/README.md) · [native build and preview](ios-visualizer/NATIVE-INTEGRATION.md).
-- [Team integration handoff](docs/integration-handoff.md): how Communications connects to the other game subsystems.
 
-New source defaults use `LC` sensor packets, `LCS1` source statistics and the `ltc-comms` session. The original deployment still uses `W7`, `W7S1` and `week7-demo`; the laptop decoders accept either packet marker, and the original server/app require an explicit legacy session setting when used with the updated launcher. The TLS name `ultra96.week7.internal` and the deployed iPhone bridge's `Week7*` symbols remain compatibility identifiers until certificates and the Unity export are replaced. See the [migration instructions](docs/communications-quickstart.md#source-and-deployment-identifiers). The Unity Xcode export and a prebuilt iPhone app are not part of this repository handoff.
+New source defaults use `LC` sensor packets, `LCS1` source statistics and the `ltc-comms` session. The original deployment still uses `W7`, `W7S1` and `week7-demo`; the laptop decoders accept either packet marker. When using the original server and installed phone, pass `--session-id week7-demo` to `demo.py run/live` or set `$env:LTC_COMMS_SESSION = 'week7-demo'` in PowerShell. Laptop, server and phone must use the same session. The TLS name `ultra96.week7.internal` and the deployed iPhone bridge's `Week7*` symbols remain compatibility identifiers until certificates and the Unity export are replaced. The Unity Xcode export and a prebuilt iPhone app are not part of this repository handoff.
