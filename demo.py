@@ -16,7 +16,7 @@ from laptop.dual_bridge import _source_rate
 from tools.demo_boards import load_boards
 
 ROOT = Path(__file__).resolve().parent
-OUTPUT_ROOT = ROOT / ".week7-local"
+OUTPUT_ROOT = ROOT / ".comms-local"
 
 
 def _duration(value):
@@ -51,6 +51,8 @@ def _parser():
         run.add_argument("--left-address", help="override saved LEFT board address")
         run.add_argument("--right-address", help="override saved RIGHT board address")
         run.add_argument("--port", type=_port, default=18889)
+        run.add_argument("--session-id", default=os.environ.get("LTC_COMMS_SESSION", "ltc-comms"),
+                         help="session expected by the Ultra96 server; default: LTC_COMMS_SESSION or ltc-comms")
         run.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
         run.add_argument("--keyboard", action="store_true", default=keyboard,
                          help="individual keys 1/2 command the selected ESP")
@@ -73,7 +75,7 @@ def capture_command(args, report_path):
     command = [sys.executable, "-u", "-m", "laptop.dual_bridge",
             "--ca", str(args.ca.expanduser().resolve()), "--port", str(args.port),
             "--left-address", args.left_address, "--right-address", args.right_address,
-            "--duration", str(args.duration), "--session-id", "week7-demo",
+            "--duration", str(args.duration), "--session-id", args.session_id,
             "--ack-window", "32", "--progress-interval", "1",
             "--report", str(report_path), "--evidence", str(report_path.with_name("packets.jsonl"))]
     if args.keyboard:
@@ -264,7 +266,10 @@ def run_capture(args):
 
 def latest_report(output_root):
     root = Path(output_root).expanduser()
-    folders = [path for path in root.glob("B07-*") if path.is_dir()]
+    roots = [root]
+    if root == OUTPUT_ROOT:
+        roots.append(root.with_name(".week7-local"))
+    folders = [path for candidate in roots for path in candidate.glob("B07-*") if path.is_dir()]
     if not folders:
         raise FileNotFoundError(f"No B07 captures in {root}; run a capture first.")
     # Select the newest attempt, even when interrupted and missing its report.

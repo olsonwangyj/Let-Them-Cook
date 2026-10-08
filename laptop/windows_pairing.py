@@ -1,4 +1,4 @@
-"""Windows passkey pairing for the Week 7 protected ESP (no Just Works fallback).
+"""Windows passkey pairing for the B07 Communications protected ESP (no Just Works fallback).
 
 The installed Bleak 3.0.1 pair() uses CONFIRM_ONLY and can lower requested
 protection. This helper explicitly requests PROVIDE_PIN and authenticated
@@ -129,7 +129,7 @@ async def pair_address(address, pin_provider):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--address", help="otherwise discover exact Week 7 advertised service")
+    parser.add_argument("--address", help="otherwise discover exact B07 Communications advertised service")
     args = parser.parse_args()
     async def run():
         address = args.address
@@ -139,7 +139,7 @@ def main():
             found = await BleakScanner.find_device_by_filter(
                 lambda _d, a: SERVICE_UUID in [x.lower() for x in a.service_uuids or []], timeout=8)
             if found is None:
-                raise RuntimeError("Week 7 ESP not found")
+                raise RuntimeError("B07 Communications ESP not found")
             address = found.address
         await pair_address(address, prompt_pin)
         print(json.dumps({"authenticated_bond": True, "address": address}))

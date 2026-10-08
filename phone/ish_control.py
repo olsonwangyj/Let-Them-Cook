@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Start a temporary, key-only iSH management sshd through an existing master.
 
-Run: python3 ish_control.py "$week7_ssh_socket"
+Run: python3 ish_control.py "$comms_ssh_socket"
 The sibling control-public.json contains only the supplied client public key,
 board status directory, and run id. PHONE_CONTROL_READY reports local startup
 and a reverse-forward request; it does not prove remote root authentication.
@@ -329,7 +329,7 @@ def stop_control(state_path, home=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("socket", nargs="?", help="existing week7 SSH ControlPath")
+    parser.add_argument("socket", nargs="?", help="existing SSH ControlPath")
     parser.add_argument("--stop", metavar="STATE_JSON", help="request cleanup of a verified scoped sshd")
     args = parser.parse_args(argv)
     if bool(args.socket) == bool(args.stop):

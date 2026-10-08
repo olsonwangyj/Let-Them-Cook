@@ -1,4 +1,4 @@
-"""Bounded, strict UTF-8 JSON object framing shared by all Week 7 peers."""
+"""Bounded, strict UTF-8 JSON object framing shared by all B07 Communications peers."""
 import asyncio
 import json
 import math

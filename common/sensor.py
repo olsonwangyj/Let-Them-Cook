@@ -1,4 +1,4 @@
-"""Fixed 32-byte W7 codec: legacy deterministic v1 and editable-fixture v2."""
+"""Fixed 32-byte sensor codec: deterministic v1 and editable-fixture v2."""
 
 from dataclasses import dataclass
 import struct
@@ -60,23 +60,25 @@ class SensorPacket:
         return result
 
 
-def encode_packet(packet: SensorPacket) -> bytes:
+def encode_packet(packet: SensorPacket, *, magic: bytes = b"LC") -> bytes:
     if not isinstance(packet, SensorPacket):
         raise ValueError("packet must be a SensorPacket")
+    if type(magic) is not bytes or magic not in (b"LC", b"W7"):
+        raise ValueError("packet magic must be LC or W7")
     return _PACKET.pack(
-        b"W7", packet.version, packet.device_id, packet.boot_id, packet.seq, packet.uptime_ms,
+        magic, packet.version, packet.device_id, packet.boot_id, packet.seq, packet.uptime_ms,
         *packet.values
     )
 
 
 def decode_packet(data: bytes) -> SensorPacket:
     if not isinstance(data, (bytes, bytearray, memoryview)) or len(data) != PACKET_SIZE:
-        raise ValueError("W7 packet must contain exactly 32 bytes")
+        raise ValueError("sensor packet must contain exactly 32 bytes")
     magic, version, device_id, boot_id, seq, uptime_ms, *values = _PACKET.unpack(data)
-    if magic != b"W7":
-        raise ValueError("invalid W7 packet magic")
+    if magic not in (b"LC", b"W7"):
+        raise ValueError("invalid sensor packet magic")
     if version not in (1, 2):
-        raise ValueError("unsupported W7 packet version")
+        raise ValueError("unsupported sensor packet version")
     return SensorPacket(device_id, boot_id, seq, uptime_ms, tuple(values), version)
 
 

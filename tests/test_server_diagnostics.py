@@ -32,7 +32,7 @@ def test_records_safe_events_flushes_and_finalizes_sha_bound_receipt(tmp_path):
     assert initial["lost_event_count"] == 0
     assert initial["finalized"] is False
 
-    fields = {"session_id": "week7-demo", "device_id": 1, "boot_id": 7, "seq": 42}
+    fields = {"session_id": "ltc-comms", "device_id": 1, "boot_id": 7, "seq": 42}
     sink("result_accepted", **fields)
     fields["seq"] = 99
 
@@ -99,12 +99,12 @@ def test_emit_is_nonblocking_and_overflow_is_explicit(monkeypatch, tmp_path):
     stream = BlockingStream(entered, release)
     monkeypatch.setattr(diagnostics, "_open_events", lambda _path: stream)
     sink = BoundedEventLog(tmp_path / "capture", capacity=2)
-    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="ltc-comms")
     assert entered.wait(1.0)
 
     started = time.monotonic()
     for seq in range(1, 101):
-        sink("result_accepted", device_id=1, boot_id=7, seq=seq, session_id="week7-demo")
+        sink("result_accepted", device_id=1, boot_id=7, seq=seq, session_id="ltc-comms")
     elapsed = time.monotonic() - started
     assert elapsed < 0.2
     snapshot = sink.stats()
@@ -151,7 +151,7 @@ class ShortWriteStream(FailingStream):
 def test_writer_failure_is_contained_and_reported(monkeypatch, tmp_path):
     monkeypatch.setattr(diagnostics, "_open_events", lambda _path: FailingStream())
     sink = BoundedEventLog(tmp_path / "capture")
-    sink("result_accepted", device_id=1, boot_id=7, seq=1, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=1, session_id="ltc-comms")
     state = sink.close()
     assert state["writer_error_count"] == 1
     assert state["writer_error_type"] == "OSError"
@@ -163,7 +163,7 @@ def test_writer_failure_is_contained_and_reported(monkeypatch, tmp_path):
 def test_short_write_is_a_writer_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(diagnostics, "_open_events", lambda _path: ShortWriteStream())
     sink = BoundedEventLog(tmp_path / "capture")
-    sink("result_accepted", device_id=1, boot_id=7, seq=1, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=1, session_id="ltc-comms")
     state = sink.close()
     assert state["writer_error_count"] == 1
     assert state["writer_error_type"] == "OSError"
@@ -175,7 +175,7 @@ def test_short_write_is_a_writer_failure(monkeypatch, tmp_path):
 def test_internal_callback_failure_does_not_escape_or_deadlock(monkeypatch, tmp_path):
     sink = BoundedEventLog(tmp_path / "capture")
     monkeypatch.setattr(diagnostics, "_utc_now", lambda: (_ for _ in ()).throw(OSError()))
-    sink("result_accepted", device_id=1, boot_id=7, seq=1, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=1, session_id="ltc-comms")
     snapshot = sink.stats()
     assert snapshot["callback_error_count"] == 1
     assert snapshot["dropped_event_count"] == 1
@@ -205,7 +205,7 @@ def test_close_timeout_is_bounded_idempotent_and_latches_incomplete(monkeypatch,
     stream = BlockingStream(entered, release)
     monkeypatch.setattr(diagnostics, "_open_events", lambda _path: stream)
     sink = BoundedEventLog(tmp_path / "capture")
-    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="ltc-comms")
     assert entered.wait(1.0)
     started = time.monotonic()
     first = sink.close(timeout=0.01)
@@ -226,7 +226,7 @@ def test_close_timeout_is_bounded_idempotent_and_latches_incomplete(monkeypatch,
 
 def test_close_deadline_includes_status_persistence(monkeypatch, tmp_path):
     sink = BoundedEventLog(tmp_path / "capture")
-    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="ltc-comms")
     entered, release, returned = threading.Event(), threading.Event(), threading.Event()
     original = sink._prepare_status
 
@@ -257,7 +257,7 @@ def test_close_deadline_includes_status_persistence(monkeypatch, tmp_path):
 
 def test_late_atomic_publication_does_not_upgrade_timeout_receipt(monkeypatch, tmp_path):
     sink = BoundedEventLog(tmp_path / "capture")
-    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="week7-demo")
+    sink("result_accepted", device_id=1, boot_id=7, seq=0, session_id="ltc-comms")
     entered, release = threading.Event(), threading.Event()
     replace = os.replace
 
@@ -296,7 +296,7 @@ def test_event_sequence_is_exact_for_multiple_producers(tmp_path):
     sink = BoundedEventLog(tmp_path / "capture", capacity=256)
     threads = [threading.Thread(target=lambda base=base: [
         sink("result_accepted", device_id=1, boot_id=7, seq=base + offset,
-             session_id="week7-demo") for offset in range(20)
+             session_id="ltc-comms") for offset in range(20)
     ]) for base in range(0, 100, 20)]
     for thread in threads:
         thread.start()

@@ -3,8 +3,8 @@ import asyncio
 from common.tls import server_context
 from laptop.bridge import Bridge, BridgeConfig
 from laptop.dual_bridge import DualBridge
-from tools.generate_week7_pki import generate_pki
-from ultra96.server import Week7Server
+from tools.generate_comms_pki import generate_pki
+from ultra96.server import CommsServer
 
 
 def make_dual(ca, port, *, expected_rate=20):
@@ -22,7 +22,7 @@ def test_real_tls_receives_exact_device_tagged_sets_from_both_sources(tmp_path):
     generate_pki(tmp_path)
 
     async def check():
-        server = Week7Server(server_context(
+        server = CommsServer(server_context(
             tmp_path / "server-cert.pem", tmp_path / "server-key.pem"),
             ingest_port=0, gateway_port=0)
         await server.start()
@@ -53,7 +53,7 @@ def test_one_transport_disconnect_does_not_stop_healthy_peer_and_fails_verdict(t
         await asyncio.wait_for(wait(), 2)
 
     async def check():
-        server = Week7Server(server_context(
+        server = CommsServer(server_context(
             tmp_path / "server-cert.pem", tmp_path / "server-key.pem"),
             ingest_port=0, gateway_port=0)
         await server.start()

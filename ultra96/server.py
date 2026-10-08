@@ -1,4 +1,4 @@
-"""TLS-only Week 7 service. Ingestion ACKs and Phone results use separate ports."""
+"""TLS-only B07 Communications service. Ingestion ACKs and Phone results use separate ports."""
 import argparse
 import asyncio
 from collections import OrderedDict
@@ -83,8 +83,8 @@ class ResultQueue:
             self.observe("result_abandoned", message, received_at, reason=reason)
 
 
-class Week7Server:
-    def __init__(self, ssl_context, session_id="week7-demo", ingest_port=8888, gateway_port=9999,
+class CommsServer:
+    def __init__(self, ssl_context, session_id="ltc-comms", ingest_port=8888, gateway_port=9999,
                  *, observer=None, rng=None, max_v2_namespaces=128, max_v2_commands=4096):
         if (not isinstance(ssl_context, ssl.SSLContext)
                 or ssl_context.minimum_version < ssl.TLSVersion.TLSv1_2):
@@ -204,7 +204,7 @@ class Week7Server:
     async def wait_failure(self):
         """Service hosts await this so a dead listener cannot look healthy."""
         await self._failed.wait()
-        raise RuntimeError("Week 7 listener failed") from self._accept_failure
+        raise RuntimeError("B07 Communications listener failed") from self._accept_failure
 
     async def _client(self, connection, gateway):
         writer = None
@@ -420,7 +420,7 @@ async def _run(args):
 
 
 async def _run_service(args, observer=None):
-    service = Week7Server(server_context(args.cert, args.key), session_id=args.session_id,
+    service = CommsServer(server_context(args.cert, args.key), session_id=args.session_id,
                           ingest_port=args.ingest_port, gateway_port=args.gateway_port,
                           observer=observer)
     await service.start()
@@ -460,7 +460,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cert", required=True)
     parser.add_argument("--key", required=True)
-    parser.add_argument("--session-id", default="week7-demo")
+    parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--ingest-port", type=int, default=8888)
     parser.add_argument("--gateway-port", type=int, default=9999)
     parser.add_argument("--event-log-dir", help="new directory for bounded result-path diagnostics")

@@ -3,8 +3,8 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
-#include "week7_control.h"
-#include "week7_security.h"
+#include "comms_control.h"
+#include "comms_security.h"
 
 static const uint8_t kDigest[32] = {
   0xbe,0xf5,0x7e,0xc7,0xf5,0x3a,0x6d,0x40,0xbe,0xb6,0x40,0xa7,0x80,0xa6,0x39,0xc8,
@@ -29,9 +29,9 @@ static std::vector<uint8_t> request(uint8_t opcode, uint32_t id,
   return result;
 }
 
-static std::vector<uint8_t> execute(week7::ControlEngine& engine,
+static std::vector<uint8_t> execute(comms::ControlEngine& engine,
     const std::vector<uint8_t>& input, uint8_t status = 0, uint32_t now = 500) {
-  uint8_t output[week7::kControlMaxFrame] = {};
+  uint8_t output[comms::kControlMaxFrame] = {};
   const size_t size = engine.process(input.data(), input.size(), now, output, sizeof(output));
   assert(size >= 14 && output[0] == 'B' && output[1] == '7');
   assert(output[2] == 1 && output[3] == (input[3] | 0x80));
@@ -41,33 +41,42 @@ static std::vector<uint8_t> execute(week7::ControlEngine& engine,
 }
 
 int main() {
-  assert(week7::canAcceptControl(true, true, true, false, 5, 5));
-  assert(!week7::canAcceptControl(true, true, false, false, 5, 5));
-  assert(!week7::canAcceptControl(true, true, true, false, 4, 5));
-  assert(!week7::canAcceptControl(true, false, true, false, 5, 5));
-  assert(!week7::canAcceptControl(false, true, true, false, 5, 5));
-  assert(week7::canAcceptControl(true, true, false, true, 5, 5));
+  assert(comms::canAcceptControl(true, true, true, false, 5, 5));
+  assert(!comms::canAcceptControl(true, true, false, false, 5, 5));
+  assert(!comms::canAcceptControl(true, true, true, false, 4, 5));
+  assert(!comms::canAcceptControl(true, false, true, false, 5, 5));
+  assert(!comms::canAcceptControl(false, true, true, false, 5, 5));
+  assert(comms::canAcceptControl(true, true, false, true, 5, 5));
   uint8_t fixturePacket[32] = {};
-  assert(week7::serializeFixturePacket(fixturePacket, 32, 2, 7, 9, 100, 0));
+  assert(comms::serializeFixturePacket(fixturePacket, 32, 2, 7, 9, 100, 0));
+  assert(fixturePacket[0] == 'L' && fixturePacket[1] == 'C');
   assert(fixturePacket[2] == 2 && fixturePacket[3] == 2 && fixturePacket[8] == 9);
-  assert(!week7::serializeFixturePacket(fixturePacket, 31, 2, 7, 9, 100, 0));
+  assert(!comms::serializeFixturePacket(fixturePacket, 31, 2, 7, 9, 100, 0));
   uint8_t nextFixturePacket[32] = {};
-  assert(week7::serializeFixturePacket(nextFixturePacket, 32, 2, 7, 9, 100, 1));
+  assert(comms::serializeFixturePacket(nextFixturePacket, 32, 2, 7, 9, 100, 1));
   assert(std::memcmp(fixturePacket + 16, nextFixturePacket + 16, 16) != 0);
-  assert(week7::serializeFixturePacket(nextFixturePacket, 32, 2, 7, 9, 100,
-                                      static_cast<uint32_t>(week7::kDummyFixtureCount)));
+  assert(comms::serializeFixturePacket(nextFixturePacket, 32, 2, 7, 9, 100,
+                                      static_cast<uint32_t>(comms::kDummyFixtureCount)));
   assert(std::memcmp(fixturePacket, nextFixturePacket, 32) == 0);
-  week7::ControlEngine engine(2, 0x78563412, hashSix);
+  comms::ControlEngine engine(2, 0x78563412, hashSix);
   // Literal sensor packet exercises int16 wrap and every identity field.
   std::vector<uint8_t> sensor = {
     'W','7',2,2,0x12,0x34,0x56,0x78,10,0,0,0,1,0,0,0,
     0xff,0x7f,0,0x80,0xff,0xff,0,0,1,0,0xff,0,0,1,0,0xff};
+  auto currentSensor = sensor;
+  currentSensor[0] = 'L'; currentSensor[1] = 'C';
+  comms::ControlEngine currentEngine(2, 0x78563412, hashSix);
+  auto currentResult = execute(currentEngine, request(1, 10, 0, currentSensor));
+  assert(currentResult.size() == 46 && currentResult[14] == 'L' && currentResult[15] == 'C');
+  auto mixedMagic = currentSensor; mixedMagic[0] = 'W'; mixedMagic[8] = 11;
+  execute(currentEngine, request(1, 11, 0, mixedMagic), 1);
   auto command = request(1, 10, 0, sensor);
   auto result = execute(engine, command);
   const uint8_t expected[] = {
     'W','7',2,2,0x12,0x34,0x56,0x78,10,0,0,0,0xf4,1,0,0,
     0,0x80,1,0x80,0,0,1,0,2,0,0,1,1,1,1,0xff};
   assert(result.size() == 46 && std::memcmp(result.data()+14, expected, 32) == 0);
+  assert(std::memcmp(currentResult.data()+16, result.data()+16, 30) == 0);
   assert(execute(engine, command, 0, 900) == result);  // Identical replay, not second transform.
   auto conflict = command; conflict.back() ^= 1;
   execute(engine, conflict, 5);
@@ -152,8 +161,8 @@ int main() {
   execute(engine, bad, 1);
   bad = request(0x11, 200, 0, std::vector<uint8_t>(181, 0));
   execute(engine, bad, 1);
-  assert(week7::controlFitsMtu(64) && !week7::controlFitsMtu(63));
-  assert(week7::controlChunkCapacity(64) == 47);
-  assert(week7::controlChunkCapacity(517) == 180);
+  assert(comms::controlFitsMtu(64) && !comms::controlFitsMtu(63));
+  assert(comms::controlChunkCapacity(64) == 47);
+  assert(comms::controlChunkCapacity(517) == 180);
   std::puts("PASS B07 command, rate, bounded file and validation");
 }

@@ -162,7 +162,7 @@
 		F59664096BFBA1197DABE754 /* UnityViewControllerBase+visionOS.mm in Sources */ = {isa = PBXBuildFile; fileRef = C630E281FE91663440031491 /* UnityViewControllerBase+visionOS.mm */; };
 		F5C03E9DD3BF40D8EC0F4404 /* LaunchScreen-iPhonePortrait.png in Resources */ = {isa = PBXBuildFile; fileRef = 681AA63C19788ACA381FB8C1 /* LaunchScreen-iPhonePortrait.png */; };
 		FC9704D69DE282DECE7B3BE2 /* UnityView+tvOS.h in Headers */ = {isa = PBXBuildFile; fileRef = 7DBCE3A2DDA6DA90B04BF8ED /* UnityView+tvOS.h */; };
-		A7E700000000000000000001 /* Week7Native in Frameworks */ = {isa = PBXBuildFile; productRef = A7E700000000000000000003 /* Week7Native */; };
+		A7E700000000000000000001 /* CommsNative in Frameworks */ = {isa = PBXBuildFile; productRef = A7E700000000000000000003 /* CommsNative */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1003,7 +1003,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A7E700000000000000000001 /* Week7Native in Frameworks */,
+				A7E700000000000000000001 /* CommsNative in Frameworks */,
 				00000000008063A1000160D3 /* UnityRuntime.framework in Frameworks */,
 				7F4E05AB2717219200A2CBE4 /* libGameAssembly.a in Frameworks */,
 				9D0A618B21BFE7F30094DC33 /* libiconv.2.tbd in Frameworks */,
@@ -2149,7 +2149,7 @@
 				7F401A4D272AC77C005AF450 /* PBXTargetDependency */,
 			);
 			name = UnityFramework;
-			packageProductDependencies = (A7E700000000000000000003 /* Week7Native */, );
+			packageProductDependencies = (A7E700000000000000000003 /* CommsNative */, );
 			productName = UnityFramework;
 			productReference = 9D25AB9D213FB47800354C27 /* UnityFramework.framework */;
 			productType = "com.apple.product-type.framework";
@@ -2201,7 +2201,7 @@
 				en,
 			);
 			mainGroup = 29B97314FDCFA39411CA2CEA /* CustomTemplate */;
-			packageReferences = (A7E700000000000000000002 /* XCLocalSwiftPackageReference "../Week7Native" */, );
+			packageReferences = (A7E700000000000000000002 /* XCLocalSwiftPackageReference "../CommsNative" */, );
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -2214,16 +2214,16 @@
 /* End PBXProject section */
 
 /* Begin XCLocalSwiftPackageReference section */
-        A7E700000000000000000002 /* XCLocalSwiftPackageReference "../Week7Native" */ = {
+        A7E700000000000000000002 /* XCLocalSwiftPackageReference "../CommsNative" */ = {
             isa = XCLocalSwiftPackageReference;
-            relativePath = ../Week7Native;
+            relativePath = ../CommsNative;
         };
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-        A7E700000000000000000003 /* Week7Native */ = {
+        A7E700000000000000000003 /* CommsNative */ = {
             isa = XCSwiftPackageProductDependency;
-            productName = Week7Native;
+            productName = CommsNative;
         };
 /* End XCSwiftPackageProductDependency section */
 

@@ -12,17 +12,17 @@ from types import SimpleNamespace
 import pytest
 
 from common.wire import encode_frame
-from ultra96.server import ResultQueue, Week7Server
+from ultra96.server import ResultQueue, CommsServer
 
 
 def sensor(seq, device=1):
-    return dict(v=1, type="SENSOR_BATCH", session_id="week7-demo",
+    return dict(v=1, type="SENSOR_BATCH", session_id="ltc-comms",
                 device_id=device, boot_id=7, seq=seq, uptime_ms=seq * 100,
                 values=[seq % 2000 - 1000 + 10 * i for i in range(8)])
 
 
 def result(seq):
-    return dict(v=1, type="GESTURE_RESULT", session_id="week7-demo",
+    return dict(v=1, type="GESTURE_RESULT", session_id="ltc-comms",
                 device_id=1, boot_id=7, seq=seq, result_id="1:7:" + str(seq),
                 gesture=("REST", "FIST", "OPEN", "POINT")[seq % 4], confidence=1.0)
 
@@ -67,7 +67,7 @@ class Writer:
 
 def observed_server(events):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    return Week7Server(context, observer=lambda event, **fields: events.append((event, fields)))
+    return CommsServer(context, observer=lambda event, **fields: events.append((event, fields)))
 
 
 def fates(events):
@@ -119,7 +119,7 @@ def test_replacement_accounts_current_and_pending_once_without_retiring_new_owne
     async def check():
         events = []
         server = observed_server(events)
-        subscribe = dict(v=1, type="SUBSCRIBE", session_id="week7-demo")
+        subscribe = dict(v=1, type="SUBSCRIBE", session_id="ltc-comms")
         old_reader = reader_for(subscribe)
         old_writer = Writer(old_reader, block_results=True)
         old = asyncio.create_task(server._gateway(old_reader, old_writer))
@@ -162,7 +162,7 @@ def test_send_or_subscribe_failure_records_queued_retirement(failure):
                 server._subscriber[1].put(result(1))
                 server._subscriber[1].put(result(2))
         server.observer = observer
-        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
+        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
         writer = Writer(reader, fail_type=failure)
         with pytest.raises(ConnectionResetError):
             await asyncio.wait_for(server._gateway(reader, writer), 1)
@@ -179,7 +179,7 @@ def test_observer_exception_does_not_change_ack_or_delivery():
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         def broken(event, **fields):
             raise RuntimeError("sink failed")
-        server = Week7Server(context, observer=broken)
+        server = CommsServer(context, observer=broken)
         reader = reader_for(sensor(0), eof=True)
         writer = Writer()
         with pytest.raises(asyncio.IncompleteReadError):
@@ -187,7 +187,7 @@ def test_observer_exception_does_not_change_ack_or_delivery():
         assert writer.messages[0]["status"] == "accepted"
         assert server.metrics["accepted"] == 1
         assert server.metrics["observer_errors"] >= 1
-        subscription = reader_for(dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
+        subscription = reader_for(dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
         phone = Writer(subscription)
         gateway = asyncio.create_task(server._gateway(subscription, phone))
         await asyncio.wait_for(phone.subscribed.wait(), 1)
@@ -204,7 +204,7 @@ def test_cancelled_gateway_accounts_current_and_pending_with_stable_owner():
     async def check():
         events = []
         server = observed_server(events)
-        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
+        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
         writer = Writer(reader, block_results=True)
         task = asyncio.create_task(server._gateway(reader, writer))
         await asyncio.wait_for(writer.subscribed.wait(), 1)
@@ -248,7 +248,7 @@ def test_result_expiring_after_dequeue_has_stale_fate_without_write():
 
 
 def test_default_metrics_schema_is_unchanged():
-    server = Week7Server(ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER))
+    server = CommsServer(ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER))
     assert "observer_errors" not in server.metrics
 
 
@@ -274,9 +274,9 @@ def test_cli_closes_observer_with_bounded_timeout_when_start_fails(monkeypatch):
         async def start(self):
             raise OSError("cannot bind")
     monkeypatch.setitem(sys.modules, "ultra96.diagnostics", SimpleNamespace(BoundedEventLog=Sink))
-    monkeypatch.setattr(module, "Week7Server", Service)
+    monkeypatch.setattr(module, "CommsServer", Service)
     monkeypatch.setattr(module, "server_context", lambda *args: None)
-    args = SimpleNamespace(cert="unused", key="unused", session_id="week7-demo",
+    args = SimpleNamespace(cert="unused", key="unused", session_id="ltc-comms",
                            ingest_port=0, gateway_port=0, event_log_dir="new-evidence")
     with pytest.raises(OSError, match="cannot bind"):
         asyncio.run(module._run(args))
@@ -291,7 +291,7 @@ def test_every_accepted_id_has_one_fate_through_overflow_duplicate_and_server_cl
             with pytest.raises(asyncio.IncompleteReadError):
                 await server._ingest(reader_for(*messages, eof=True), Writer())
         await ingest(sensor(0))
-        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
+        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
         writer = Writer(reader, block_results=True)
         gateway = asyncio.create_task(server._gateway(reader, writer))
         server._tasks.add(gateway)
@@ -327,8 +327,8 @@ def test_real_sink_accepts_server_events_and_finalizes_exact_safe_ledger(tmp_pat
                 written_count += 1
                 if written_count == 2:
                     complete.set()
-        server = Week7Server(ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER), observer=observer)
-        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
+        server = CommsServer(ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER), observer=observer)
+        reader = reader_for(dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
         phone = Writer(reader)
         gateway = asyncio.create_task(server._gateway(reader, phone))
         await asyncio.wait_for(phone.subscribed.wait(), 1)

@@ -1,4 +1,4 @@
-"""Standalone Week 7 Android/Termux receiver (Python 3.8+, standard library).
+"""Standalone B07 Communications Android/Termux receiver (Python 3.8+, standard library).
 
 Connects only to this Phone's loopback SSH forward. TLS identity remains the
 Ultra96 service identity. No Laptop connection, replay request or plaintext mode.
@@ -45,7 +45,7 @@ def _bounded_integer(value):
     # All integer fields in the Phone contract fit uint32. Bound conversion
     # explicitly so Python 3.8 and versions with an integer-digit cap agree.
     if len(value.lstrip("-")) > 10:
-        raise ProtocolError("integer outside Week 7 field bounds")
+        raise ProtocolError("integer outside B07 Communications field bounds")
     return int(value)
 
 
@@ -194,9 +194,9 @@ async def receive(args, statistics=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--ca", required=True, type=Path, help="Verified Week 7 public CA PEM")
+    parser.add_argument("--ca", required=True, type=Path, help="Verified B07 Communications public CA PEM")
     parser.add_argument("--port", type=int, default=19999, help="This Phone's localhost forward port")
-    parser.add_argument("--session", default="week7-demo")
+    parser.add_argument("--session", default="ltc-comms")
     parser.add_argument("--count", type=int, default=0, help="Stop after N unique results; 0 continues")
     parser.add_argument("--duration", type=float, help="Overall test duration in seconds")
     args = parser.parse_args(argv)

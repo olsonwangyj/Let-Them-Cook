@@ -186,11 +186,11 @@ def test_configure_rejects_partial_integration_before_any_write(tmp_path, broken
     project = export / 'Unity-iPhone.xcodeproj/project.pbxproj'
     text = project.read_text()
     mutations = {
-        'framework': ('\t\t\t\tA7E700000000000000000001 /* Week7Native in Frameworks */,\n', ''),
-        'target': ('packageProductDependencies = (A7E700000000000000000003 /* Week7Native */, );', 'packageProductDependencies = ();'),
-        'project': ('packageReferences = (A7E700000000000000000002 /* XCLocalSwiftPackageReference "../Week7Native" */, );', 'packageReferences = ();'),
-        'product': ('productName = Week7Native;', 'productName = DifferentProduct;'),
-        'local-path': ('relativePath = ../Week7Native;', 'relativePath = ../DifferentPackage;'),
+        'framework': ('\t\t\t\tA7E700000000000000000001 /* CommsNative in Frameworks */,\n', ''),
+        'target': ('packageProductDependencies = (A7E700000000000000000003 /* CommsNative */, );', 'packageProductDependencies = ();'),
+        'project': ('packageReferences = (A7E700000000000000000002 /* XCLocalSwiftPackageReference "../CommsNative" */, );', 'packageReferences = ();'),
+        'product': ('productName = CommsNative;', 'productName = DifferentProduct;'),
+        'local-path': ('relativePath = ../CommsNative;', 'relativePath = ../DifferentPackage;'),
     }
     if broken_edge == 'symbols':
         symbols = export / 'process_symbols.sh'

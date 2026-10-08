@@ -80,9 +80,9 @@ def validate_linkage(text):
     _scalar(build, 'isa', 'PBXBuildFile')
     _scalar(build, 'productRef', 'A7E700000000000000000003')
     _scalar(local, 'isa', 'XCLocalSwiftPackageReference')
-    _scalar(local, 'relativePath', '../Week7Native')
+    _scalar(local, 'relativePath', '../CommsNative')
     _scalar(product, 'isa', 'XCSwiftPackageProductDependency')
-    _scalar(product, 'productName', 'Week7Native')
+    _scalar(product, 'productName', 'CommsNative')
 
 
 def _replace_files(prepared):
@@ -118,32 +118,32 @@ def configure(export):
     # attributes in addition to the already-cleared build settings.
     text = re.sub(r'USYM_UPLOAD_AUTH_TOKEN = [^;]*;', 'USYM_UPLOAD_AUTH_TOKEN = "";', text)
     text = re.sub(r'DevelopmentTeam = [^;]*;', 'DevelopmentTeam = "";', text)
-    if 'Week7Native' not in text and 'A7E70000000000000000000' not in text:
+    if 'CommsNative' not in text and 'A7E70000000000000000000' not in text:
         def replace_once(old, new):
             nonlocal text
             if text.count(old) != 1:
                 raise ValueError('Unexpected Xcode export anchor; inspect before adapting')
             text = text.replace(old, new, 1)
         replace_once('/* End PBXBuildFile section */',
-            '\t\tA7E700000000000000000001 /* Week7Native in Frameworks */ = {isa = PBXBuildFile; productRef = A7E700000000000000000003 /* Week7Native */; };\n/* End PBXBuildFile section */')
+            '\t\tA7E700000000000000000001 /* CommsNative in Frameworks */ = {isa = PBXBuildFile; productRef = A7E700000000000000000003 /* CommsNative */; };\n/* End PBXBuildFile section */')
         anchor = '\t\t\t\t00000000008063A1000160D3 /* UnityRuntime.framework in Frameworks */,'
-        replace_once(anchor, '\t\t\t\tA7E700000000000000000001 /* Week7Native in Frameworks */,\n' + anchor)
+        replace_once(anchor, '\t\t\t\tA7E700000000000000000001 /* CommsNative in Frameworks */,\n' + anchor)
         replace_once('\t\t\tname = UnityFramework;\n\t\t\tproductName = UnityFramework;',
-            '\t\t\tname = UnityFramework;\n\t\t\tpackageProductDependencies = (A7E700000000000000000003 /* Week7Native */, );\n\t\t\tproductName = UnityFramework;')
-        replace_once('\t\t\tprojectDirPath = "";', '\t\t\tpackageReferences = (A7E700000000000000000002 /* XCLocalSwiftPackageReference "../Week7Native" */, );\n\t\t\tprojectDirPath = "";')
+            '\t\t\tname = UnityFramework;\n\t\t\tpackageProductDependencies = (A7E700000000000000000003 /* CommsNative */, );\n\t\t\tproductName = UnityFramework;')
+        replace_once('\t\t\tprojectDirPath = "";', '\t\t\tpackageReferences = (A7E700000000000000000002 /* XCLocalSwiftPackageReference "../CommsNative" */, );\n\t\t\tprojectDirPath = "";')
         replace_once('/* End PBXProject section */', '''/* End PBXProject section */
 
 /* Begin XCLocalSwiftPackageReference section */
-        A7E700000000000000000002 /* XCLocalSwiftPackageReference "../Week7Native" */ = {
+        A7E700000000000000000002 /* XCLocalSwiftPackageReference "../CommsNative" */ = {
             isa = XCLocalSwiftPackageReference;
-            relativePath = ../Week7Native;
+            relativePath = ../CommsNative;
         };
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-        A7E700000000000000000003 /* Week7Native */ = {
+        A7E700000000000000000003 /* CommsNative */ = {
             isa = XCSwiftPackageProductDependency;
-            productName = Week7Native;
+            productName = CommsNative;
         };
 /* End XCSwiftPackageProductDependency section */''')
     validate_linkage(text)
@@ -179,4 +179,4 @@ if __name__ == '__main__':
     except (OSError, ValueError, plistlib.InvalidFileException) as error:
         print('XCODE_CONFIGURE_FAILED: ' + str(error), file=sys.stderr)
         sys.exit(1)
-    print('Configured local Week7Native package; signing stays operator-owned.')
+    print('Configured local CommsNative package; signing stays operator-owned.')

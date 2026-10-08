@@ -1,245 +1,42 @@
-# Native Week 7 iOS integration
+# Native iOS Communications integration
 
-The actual exported app links `Week7Native` into `UnityFramework`. The generated
-`TlsDataReceiver` calls a native C bridge from its existing Start/Update/OnDestroy
-methods. Update applies the latest bounded display to the scene's existing
-TextMeshPro label; the old inbound TLS server is disabled. The detached
-`reference/TlsDataReceiver.cs` remains reference material.
+`CommsNative` is the checked-in Swift package for the iPhone result client. It provides `CommsCore`, `CommsTransport` and `CommsBridge`; `NativePreview` uses the same modules for source-level checks. The exported Unity Xcode project and its generated app inputs are **not included here**. To build the deployed Unity visualizer, obtain the team's matching export and integrate this package in that project; these commands alone do not produce the Unity app.
 
-## Build on this Mac
+## Test the source on a Mac
 
-Requirements: Xcode with iOS support installed, Git LFS, SwiftPM network access.
-The tested toolchain and final results are recorded in the continuation report.
-From the repository root:
+Use a Mac with Xcode, iOS support and SwiftPM network access. From the repository root:
 
 ```sh
-git lfs pull
-git lfs fsck
-python3 ios-visualizer/tools/patch_export.py
-python3 ios-visualizer/tools/configure_xcode.py
-swift test --package-path ios-visualizer/Week7Native
-xcodebuild -project ios-visualizer/xcode-export/Unity-iPhone.xcodeproj \
-  -scheme Unity-iPhone -configuration Debug -sdk iphoneos \
-  -destination 'generic/platform=iOS' \
-  -derivedDataPath .week7-local/DerivedData \
-  -clonedSourcePackagesDirPath .week7-local/SourcePackages \
-  -jobs 6 CODE_SIGNING_ALLOWED=NO
+swift test --package-path ios-visualizer/CommsNative
 ```
 
-This builds the actual arm64 Unity app without signing. The output is
-`.week7-local/DerivedData/Build/Products/Debug-iphoneos/unityTutorial.app`.
-The historical continuation report includes Debug and Release build results;
-replace Debug with Release to build the optimized app.
-Use scheme-based builds with an explicit DerivedData directory; overriding only
-`CONFIGURATION_BUILD_DIR` in a target-based build broke SwiftPM module-map paths.
-
-The original `import-manifest.json` remains unchanged. `verify-import.py` checks
-that original import, so it intentionally reports modified files after applying
-this integration. The guarded patch validates the exact receiver source before
-editing, or recognizes the reviewed patched version on reapplication. Do not
-replace the baseline manifest to make intentional edits appear original.
-Unity's compiler also rewrites tracked `compile-data.json`, `profile.json` and
-`il2cpp-compile.traceevents`; these are build diagnostics, not application edits.
-Restore only these generated diagnostics after a build if preparing a commit.
-
-Dependencies are exact-version SwiftPM pins with checked-in resolved revisions.
-The native package uses [Apple SwiftNIO SSH](https://github.com/apple/swift-nio-ssh)
-and [SwiftNIO SSL](https://github.com/apple/swift-nio-ssl); their licenses remain
-in the fetched package sources. Symbol upload is disabled by default, and the
-inherited Unity upload-token settings were cleared. Builds need no Unity account.
-
-## Sign and install the actual app
-
-Open `ios-visualizer/xcode-export/Unity-iPhone.xcodeproj` in Xcode. Select the
-Unity-iPhone scheme and your connected, unlocked iPhone. In Signing & Capabilities
-select your own team and an available bundle identifier for Unity-iPhone; select
-the same team for UnityFramework when Xcode requires it. The teammate's signing
-team is not reused. Complete Apple account/Keychain prompts, device trust and
-Developer Mode yourself, then Run. No provisioning or signing-control bypass is
-provided. The supplied Unity/MediaPipe/ARKit binaries are arm64 device inputs;
-this export does not establish Unity simulator support.
-
-For a signed CLI build, use
-`~/Library/Developer/Xcode/DerivedData/Week7UnityDevice` as DerivedData, select the
-connected device as the destination and allow automatic provisioning with your
-own development team. The September 15 build, installation and process launch
-passed on the physical iPhone after developer trust. If iOS initially denies
-launch, open Settings → General → VPN & Device Management on the iPhone and
-trust your own Developer App profile, then retry. See
-[Apple's developer-trust instructions](https://help.apple.com/xcode/mac/current/en.lproj/dev96a12fb84.html).
-
-If signing reports “resource fork, Finder information, or similar detritus,”
-inspect the failing bundle with `xattr -lr`. A Documents/File Provider checkout
-can attach Finder metadata to framework directories. Back up and remove only
-the reported `com.apple.FinderInfo` or `com.apple.ResourceFork` attributes on
-the affected inputs, then rebuild in the Library directory above. Preserve
-other attributes and framework bytes. The observed build needed FinderInfo
-removed from the imported UnityRuntime and MediaPipeUnity framework roots.
-[Apple documents this signing restriction](https://developer.apple.com/library/archive/qa/qa1940/_index.html).
-
-Local signing selections, Keychain/provisioning locators, the signed app,
-private test logs and iPhone public-setting paths are listed in the
-[local-only file and credential inventory](../docs/week7-continuation-report-2026-09-14.md#local-only-files-and-credential-locations--september-16).
-It also explains which credentials are memory-only and how to locate evidence
-without committing secrets.
-
-## Configure the Phone
-
-1. Obtain the **public** Week 7 `ca-cert.pem` from the existing private setup.
-   No CA/server private key, Phone PFX or password file belongs in this app.
-   The enrolled CA SHA-256 is
-   `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`.
-   CA rotation requires independent verification and an explicit update to
-   `EnrolledTrust`; a different certificate is rejected at import.
-2. Enable the institutional VPN on the Phone if needed for the existing campus
-   route. Tap **Week 7 Connect**, import the CA, then enter board and jump-host
-   usernames/passwords. The app displays the assigned board and jump hosts.
-   Keep **Use campus jump host** enabled for the documented route; direct mode
-   still uses the same pinned board SSH endpoint on port 22.
-3. Tap **Connect**. The Unity label should show `Subscribed`, then fresh dummy
-   gestures, result IDs and a received count. The app stores only public setup
-   and usernames. Passwords are memory-only, cleared from the form immediately
-   after connecting and discarded by the session when disconnected/paused.
-4. Keep the app foregrounded. Leaving it, opening system UI that deactivates it,
-   or locking the Phone stops reception. On returning, tap Connect and enter
-   passwords again. No background-session survival is claimed.
-
-Use each password field's eye button to show or hide the entered text. Toggling
-preserves its exact value and selection; the app does not trim or normalize
-passwords. Password fields request an ASCII-capable keyboard with smart
-substitutions disabled. Clearing a password also hides it again, including on
-leaving the app, dismissing setup, connecting or disconnecting. Disabling the
-jump host clears and hides its password.
-
-Authentication errors identify **Board** or **Jump host**. “Does not offer
-password authentication” means that hop's advertised methods exclude passwords;
-“did not accept password authentication” means its credential offer was not
-accepted. “Credentials are unavailable” means the in-memory credential is
-absent or cleared, while “password is empty” identifies an empty value. Correct
-the indicated setup and Connect again; these failures do not retry credentials
-automatically.
-
-Both documented Ed25519 SSH host keys are pinned. The iPhone owns jump SSH,
-board SSH and a `direct-tcpip` stream to board **127.0.0.1:9999**. Both SSH
-endpoints use **TCP22**. TLS >=1.2 inside that stream trusts only the supplied
-Week 7 CA and verifies `ultra96.week7.internal`. The internal stream replaces
-an unnecessary Phone TCP19999 listening socket; the board's app ports remain
-private. There is no iSH dependency or Laptop result relay.
-
-## Protocol and display behavior
-
-The client sends one length-prefixed SUBSCRIBE for `week7-demo`, requires
-SUBSCRIBED, then validates every result against the existing exact schema and
-dummy mapping. It rejects malformed UTF-8/JSON, duplicate keys, extra/missing
-fields, invalid numeric types/ranges, wrong session and wrong dummy values.
-Frames are bounded to 16,384 bytes. Partial frames get one five-second budget;
-later fragments cannot extend it, and a coalesced next partial frame gets a new
-budget from its own first byte. A complete SUBSCRIBED or result frame disarms
-the frame timer, so a healthy subscribed connection may remain idle without
-disconnecting. Connection setup through SUBSCRIBED remains bounded, while EOF
-and transport errors reconnect with capped backoff. No SSH or application
-heartbeat is configured, so a silent blackhole may remain undetected until the
-operating system reports transport failure.
-Authentication and trust failures require corrected setup and an explicit retry.
-
-The main-thread mailbox holds only the newest validated result, drops retired
-callback generations, deduplicates the most recent 4,096 IDs across reconnects,
-and clears results after two seconds of local inactivity. Counts represent
-accepted unique results in the current explicit Connect session. No replay or
-persistent exactly-once delivery is promised. Local freshness cannot measure
-source-to-display latency because the selected result schema has no timestamp.
-
-## Simulator UI and transport checks
-
-`NativePreview` is an optional test host for the **same** Swift bridge/settings
-module. It does not include Unity/ARKit or synthesize gesture success. The UI
-test checks setup validation and that backgrounding clears passwords. A separate
-unit-test target runs the existing transport suite on iOS: real loopback SSH
-through both hops, verified TLS, trust failures, framing, retry and cancellation.
-With XcodeGen installed, generate fresh disposable test certificates before each
-test run:
+For the optional simulator preview, install XcodeGen and generate disposable test certificates before running its transport suite:
 
 ```sh
 python3 ios-visualizer/NativePreview/tools/generate_test_pki.py
 xcodegen generate --spec ios-visualizer/NativePreview/project.yml
-xcodebuild -project ios-visualizer/NativePreview/Week7NativePreview.xcodeproj \
-  -scheme Week7NativeTransport -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/Week7NativePreview" \
+xcodebuild -project ios-visualizer/NativePreview/CommsNativePreview.xcodeproj \
+  -scheme CommsNativeTransport -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -jobs 4 -parallel-testing-enabled NO test
-xcodebuild -project ios-visualizer/NativePreview/Week7NativePreview.xcodeproj \
-  -scheme Week7NativePreview -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/Week7NativePreview" \
+xcodebuild -project ios-visualizer/NativePreview/CommsNativePreview.xcodeproj \
+  -scheme CommsNativePreview -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -jobs 4 test
 ```
 
-The generator creates short-lived, unrelated authorities in ignored
-`.week7-local/Week7FixturePKI`. Only the transport XCTest bundle copies their
-certificates and disposable server keys. During testing, Xcode embeds that bundle
-under the preview host's `PlugIns` directory. The delivered Unity app has no such
-test bundle or fixture resources.
-Each fixture allocation uses a distinct authority, and the loader rejects missing
-or exhausted fixtures. Production CA enrollment, hostname verification and fixed
-ports are unchanged. The actual Python board interoperability test remains a
-macOS test because it launches host processes.
+Choose a simulator installed with that Mac's Xcode if the example device name differs. The generated PKI is isolated test material under ignored `.comms-local/CommsFixturePKI`; it is not the production CA. The preview tests exercise the native source against local peers. They do not establish a Unity build, physical BLE/Ultra96/iPhone delivery, signing, or ARKit behavior. This workflow requires Xcode and XcodeGen and has not been verified on Windows.
 
-Use the standard Library location above for simulator build products. When this
-checkout is under Documents, an absolute debug-framework path into a repository
-DerivedData directory can stall the simulator's loader on a macOS privacy request.
-Building the test products in Library avoids requiring source-folder access from
-the simulator; no privacy setting needs to be changed.
+## Integrate with the team's Unity export
 
-Simulator results establish native iOS UI/transport behavior against local test
-peers. They do not establish the delivered Unity scene on a physical Phone,
-institutional VPN authentication, BLE hardware, or physical lock recovery.
+In the separate exported Unity Xcode project, link the `CommsNative` package product into the Unity framework, retain the reviewed native C bridge calls from the generated receiver, and build/sign with the team's own Apple development settings. The exported project, generated receiver hook, Unity assets, and signing configuration must be supplied separately. The source handoff cannot verify that an arbitrary export contains those hooks or produce a deployable app by itself.
 
-## Physical results and remaining acceptance
+New integrations should call `CommsStart`, `CommsCopyDisplay` and `CommsStop`. The deployed export calls legacy `Week7*` C bridge symbols; this package keeps wrappers for that ABI so the existing export can link without a generated-code change. Preserve the wrappers while that export is in service. Do not substitute the optional preview app for Unity device acceptance.
 
-The following original acceptance notes describe the September 15 build.
-The September 21 dual-ESP run subsequently counted 12,004/12,004 results on the
-physical Unity iPhone app. A later idle-resume test reproduced 16 missing results
-while the receiver reconnected unnecessarily during quiet input. After the
-idle-timer fix and the operator's reported app update, physical checks counted
-2,408/2,408 across a 129-second quiet interval, 621/621 after manual recovery
-following a requested VPN cycle, and 12,003/12,003 in a ten-minute run after
-lock/unlock and explicit Connect. These are operator aggregate Phone counts;
-board identities and connection continuity are audited separately. See the
-[post-update report](../docs/phone-post-update-test-2026-09-21.md) for evidence and
-limits. The earlier [recovery report](../docs/phone-recovery-test-2026-09-21.md)
-preserves the failure that motivated the fix. The historical notes below are not
-the current acceptance status.
+## Configure and observe the installed app
 
-The signed Unity app has reached **Subscribed** on the physical iPhone and
-counted 100 results from synthetic Mac input, with matching sender ACK and board
-acceptance IDs. This establishes count-level delivery and live rendering, not a
-saved history of every Phone ID. The latest update with authentication
-diagnostics and password visibility controls is installed and also passed a
-fresh 100-result physical count test after keyboard input was corrected. All
-four dummy labels have been observed across physical runs; a separate FIST
-capture added 20 results after that test. Full ARKit, physical network-fault/lock
-recovery and the complete ESP32/BLE chain ending in this new Unity app remain
-unverified. The existing protected ESP32 → Windows → Ultra96 → iPhone Python/iSH
-path already has 100-result and 6,100-result hardware evidence. The remaining
-combined run verifies the new Unity subscriber; it does not require redoing the
-BLE implementation. Mac BLE support is needed only if replacing Windows as the
-BLE bridge. See the
-[continuation report](../docs/week7-continuation-report-2026-09-14.md) for separate
-run outcomes and evidence.
+The installed Unity app needs the verified **public** Communications CA, the institutional VPN route if required, and authorized SSH credentials for the campus jump host and Ultra96. No CA/server private key belongs in the app. In its setup view, import the trusted CA, enter the host credentials, and tap **Week 7 Connect** in the already deployed app. The source-only `CommsNative` UI uses **Communications Connect** for a future build. Wait for **Subscribed** before starting the Windows capture. Keep the app foregrounded; after locking or backgrounding, reconnect manually and enter credentials again. Its `Received` count is a phone observation and should be compared with the same run's Ultra96 accepted-result evidence.
 
-With only a Mac and iPhone available, first verify the actual Phone reaches
-**Subscribed** through its own SSH and verified TLS connection. The existing
-public CA archive can be retrieved from Ultra96 using the pinned route in the
-[SSH import guide](../docs/week7-iphone-ssh-import.md). After subscription, the
-Mac can run `laptop.bridge --mock` through a loopback ingestion forward to send
-synthetic packets and check real board-to-Phone result delivery. This is separate
-from the ESP32/BLE test: the protected physical bridge uses Windows pairing
-checks, and unprotected diagnostic mode is not a replacement.
+The phone owns its SSH connection to Ultra96 TCP 22 and a nested stream to board loopback `127.0.0.1:9999`. TLS inside that route verifies the CA and `ultra96.week7.internal`. New source sends `SUBSCRIBE` for `ltc-comms`, requires `SUBSCRIBED`, and validates framed results. The installed app and original Ultra96 service use `week7-demo`, so they continue to work together; deploying a rebuilt app with this source requires the server session to be updated at the same time. The original BLE packet magic `W7` is accepted by the updated laptop while new firmware emits `LC`. Exported `Week7*` bridge wrappers and the pinned TLS service name remain until their dependent Unity export and certificate trust are migrated.
 
-Stop competing Phone simulators/subscribers (the newest subscriber replaces the
-old owner). Start the existing board service and Windows BLE bridge using their
-runbooks; power the protected ESP32 dummy firmware and complete physical pairing
-when needed. After the app says Subscribed, send 100 unique dummy inputs. Compare
-app count/result IDs with board/Windows ACK evidence and observe all four labels.
-No malformed/stale data should appear. Then interrupt/recover the network and
-perform an observed lock/foreground/reconnect test. Verify the old stream cannot
-update the resumed label. Record separate pass/fail evidence; historical iSH
-results are not Unity acceptance.
+New app builds write public settings and the verified public CA under `Application Support/Comms` (`comms-ca.pem`). They can read the corresponding files from the old `Application Support/Week7` directory when no new file exists; saving settings writes only to the new directory. Passwords remain in memory only.
+
+See the [repository README](../README.md#communications) for launcher entry points and the original deployment's session setting. The [sensor codec](../common/sensor.py), [BLE controls](../common/control.py) and [network protocol](../ultra96/protocol.py) define the packet and result formats.

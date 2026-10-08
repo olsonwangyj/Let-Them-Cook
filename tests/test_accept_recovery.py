@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from ultra96.server import Week7Server, _run
+from ultra96.server import CommsServer, _run
 
 
 def context():
@@ -19,7 +19,7 @@ def context():
 
 class AcceptRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_transient_accept_errors_retry_with_capped_delay_and_preserve_cancel(self):
-        service = Week7Server(context())
+        service = CommsServer(context())
         failures = [ConnectionAbortedError("queued peer aborted")]
         failures.extend(OSError(errno.EMFILE, "temporary descriptors exhausted") for _ in range(8))
         failures.append(asyncio.CancelledError())
@@ -38,7 +38,7 @@ class AcceptRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service.metrics["accept_retries"], 9)
 
     async def test_unexpected_listener_failure_is_observable_and_closes_cleanly(self):
-        service = Week7Server(context(), ingest_port=0, gateway_port=0)
+        service = CommsServer(context(), ingest_port=0, gateway_port=0)
         async def failed_accept(*args):
             raise OSError(errno.EINVAL, "unexpected listener failure")
         with patch.object(service, "_accept", failed_accept):
@@ -65,8 +65,8 @@ class AcceptRecoveryTests(unittest.IsolatedAsyncioTestCase):
             async def close(self):
                 self.closed = True
         service = Service()
-        args = SimpleNamespace(cert="unused", key="unused", session_id="week7-demo", ingest_port=8888, gateway_port=9999)
-        with patch("ultra96.server.Week7Server", return_value=service), patch("ultra96.server.server_context", return_value=context()), contextlib.redirect_stdout(io.StringIO()):
+        args = SimpleNamespace(cert="unused", key="unused", session_id="ltc-comms", ingest_port=8888, gateway_port=9999)
+        with patch("ultra96.server.CommsServer", return_value=service), patch("ultra96.server.server_context", return_value=context()), contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(RuntimeError, "listener failed"):
                 await asyncio.wait_for(_run(args), 0.1)
         self.assertTrue(service.closed)

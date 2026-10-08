@@ -1,13 +1,13 @@
 import asyncio
 import tempfile
 import unittest
-from tools.generate_week7_pki import generate_pki
-from tools.rehearse_week7 import rehearse
+from tools.generate_comms_pki import generate_pki
+from tools.rehearse_comms import rehearse
 
 
 class RehearsalTests(unittest.TestCase):
     def test_local_tls_bridge_and_direct_subscriber(self):
-        with tempfile.TemporaryDirectory(prefix="week7-rehearsal-") as folder:
+        with tempfile.TemporaryDirectory(prefix="comms-rehearsal-") as folder:
             generate_pki(folder)
             summary = asyncio.run(rehearse(folder, duration=5, target=10))
         self.assertTrue(summary["passed"], summary)

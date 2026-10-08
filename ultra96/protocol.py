@@ -1,4 +1,4 @@
-"""Exact Week 7 message schemas, separate from generic JSON framing."""
+"""Exact B07 Communications message schemas, separate from generic JSON framing."""
 from common.wire import ProtocolError
 
 GESTURES = ("REST", "FIST", "OPEN", "POINT")
@@ -69,7 +69,7 @@ def validate_message(message, expected_type=None, session_id=None):
             raise ProtocolError("values must contain exactly eight int16 integers")
         expected = [message["seq"] % 2000 - 1000 + 10 * i for i in range(8)]
         if version == 1 and values != expected:
-            raise ProtocolError("wrong Week 7 dummy sentinels")
+            raise ProtocolError("wrong B07 Communications dummy sentinels")
     elif kind == "INGEST_ACK":
         if message["status"] not in ("accepted", "duplicate"):
             raise ProtocolError("invalid acknowledgement status")

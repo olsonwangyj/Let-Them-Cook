@@ -6,7 +6,8 @@ import re
 import tempfile
 
 
-CONFIG_PATH = Path(__file__).resolve().parents[1] / '.week7-local' / 'boards.json'
+CONFIG_PATH = Path(__file__).resolve().parents[1] / '.comms-local' / 'boards.json'
+LEGACY_CONFIG_PATH = Path(__file__).resolve().parents[1] / '.week7-local' / 'boards.json'
 DEFAULT_BOARDS = (('left', '38:18:2B:19:82:AE'), ('right', '38:18:2B:18:9D:6A'))
 
 
@@ -19,10 +20,11 @@ def address(value):
 
 
 def load_boards():
-    if not CONFIG_PATH.exists():
+    path = CONFIG_PATH if CONFIG_PATH.exists() else LEGACY_CONFIG_PATH
+    if not path.exists():
         return DEFAULT_BOARDS
     try:
-        data = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+        data = json.loads(path.read_text(encoding='utf-8'))
         if not isinstance(data, dict) or type(data.get('version')) is not int or data['version'] != 1:
             raise ValueError('Invalid board mapping version.')
         if data.get('status') == 'incomplete':
@@ -34,7 +36,7 @@ def load_boards():
             raise ValueError('LEFT and RIGHT must be different physical boards.')
         return (('left', left), ('right', right))
     except ValueError as error:
-        raise ValueError(f'{CONFIG_PATH}: {error}') from error
+        raise ValueError(f'{path}: {error}') from error
 
 
 def save_boards(left, right=None):

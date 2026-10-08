@@ -17,7 +17,7 @@ def source_provenance(repository: Path) -> dict:
     candidates = [repository / "demo.py", repository / "firmware/esp32/platformio.ini"]
     for folder in ("common", "laptop", "ultra96", "phone", "tools",
                    "firmware/esp32/include", "firmware/esp32/src",
-                   "ios-visualizer/Week7Native/Sources"):
+                   "ios-visualizer/CommsNative/Sources"):
         directory = repository / folder
         if directory.is_dir():
             candidates.extend(path for path in directory.rglob("*")

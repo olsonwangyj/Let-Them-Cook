@@ -1,10 +1,10 @@
-name: Week7NativePreview
+name: CommsNativePreview
 options:
   deploymentTarget:
     iOS: '15.0'
 packages:
-  Week7Native:
-    path: ../Week7Native
+  CommsNative:
+    path: ../CommsNative
   SwiftNIO:
     url: https://github.com/apple/swift-nio.git
     exactVersion: 2.102.0
@@ -13,22 +13,22 @@ settings:
     SWIFT_VERSION: '5.0'
     CODE_SIGNING_ALLOWED: NO
 targets:
-  Week7NativePreview:
+  CommsNativePreview:
     type: application
     platform: iOS
     sources: [Sources]
     dependencies:
-      - package: Week7Native
-        product: Week7Native
+      - package: CommsNative
+        product: CommsNative
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview
+        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.comms.nativepreview
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: '1,2'
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: Week 7 Native Preview
+        CFBundleDisplayName: Communications Native Preview
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight]
         UIApplicationSceneManifest:
@@ -37,48 +37,48 @@ targets:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default Configuration
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
-  Week7NativePreviewUITests:
+  CommsNativePreviewUITests:
     type: bundle.ui-testing
     platform: iOS
     sources: [UITests]
     dependencies:
-      - target: Week7NativePreview
+      - target: CommsNativePreview
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.comms.nativepreview.uitests
         GENERATE_INFOPLIST_FILE: YES
-  Week7NativeTransportTests:
+  CommsNativeTransportTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: ../Week7Native/Tests/Week7TransportTests/LocalPeers.swift
-      - path: ../Week7Native/Tests/Week7TransportTests/TransportTests.swift
-      - path: ../Week7Native/Tests/Week7TransportTests/TrustTests.swift
-      - path: ../../.week7-local/Week7FixturePKI
+      - path: ../CommsNative/Tests/CommsTransportTests/LocalPeers.swift
+      - path: ../CommsNative/Tests/CommsTransportTests/TransportTests.swift
+      - path: ../CommsNative/Tests/CommsTransportTests/TrustTests.swift
+      - path: ../../.comms-local/CommsFixturePKI
         type: folder
         buildPhase: resources
     dependencies:
-      - target: Week7NativePreview
+      - target: CommsNativePreview
       - package: SwiftNIO
         product: NIOEmbedded
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.week7.nativepreview.transporttests
+        PRODUCT_BUNDLE_IDENTIFIER: org.letthemcook.comms.nativepreview.transporttests
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Week7NativePreview.app/Week7NativePreview
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CommsNativePreview.app/CommsNativePreview
         BUNDLE_LOADER: $(TEST_HOST)
 schemes:
-  Week7NativePreview:
+  CommsNativePreview:
     build:
       targets:
-        Week7NativePreview: all
+        CommsNativePreview: all
     test:
-      targets: [Week7NativePreviewUITests]
-  Week7NativeTransport:
+      targets: [CommsNativePreviewUITests]
+  CommsNativeTransport:
     build:
       targets:
-        Week7NativePreview: all
+        CommsNativePreview: all
     test:
       targets:
-        - name: Week7NativeTransportTests
+        - name: CommsNativeTransportTests
           parallelizable: false

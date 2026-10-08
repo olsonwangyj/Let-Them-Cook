@@ -1,5 +1,5 @@
 import UIKit
-import Week7Bridge
+import CommsBridge
 
 // Simulator harness for the SAME native module linked by UnityFramework.
 // It intentionally provides no fake gestures or alternative network client.
@@ -22,7 +22,7 @@ final class PreviewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad(); view.backgroundColor = .systemBackground
         text.isEditable = false; text.font = .monospacedSystemFont(ofSize: 22, weight: .regular)
-        text.accessibilityIdentifier = "week7.display"
+        text.accessibilityIdentifier = "comms.display"
         text.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(text)
         NSLayoutConstraint.activate([
             text.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
@@ -34,12 +34,12 @@ final class PreviewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         guard timer == nil else { return }
-        week7Start()
+        commsStart()
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             var buffer = [CChar](repeating: 0, count: 2048)
-            let count = buffer.withUnsafeMutableBufferPointer { week7CopyDisplay($0.baseAddress, Int32($0.count)) }
+            let count = buffer.withUnsafeMutableBufferPointer { commsCopyDisplay($0.baseAddress, Int32($0.count)) }
             if count > 0 { self?.text.text = String(cString: buffer) }
         }
     }
-    deinit { timer?.invalidate(); week7Stop() }
+    deinit { timer?.invalidate(); commsStop() }
 }

@@ -4,9 +4,9 @@ final class SetupTests: XCTestCase {
     func testSetupValidationAndBackgroundClearsPasswords() {
         XCUIDevice.shared.orientation = .landscapeRight
         let app = XCUIApplication(); app.launch()
-        let setup = app.buttons["week7.setup"]
+        let setup = app.buttons["comms.setup"]
         XCTAssertTrue(setup.waitForExistence(timeout: 10)); setup.tap()
-        let board = app.textFields["week7.Boardusername"]
+        let board = app.textFields["comms.Boardusername"]
         XCTAssertTrue(board.waitForExistence(timeout: 5))
         // Blank required usernames must not initiate network authentication.
         app.swipeUp()
@@ -14,7 +14,7 @@ final class SetupTests: XCTestCase {
         XCTAssertTrue(connect.waitForExistence(timeout: 5)); connect.tap()
         XCTAssertTrue(app.staticTexts["Enter the required usernames without spaces or control characters."].waitForExistence(timeout: 5))
         app.swipeDown()
-        let password = app.secureTextFields["week7.Boardpassword"]
+        let password = app.secureTextFields["comms.Boardpassword"]
         XCTAssertTrue(password.waitForExistence(timeout: 5)); password.tap(); password.typeText("local-ui-fixture")
         XCUIDevice.shared.press(.home)
         app.activate()

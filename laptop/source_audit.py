@@ -35,7 +35,7 @@ class SourceStats:
 
 
 def parse_source_stats(data: bytes, *, expected_device_id: Optional[int] = None) -> SourceStats:
-    """Parse the exact protected 24-byte W7S1 source-statistics value."""
+    """Parse the exact protected 24-byte source-statistics value."""
     if (expected_device_id is not None
             and (type(expected_device_id) is not int
                  or expected_device_id not in (1, 2))):
@@ -46,7 +46,7 @@ def parse_source_stats(data: bytes, *, expected_device_id: Optional[int] = None)
     if raw[5:8] != b"\0\0\0":
         raise ValueError("source statistics reserved bytes must be zero")
     magic, device_id, boot_id, next_seq, submitted, failures = _SOURCE_STATS.unpack(raw)
-    if magic != b"W7S1":
+    if magic not in (b"LCS1", b"W7S1"):
         raise ValueError("invalid source statistics magic")
     if expected_device_id is not None and device_id != expected_device_id:
         raise ValueError("source statistics device identity mismatch")

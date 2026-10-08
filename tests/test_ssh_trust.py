@@ -25,7 +25,7 @@ class TunnelTrustTests(unittest.TestCase):
                                  batch=False)
         # The target's banner deadline includes the proxy's password prompt.
         # -G expands only configuration, without executing either SSH hop.
-        with tempfile.TemporaryDirectory(prefix="week7-ssh-interactive-") as folder:
+        with tempfile.TemporaryDirectory(prefix="comms-ssh-interactive-") as folder:
             config_file = Path(folder) / "unsafe-defaults.conf"
             config_file.write_text("Host *\n  StrictHostKeyChecking no\n  BatchMode yes\n"
                                    "  ConnectTimeout 777\n  ServerAliveInterval 0\n"
@@ -57,7 +57,7 @@ class TunnelTrustTests(unittest.TestCase):
     def test_both_hops_override_unsafe_defaults_in_supervised_mode(self):
         command = tunnel_command("user@jump.invalid", "user@target.invalid", 18888, 8888, batch=True)
         # -G only expands configuration; neither invocation opens a network connection.
-        with tempfile.TemporaryDirectory(prefix="week7-ssh-config-") as folder:
+        with tempfile.TemporaryDirectory(prefix="comms-ssh-config-") as folder:
             config_file = Path(folder) / "unsafe-defaults.conf"
             config_file.write_text("Host *\n  StrictHostKeyChecking no\n  BatchMode no\n  ConnectTimeout 777\n  Port 2222\n")
             def effective(args):

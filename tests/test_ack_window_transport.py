@@ -12,7 +12,7 @@ from common.tls import TLS_SERVER_NAME, client_context, server_context
 from common.wire import read_frame, write_frame
 from laptop.bridge import Bridge, BridgeConfig
 from laptop.source_audit import SourceStats
-from ultra96.server import Week7Server
+from ultra96.server import CommsServer
 
 
 class DelayedDownstreamProxy:
@@ -119,14 +119,14 @@ class DelayedDownstreamProxy:
 
 @pytest.fixture(scope="module")
 def latency_pki(tmp_path_factory):
-    from tools.generate_week7_pki import generate_pki
+    from tools.generate_comms_pki import generate_pki
 
     folder = tmp_path_factory.mktemp("ack-window-pki")
     generate_pki(folder)
     return folder
 
 
-async def _subscribe(pki, server: Week7Server):
+async def _subscribe(pki, server: CommsServer):
     reader, writer = await asyncio.open_connection(
         "127.0.0.1",
         server.gateway_port,
@@ -134,12 +134,12 @@ async def _subscribe(pki, server: Week7Server):
         server_hostname=TLS_SERVER_NAME,
     )
     await write_frame(
-        writer, {"v": 1, "type": "SUBSCRIBE", "session_id": "week7-demo"}
+        writer, {"v": 1, "type": "SUBSCRIBE", "session_id": "ltc-comms"}
     )
     assert await read_frame(reader) == {
         "v": 1,
         "type": "SUBSCRIBED",
-        "session_id": "week7-demo",
+        "session_id": "ltc-comms",
     }
     return reader, writer
 
@@ -167,7 +167,7 @@ def test_real_tls_server_processes_window_ahead_of_delayed_acks_and_results_exac
     latency_pki,
 ) -> None:
     async def scenario() -> tuple[int, dict, list[dict], dict]:
-        server = Week7Server(
+        server = CommsServer(
             server_context(
                 latency_pki / "server-cert.pem", latency_pki / "server-key.pem"
             ),

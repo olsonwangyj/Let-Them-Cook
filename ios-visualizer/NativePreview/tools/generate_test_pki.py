@@ -16,8 +16,8 @@ import tempfile
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
-MARKER = ".week7-test-pki-owner"
-OWNER = "Week7NativePreview transport XCTest PKI; generated fixture version 1\n"
+MARKER = ".comms-test-pki-owner"
+OWNER = "CommsNativePreview transport XCTest PKI; generated fixture version 1\n"
 FILES = {"ca.pem", "server.pem", "server.key"}
 VARIANTS = (
     [(f"valid-{index:02d}", "ultra96.week7.internal", False) for index in range(8)]
@@ -45,7 +45,7 @@ def generate_fixture(root: Path, name: str, hostname: str, expired: bool) -> Non
 distinguished_name=dn
 prompt=no
 [dn]
-CN=Week7 isolated test authority {name}
+CN=Comms isolated test authority {name}
 [ca]
 basicConstraints=critical,CA:TRUE
 keyUsage=critical,keyCertSign,cRLSign
@@ -103,15 +103,15 @@ def validate_owned(directory: Path) -> None:
 
 def generate(output: Path) -> None:
     output = output.absolute()
-    if output.name != "Week7FixturePKI":
-        raise ValueError("output directory must be named Week7FixturePKI")
+    if output.name != "CommsFixturePKI":
+        raise ValueError("output directory must be named CommsFixturePKI")
     if output.is_symlink():
         raise ValueError("output must not be a symbolic link")
     if output.exists():
         validate_owned(output)
     output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     # Build the entire replacement before touching an existing valid pool.
-    staging = Path(tempfile.mkdtemp(prefix=".week7-pki-new-", dir=output.parent))
+    staging = Path(tempfile.mkdtemp(prefix=".comms-pki-new-", dir=output.parent))
     backup: Path | None = None
     try:
         for variant in VARIANTS:
@@ -120,7 +120,7 @@ def generate(output: Path) -> None:
         validate_owned(staging)
         if output.exists() or output.is_symlink():
             validate_owned(output)
-            backup = Path(tempfile.mkdtemp(prefix=".week7-pki-old-", dir=output.parent))
+            backup = Path(tempfile.mkdtemp(prefix=".comms-pki-old-", dir=output.parent))
             backup.rmdir()
             output.rename(backup)
         try:
@@ -142,7 +142,7 @@ def generate(output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=REPOSITORY / ".week7-local" / "Week7FixturePKI")
+    parser.add_argument("--output", type=Path, default=REPOSITORY / ".comms-local" / "CommsFixturePKI")
     args = parser.parse_args()
     previous_umask = os.umask(0o077)
     try:

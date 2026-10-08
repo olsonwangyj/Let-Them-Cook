@@ -15,7 +15,7 @@ def test_source_statistics_accounting_and_wire_format(tmp_path):
     if compiler is None:
         pytest.skip("A native C++ compiler is required for the firmware source-statistics check")
 
-    executable = tmp_path / "week7-source-stats-test.exe"
+    executable = tmp_path / "comms-source-stats-test.exe"
     subprocess.run(
         [
             compiler,

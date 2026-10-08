@@ -17,7 +17,7 @@ def test_transport_modules_exist():
     assert spec is not None, "framed transport is missing"
 
 
-def message(seq=0, session="week7-demo"):
+def message(seq=0, session="ltc-comms"):
     return {"v": 1, "type": "SENSOR_BATCH", "session_id": session,
             "device_id": 1, "boot_id": 42, "seq": seq, "uptime_ms": seq * 100,
             "values": [-1000 + seq % 2000 + 10 * i for i in range(8)]}
@@ -68,19 +68,19 @@ def test_framing_split_coalesced_and_rejects_invalid_json():
 
 @pytest.fixture(scope="module")
 def pki(tmp_path_factory):
-    from tools.generate_week7_pki import generate_pki
-    folder = tmp_path_factory.mktemp("week7-transport-pki")
+    from tools.generate_comms_pki import generate_pki
+    folder = tmp_path_factory.mktemp("comms-transport-pki")
     generate_pki(folder)
-    other = tmp_path_factory.mktemp("week7-untrusted-pki")
+    other = tmp_path_factory.mktemp("comms-untrusted-pki")
     generate_pki(other)
     return folder, other
 
 
 async def server_fixture(pki):
     from common.tls import server_context
-    from ultra96.server import Week7Server
+    from ultra96.server import CommsServer
     folder, _ = pki
-    server = Week7Server(server_context(folder / "server-cert.pem", folder / "server-key.pem"),
+    server = CommsServer(server_context(folder / "server-cert.pem", folder / "server-key.pem"),
                          ingest_port=0, gateway_port=0)
     await server.start()
     return server
@@ -103,8 +103,8 @@ async def disconnect(writer):
 async def subscribe(pki, server):
     from common.wire import read_frame, write_frame
     reader, writer = await connect(pki, server.gateway_port)
-    await write_frame(writer, {"v": 1, "type": "SUBSCRIBE", "session_id": "week7-demo"})
-    assert await read_frame(reader) == {"v": 1, "type": "SUBSCRIBED", "session_id": "week7-demo"}
+    await write_frame(writer, {"v": 1, "type": "SUBSCRIBE", "session_id": "ltc-comms"})
+    assert await read_frame(reader) == {"v": 1, "type": "SUBSCRIBED", "session_id": "ltc-comms"}
     return reader, writer
 
 
@@ -119,10 +119,10 @@ def test_real_tls_100_correlated_ack_and_independent_gateway_results(pki):
             for seq in range(100):
                 await write_frame(laptop_writer, message(seq))
                 assert await read_frame(laptop) == {
-                    "v": 1, "type": "INGEST_ACK", "session_id": "week7-demo",
+                    "v": 1, "type": "INGEST_ACK", "session_id": "ltc-comms",
                     "device_id": 1, "boot_id": 42, "seq": seq, "status": "accepted"}
                 assert await read_frame(phone) == {
-                    "v": 1, "type": "GESTURE_RESULT", "session_id": "week7-demo",
+                    "v": 1, "type": "GESTURE_RESULT", "session_id": "ltc-comms",
                     "device_id": 1, "boot_id": 42, "seq": seq,
                     "result_id": "1:42:" + str(seq),
                     "gesture": ["REST", "FIST", "OPEN", "POINT"][seq % 4], "confidence": 1.0}
@@ -358,7 +358,7 @@ def test_real_tls_stalled_phone_bounds_output_and_keeps_ingestion_live(pki):
 
 
 def test_pki_refuses_git_and_overwrites_and_has_selected_certificate_extensions(pki, tmp_path):
-    from tools.generate_week7_pki import generate_pki
+    from tools.generate_comms_pki import generate_pki
     from cryptography import x509
     from cryptography.x509.oid import ExtendedKeyUsageOID
     folder, _ = pki
@@ -410,8 +410,8 @@ def test_phone_simulator_rejects_bad_result_schema_and_bad_ca(pki):
     async def check():
         async def bad_peer(reader, writer):
             await read_frame(reader)
-            await write_frame(writer, {"v": 1, "type": "SUBSCRIBED", "session_id": "week7-demo"})
-            await write_frame(writer, {"v": 1, "type": "GESTURE_RESULT", "session_id": "week7-demo",
+            await write_frame(writer, {"v": 1, "type": "SUBSCRIBED", "session_id": "ltc-comms"})
+            await write_frame(writer, {"v": 1, "type": "GESTURE_RESULT", "session_id": "ltc-comms",
                 "device_id": 1, "boot_id": 42, "seq": 0, "result_id": "wrong", "gesture": "REST", "confidence": 1.0})
             await disconnect(writer)
         folder, _ = pki

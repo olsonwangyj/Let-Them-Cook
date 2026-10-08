@@ -9,36 +9,36 @@
 #include <freertos/semphr.h>
 #include <mbedtls/sha256.h>
 #include <vector>
-#include "week7_packet.h"
-#include "week7_source_stats.h"
-#include "week7_security.h"
-#include "week7_gatts_control.h"
-#include "week7_control.h"
+#include "comms_packet.h"
+#include "comms_source_stats.h"
+#include "comms_security.h"
+#include "comms_gatts_control.h"
+#include "comms_control.h"
 
-#ifndef WEEK7_UNPROTECTED_DIAGNOSTIC
-#define WEEK7_UNPROTECTED_DIAGNOSTIC 0
+#ifndef COMMS_UNPROTECTED_DIAGNOSTIC
+#define COMMS_UNPROTECTED_DIAGNOSTIC 0
 #endif
-#ifndef WEEK7_DEVICE_ID
-#define WEEK7_DEVICE_ID 1
+#ifndef COMMS_DEVICE_ID
+#define COMMS_DEVICE_ID 1
 #endif
-#ifndef WEEK7_INITIAL_RATE_HZ
-#define WEEK7_INITIAL_RATE_HZ 10
+#ifndef COMMS_INITIAL_RATE_HZ
+#define COMMS_INITIAL_RATE_HZ 10
 #endif
-#ifndef WEEK7_LEGACY_DUMMY
-#define WEEK7_LEGACY_DUMMY 0
+#ifndef COMMS_LEGACY_DUMMY
+#define COMMS_LEGACY_DUMMY 0
 #endif
 
 namespace {
-constexpr bool kDiagnostic = WEEK7_UNPROTECTED_DIAGNOSTIC != 0;
-constexpr uint8_t kDeviceId = WEEK7_DEVICE_ID;
+constexpr bool kDiagnostic = COMMS_UNPROTECTED_DIAGNOSTIC != 0;
+constexpr uint8_t kDeviceId = COMMS_DEVICE_ID;
 static_assert(kDeviceId == 1 || kDeviceId == 2, "device ID must be 1 or 2");
-static_assert(week7::kRequiredAuthMode == ESP_LE_AUTH_REQ_SC_MITM_BOND,
+static_assert(comms::kRequiredAuthMode == ESP_LE_AUTH_REQ_SC_MITM_BOND,
               "Update portable security policy for this SDK");
 constexpr uint32_t kReportIntervalMs = 1000;
-constexpr uint16_t kInitialRateHz = WEEK7_INITIAL_RATE_HZ;
+constexpr uint16_t kInitialRateHz = COMMS_INITIAL_RATE_HZ;
 static_assert(kInitialRateHz >= 1 && kInitialRateHz <= 200, "rate must be 1..200 Hz");
-constexpr bool kLegacyDummy = WEEK7_LEGACY_DUMMY != 0;
-constexpr char kDeviceName[] = "LTC-W7";
+constexpr bool kLegacyDummy = COMMS_LEGACY_DUMMY != 0;
+constexpr char kDeviceName[] = "LTC-COMMS";
 constexpr char kServiceUuid[] = "6e1c0001-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr char kCounterUuid[] = "6e1c0002-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr char kMtuControlUuid[] = "6e1c0003-7a45-4dc4-b678-3f2d5a9c1001";
@@ -50,7 +50,7 @@ constexpr char kResponseUuid[] = "6e1c0008-7a45-4dc4-b678-3f2d5a9c1001";
 constexpr size_t kMtuProbePayloadCapacity = ESP_GATT_MAX_MTU_SIZE - 3;
 
 uint32_t bootId = 0, aliveSequence = 0, notificationCounter = 0;
-week7::SourceStats sensorStats = {};
+comms::SourceStats sensorStats = {};
 uint32_t sensorMtuSuppressed = 0, securitySuppressed = 0;
 uint32_t submissionErrors = 0, lastReportMs = 0, lastNotificationUs = 0;
 bool clientConnected = false, authenticated = false;
@@ -73,9 +73,9 @@ BLECharacteristic* sourceStatsCharacteristic = nullptr;
 BLECharacteristic *controlCharacteristic = nullptr, *responseCharacteristic = nullptr;
 BLE2902 *counterCccd = nullptr, *mtuProbeCccd = nullptr, *sensorCccd = nullptr;
 BLE2902* responseCccd = nullptr;
-week7::ControlEngine* controls = nullptr;
+comms::ControlEngine* controls = nullptr;
 constexpr size_t kControlQueueSize = 4;
-struct QueuedControl { uint16_t length; uint8_t bytes[week7::kControlMaxFrame]; };
+struct QueuedControl { uint16_t length; uint8_t bytes[comms::kControlMaxFrame]; };
 QueuedControl controlQueue[kControlQueueSize];
 size_t controlQueueHead = 0, controlQueueCount = 0;
 uint32_t controlQueueRejected = 0;
@@ -85,9 +85,9 @@ bool sha256File(const uint8_t* data, size_t length, uint8_t* digest) {
 }
 
 uint32_t fixtureRandomWord() {
-#ifdef WEEK7_FIXTURE_SEED
+#ifdef COMMS_FIXTURE_SEED
   // A reproducible build mode, independent of boot identity and sample sequence.
-  static uint32_t state = static_cast<uint32_t>(WEEK7_FIXTURE_SEED);
+  static uint32_t state = static_cast<uint32_t>(COMMS_FIXTURE_SEED);
   state = state * 1664525u + 1013904223u;
   return state >> 8;
 #else
@@ -97,7 +97,7 @@ uint32_t fixtureRandomWord() {
 
 // Called with the mutex held. IDF send enqueues work without waiting for receipt.
 bool canNotify(bool subscribed) {
-  return !erasingBonds && week7::canNotify(clientConnected, subscribed, authenticated, kDiagnostic);
+  return !erasingBonds && comms::canNotify(clientConnected, subscribed, authenticated, kDiagnostic);
 }
 
 // Target our one peer. BLECharacteristic::notify() broadcasts and returns void;
@@ -197,7 +197,7 @@ class SecurityCallbacks final : public BLESecurityCallbacks {
     xSemaphoreTake(connectionStateMutex, portMAX_DELAY);
     const bool currentPeer = clientConnected &&
         memcmp(connectedAddress, result.bd_addr, sizeof(connectedAddress)) == 0;
-    const bool approved = !erasingBonds && week7::isAuthenticated(result.success, result.auth_mode);
+    const bool approved = !erasingBonds && comms::isAuthenticated(result.success, result.auth_mode);
     if (currentPeer) authenticated = approved;
     const uint16_t rejectedConnection = connectionId;
     xSemaphoreGive(connectionStateMutex);
@@ -222,13 +222,13 @@ class CccdCallbacks final : public BLEDescriptorCallbacks {
 
 class SourceStatsCallbacks final : public BLECharacteristicCallbacks {
   void onRead(BLECharacteristic* characteristic) override {
-    week7::SourceStats snapshot;
+    comms::SourceStats snapshot;
     xSemaphoreTake(connectionStateMutex, portMAX_DELAY);
     snapshot = sensorStats;
     xSemaphoreGive(connectionStateMutex);
 
-    uint8_t payload[week7::kSourceStatsSize];
-    if (week7::serializeSourceStats(payload, sizeof(payload), kDeviceId, snapshot)) {
+    uint8_t payload[comms::kSourceStatsSize];
+    if (comms::serializeSourceStats(payload, sizeof(payload), kDeviceId, snapshot)) {
       characteristic->setValue(payload, sizeof(payload));
     }
   }
@@ -269,18 +269,18 @@ void gattsCallback(esp_gatts_cb_event_t event, esp_gatt_if_t interface,
     return;
   }
   if (controlCharacteristic != nullptr) {
-    const auto request = week7::parseApplicationControlWrite(
+    const auto request = comms::parseApplicationControlWrite(
         event == ESP_GATTS_WRITE_EVT, param, controlCharacteristic->getHandle());
-    if (request.status != week7::ProbeWriteStatus::Ignored) {
-      if (request.status == week7::ProbeWriteStatus::Malformed) {
+    if (request.status != comms::ProbeWriteStatus::Ignored) {
+      if (request.status == comms::ProbeWriteStatus::Malformed) {
         Serial.printf("b07_control_rejected reason=malformed bytes=%u\n", request.inputLength);
         return;
       }
       xSemaphoreTake(connectionStateMutex, portMAX_DELAY);
-      const bool authenticatedPeer = !erasingBonds && week7::canAcceptControl(
+      const bool authenticatedPeer = !erasingBonds && comms::canAcceptControl(
           clientConnected, responseNotificationsEnabled, authenticated, kDiagnostic,
           request.connectionId, connectionId);
-      const bool fits = week7::controlFitsMtu(negotiatedMtu) &&
+      const bool fits = comms::controlFitsMtu(negotiatedMtu) &&
           request.inputLength <= negotiatedMtu - 3;
       if (authenticatedPeer && fits && controlQueueCount < kControlQueueSize) {
         auto& queued = controlQueue[(controlQueueHead + controlQueueCount) % kControlQueueSize];
@@ -292,10 +292,10 @@ void gattsCallback(esp_gatts_cb_event_t event, esp_gatt_if_t interface,
         // An ATT write receipt is not an application acceptance. Explicitly
         // return busy/unsupported when this authenticated peer can receive it.
         if (authenticatedPeer && request.value[0] == 'B' && request.value[1] == '7') {
-          uint8_t rejected[week7::kControlHeaderSize];
+          uint8_t rejected[comms::kControlHeaderSize];
           memcpy(rejected, request.value, sizeof(rejected));
           rejected[2] = 1; rejected[3] |= 0x80; rejected[4] = kDeviceId;
-          rejected[5] = fits ? week7::ControlBusy : week7::ControlUnsupported;
+          rejected[5] = fits ? comms::ControlBusy : comms::ControlUnsupported;
           submitNotification(responseCharacteristic, rejected, sizeof(rejected));
         }
       }
@@ -306,10 +306,10 @@ void gattsCallback(esp_gatts_cb_event_t event, esp_gatt_if_t interface,
   if (mtuProbeControlCharacteristic == nullptr) return;
   // Arduino's characteristic callback also receives EXEC_WRITE union variants.
   // The raw event check must precede every read of param->write.
-  const week7::ProbeWrite write = week7::parseMtuControlWrite(
+  const comms::ProbeWrite write = comms::parseMtuControlWrite(
       event == ESP_GATTS_WRITE_EVT, param, mtuProbeControlCharacteristic->getHandle());
-  if (write.status == week7::ProbeWriteStatus::Ignored) return;
-  if (write.status == week7::ProbeWriteStatus::Malformed) {
+  if (write.status == comms::ProbeWriteStatus::Ignored) return;
+  if (write.status == comms::ProbeWriteStatus::Malformed) {
     Serial.printf("mtu_probe_rejected reason=malformed request_bytes=%u\n", write.inputLength);
     return;
   }
@@ -407,7 +407,7 @@ void setup() {
   sensorStats.bootId = bootId;
   lastReportMs = millis();
   lastNotificationUs = micros();
-  controls = new (std::nothrow) week7::ControlEngine(kDeviceId, bootId, sha256File, kInitialRateHz);
+  controls = new (std::nothrow) comms::ControlEngine(kDeviceId, bootId, sha256File, kInitialRateHz);
   if (controls == nullptr) {
     Serial.println("b07_control_state_allocation_failed");
     return;
@@ -447,9 +447,9 @@ void setup() {
   advertising->setScanResponse(true);
   advertising->start();
   bleReady = true;
-  Serial.printf("week7_ready device_id=%u packet_bytes=32 packet_version=%u rate_hz=%u protected=%u control_version=1 file_max_bytes=%lu\n",
+  Serial.printf("comms_ready device_id=%u packet_bytes=32 packet_version=%u rate_hz=%u protected=%u control_version=1 file_max_bytes=%lu\n",
       kDeviceId, kLegacyDummy ? 1 : 2, controls->rateHz(), !kDiagnostic,
-      static_cast<unsigned long>(week7::kControlMaxFile));
+      static_cast<unsigned long>(comms::kControlMaxFile));
 }
 
 void loop() {
@@ -489,7 +489,7 @@ void loop() {
     if (clientConnected && !authenticated && !kDiagnostic) ++securitySuppressed;
     if (canNotify(notificationsEnabled)) {
       uint8_t payload[4];
-      week7::writeUint32Le(payload, notificationCounter);
+      comms::writeUint32Le(payload, notificationCounter);
       if (submitNotification(counterCharacteristic, payload, sizeof(payload))) {
         Serial.printf("ble_notify_submitted boot_id=%lu counter=%lu uptime_ms=%lu\n",
             static_cast<unsigned long>(bootId), static_cast<unsigned long>(notificationCounter),
@@ -498,17 +498,17 @@ void loop() {
       }
     }
     if (canNotify(sensorNotificationsEnabled)) {
-      if (!week7::sensorFitsMtu(negotiatedMtu)) ++sensorMtuSuppressed;
+      if (!comms::sensorFitsMtu(negotiatedMtu)) ++sensorMtuSuppressed;
       else {
-        uint8_t payload[week7::kPacketSize];
-        const uint32_t sampleSequence = week7::allocateSampleSequence(sensorStats);
+        uint8_t payload[comms::kPacketSize];
+        const uint32_t sampleSequence = comms::allocateSampleSequence(sensorStats);
         const bool serialized = kLegacyDummy
-            ? week7::serializeDummyPacket(payload, sizeof(payload), kDeviceId, bootId, sampleSequence, nowMs)
-            : week7::serializeFixturePacket(payload, sizeof(payload), kDeviceId, bootId, sampleSequence,
+            ? comms::serializeDummyPacket(payload, sizeof(payload), kDeviceId, bootId, sampleSequence, nowMs)
+            : comms::serializeFixturePacket(payload, sizeof(payload), kDeviceId, bootId, sampleSequence,
                                             nowMs, fixtureRandomWord());
         const bool submitted = serialized &&
             submitNotification(sensorCharacteristic, payload, sizeof(payload));
-        week7::recordSensorSubmission(sensorStats, submitted);
+        comms::recordSensorSubmission(sensorStats, submitted);
       }
     }
   }
@@ -516,7 +516,7 @@ void loop() {
   // first opportunity to run; callbacks only copy into a four-entry queue.
   if (controlQueueCount != 0 && canNotify(responseNotificationsEnabled)) {
     const auto& request = controlQueue[controlQueueHead];
-    uint8_t response[week7::kControlMaxFrame];
+    uint8_t response[comms::kControlMaxFrame];
     const uint16_t previousRate = controls->rateHz();
     const size_t length = controls->process(request.bytes, request.length, nowMs, response, sizeof(response));
     controlQueueHead = (controlQueueHead + 1) % kControlQueueSize;
@@ -551,7 +551,7 @@ void loop() {
     lastReportMs = nowMs;
     Serial.printf("alive boot_id=%lu sequence=%lu uptime_ms=%lu\n", static_cast<unsigned long>(bootId),
         static_cast<unsigned long>(aliveSequence++), static_cast<unsigned long>(nowMs));
-    Serial.printf("week7_stats protected=%u authenticated=%u sensor_submitted=%lu next_seq=%lu mtu=%u mtu_suppressed=%lu security_suppressed=%lu submission_errors=%lu rate_hz=%u control_queue_rejected=%lu\n",
+    Serial.printf("comms_stats protected=%u authenticated=%u sensor_submitted=%lu next_seq=%lu mtu=%u mtu_suppressed=%lu security_suppressed=%lu submission_errors=%lu rate_hz=%u control_queue_rejected=%lu\n",
         !kDiagnostic, observedAuthenticated, static_cast<unsigned long>(sensorStats.submitted),
         static_cast<unsigned long>(sensorStats.nextSequence), observedMtu, static_cast<unsigned long>(sensorMtuSuppressed),
         static_cast<unsigned long>(securitySuppressed), static_cast<unsigned long>(submissionErrors),
