@@ -31,14 +31,14 @@ async def rehearse(pki_dir, duration=60, target=100, ble=False, diagnostic_unpro
     try:
         phone, phone_writer = await asyncio.open_connection("127.0.0.1", server.gateway_port,
             ssl=client_context(folder / "ca-cert.pem"), server_hostname=TLS_SERVER_NAME)
-        await write_frame(phone_writer, dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
-        validate_message(await read_frame(phone), "SUBSCRIBED", "week7-demo")
+        await write_frame(phone_writer, dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
+        validate_message(await read_frame(phone), "SUBSCRIBED", "ltc-comms")
         async def receive():
             nonlocal results, duplicate_results, first_result, last_result
             while True:
                 try:
                     result = validate_message(await read_frame(phone, timeout=max(5.0, duration + 5)),
-                                              "GESTURE_RESULT", "week7-demo")
+                                              "GESTURE_RESULT", "ltc-comms")
                     trace = result["result_id"]
                     if trace in recent:
                         duplicate_results += 1

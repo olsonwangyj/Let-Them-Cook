@@ -2,17 +2,17 @@ import XCTest
 @testable import CommsCore
 
 final class ProtocolTests: XCTestCase {
-    private let subscribed = #"{"v":1,"type":"SUBSCRIBED","session_id":"week7-demo"}"#
-    private let result = #"{"v":1,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":1,"boot_id":7,"seq":42,"result_id":"1:7:42","gesture":"OPEN","confidence":1.0}"#
+    private let subscribed = #"{"v":1,"type":"SUBSCRIBED","session_id":"ltc-comms"}"#
+    private let result = #"{"v":1,"type":"GESTURE_RESULT","session_id":"ltc-comms","device_id":1,"boot_id":7,"seq":42,"result_id":"1:7:42","gesture":"OPEN","confidence":1.0}"#
 
     func testSubscribeEmitsOneLengthPrefixedRequest() throws {
-        let expected = Array(#"{"v":1,"type":"SUBSCRIBE","session_id":"week7-demo"}"#.utf8)
-        XCTAssertEqual(try CommsProtocol.subscribe(session: "week7-demo"), [0, 0, 0, 52] + expected)
+        let expected = Array(#"{"v":1,"type":"SUBSCRIBE","session_id":"ltc-comms"}"#.utf8)
+        XCTAssertEqual(try CommsProtocol.subscribe(session: "ltc-comms"), [0, 0, 0, 51] + expected)
     }
 
     func testLiteralSubscribedAndDeterministicResult() throws {
-        try CommsProtocol.subscribed(Array(subscribed.utf8), session: "week7-demo")
-        let message = try CommsProtocol.result(Array(result.utf8), session: "week7-demo")
+        try CommsProtocol.subscribed(Array(subscribed.utf8), session: "ltc-comms")
+        let message = try CommsProtocol.result(Array(result.utf8), session: "ltc-comms")
         XCTAssertEqual(message.resultID, "1:7:42")
         XCTAssertEqual(message.gesture, "OPEN")
         XCTAssertEqual(message.seq, 42)
@@ -24,34 +24,34 @@ final class ProtocolTests: XCTestCase {
     func testV2RandomLabelsAndCommandIdentityPreserveCorrelation() throws {
         let stream = result.replacingOccurrences(of: #""v":1"#, with: #""v":2,"request_id":null"#)
         for label in ["REST", "FIST", "OPEN", "POINT"] {
-            let message = try CommsProtocol.result(Array(stream.replacingOccurrences(of: "OPEN", with: label).utf8), session: "week7-demo")
+            let message = try CommsProtocol.result(Array(stream.replacingOccurrences(of: "OPEN", with: label).utf8), session: "ltc-comms")
             XCTAssertEqual(message.gesture, label)
             XCTAssertNil(message.requestID)
         }
         let command = stream.replacingOccurrences(of: #""request_id":null"#, with: #""request_id":42"#)
             .replacingOccurrences(of: #""1:7:42""#, with: #""cmd:1:7:42""#)
-        let parsed = try CommsProtocol.result(Array(command.utf8), session: "week7-demo")
+        let parsed = try CommsProtocol.result(Array(command.utf8), session: "ltc-comms")
         XCTAssertEqual(parsed.requestID, 42)
         XCTAssertEqual(parsed.resultID, "cmd:1:7:42")
         for request in ["true", "-1", "42.0", "4294967296", "41", #""42""#] {
-            XCTAssertThrowsError(try CommsProtocol.result(Array(command.replacingOccurrences(of: #""request_id":42"#, with: "\"request_id\":\(request)").utf8), session: "week7-demo"))
+            XCTAssertThrowsError(try CommsProtocol.result(Array(command.replacingOccurrences(of: #""request_id":42"#, with: "\"request_id\":\(request)").utf8), session: "ltc-comms"))
         }
         for invalid in [stream.replacingOccurrences(of: #","request_id":null"#, with: ""),
                         stream.replacingOccurrences(of: "OPEN", with: "OTHER"),
                         stream.replacingOccurrences(of: #""v":2"#, with: #""v":1"#),
                         stream.replacingOccurrences(of: #""request_id":null"#, with: #""request_id":null,"request_id":null"#)] {
-            XCTAssertThrowsError(try CommsProtocol.result(Array(invalid.utf8), session: "week7-demo"))
+            XCTAssertThrowsError(try CommsProtocol.result(Array(invalid.utf8), session: "ltc-comms"))
         }
     }
 
     func testAcceptsExactUInt32EndpointsAndAllDeterministicGestures() throws {
         let literals = [
-            #"{"v":1,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":2,"boot_id":0,"seq":0,"result_id":"2:0:0","gesture":"REST","confidence":1}"#,
-            #"{"v":1,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":1,"boot_id":4294967295,"seq":1,"result_id":"1:4294967295:1","gesture":"FIST","confidence":1e0}"#,
-            #"{"v":1,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":2,"boot_id":4294967295,"seq":4294967295,"result_id":"2:4294967295:4294967295","gesture":"POINT","confidence":1.00}"#,
+            #"{"v":1,"type":"GESTURE_RESULT","session_id":"ltc-comms","device_id":2,"boot_id":0,"seq":0,"result_id":"2:0:0","gesture":"REST","confidence":1}"#,
+            #"{"v":1,"type":"GESTURE_RESULT","session_id":"ltc-comms","device_id":1,"boot_id":4294967295,"seq":1,"result_id":"1:4294967295:1","gesture":"FIST","confidence":1e0}"#,
+            #"{"v":1,"type":"GESTURE_RESULT","session_id":"ltc-comms","device_id":2,"boot_id":4294967295,"seq":4294967295,"result_id":"2:4294967295:4294967295","gesture":"POINT","confidence":1.00}"#,
         ]
         for (body, expected) in zip(literals, [UInt32(0), 1, UInt32.max]) {
-            XCTAssertEqual(try CommsProtocol.result(Array(body.utf8), session: "week7-demo").seq, expected)
+            XCTAssertEqual(try CommsProtocol.result(Array(body.utf8), session: "ltc-comms").seq, expected)
         }
     }
 
@@ -82,12 +82,12 @@ final class ProtocolTests: XCTestCase {
             (#""gesture":"OPEN""#, #""gesture":"FIST""#),
             (#""result_id":"1:7:42""#, #""result_id":"01:7:42""#),
             (#""type":"GESTURE_RESULT""#, #""type":"SUBSCRIBED""#),
-            (#""session_id":"week7-demo""#, #""session_id":"other""#),
+            (#""session_id":"ltc-comms""#, #""session_id":"other""#),
             (#""confidence":1.0"#, #""confidence":1.0,"extra":1"#),
             (#""confidence":1.0"#, #""score":1.0"#),
         ]
         for (old, new) in replacements {
-            XCTAssertThrowsError(try CommsProtocol.result(Array(result.replacingOccurrences(of: old, with: new).utf8), session: "week7-demo"), "Accepted \(new)")
+            XCTAssertThrowsError(try CommsProtocol.result(Array(result.replacingOccurrences(of: old, with: new).utf8), session: "ltc-comms"), "Accepted \(new)")
         }
     }
 
@@ -110,15 +110,15 @@ final class ProtocolTests: XCTestCase {
             String(repeating: "[", count: 16000),
         ]
         for (index, body) in bodies.enumerated() {
-            XCTAssertThrowsError(try CommsProtocol.result(Array(body.utf8), session: "week7-demo"), "Accepted malformed fixture \(index)")
+            XCTAssertThrowsError(try CommsProtocol.result(Array(body.utf8), session: "ltc-comms"), "Accepted malformed fixture \(index)")
         }
     }
 
     func testRejectsMalformedUTF8AndOutOfBoundsBodySizes() {
         for bytes: [UInt8] in [[0xC0, 0xAF], [0xED, 0xA0, 0x80], [0xF4, 0x90, 0x80, 0x80], [0xFF], []] {
-            XCTAssertThrowsError(try CommsProtocol.subscribed(bytes, session: "week7-demo"))
+            XCTAssertThrowsError(try CommsProtocol.subscribed(bytes, session: "ltc-comms"))
         }
-        XCTAssertThrowsError(try CommsProtocol.subscribed(Array((subscribed + String(repeating: " ", count: 16384)).utf8), session: "week7-demo"))
+        XCTAssertThrowsError(try CommsProtocol.subscribed(Array((subscribed + String(repeating: " ", count: 16384)).utf8), session: "ltc-comms"))
     }
 
     func testSessionUsesUnicodeScalarsAndExactIdentity() throws {
@@ -140,9 +140,9 @@ final class ProtocolTests: XCTestCase {
 
     func testSubscribedRejectsExtraFieldsAndWrongMessageType() {
         for body in [subscribed.replacingOccurrences(of: "}", with: #","seq":1}"#), result,
-                     subscribed.replacingOccurrences(of: "week7-demo", with: "other"),
+                     subscribed.replacingOccurrences(of: "ltc-comms", with: "other"),
                      subscribed.replacingOccurrences(of: #""v":1"#, with: #""v":1,"\u0076":1"#)] {
-            XCTAssertThrowsError(try CommsProtocol.subscribed(Array(body.utf8), session: "week7-demo"))
+            XCTAssertThrowsError(try CommsProtocol.subscribed(Array(body.utf8), session: "ltc-comms"))
         }
     }
 

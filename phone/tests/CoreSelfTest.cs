@@ -25,23 +25,23 @@ public static class CoreSelfTest
         try { action(); } catch (InvalidDataException) { count++; return; }
         throw new Exception("Accepted invalid input: " + message);
     }
-    private const string Result = "{\"v\":1,\"type\":\"GESTURE_RESULT\",\"session_id\":\"week7-demo\",\"device_id\":1,\"boot_id\":4294967295,\"seq\":3,\"result_id\":\"1:4294967295:3\",\"gesture\":\"POINT\",\"confidence\":1.0}";
+    private const string Result = "{\"v\":1,\"type\":\"GESTURE_RESULT\",\"session_id\":\"ltc-comms\",\"device_id\":1,\"boot_id\":4294967295,\"seq\":3,\"result_id\":\"1:4294967295:3\",\"gesture\":\"POINT\",\"confidence\":1.0}";
     public static async Task<string> Run()
     {
-        var result = PhoneProtocol.ParseResult(Result, "week7-demo");
+        var result = PhoneProtocol.ParseResult(Result, "ltc-comms");
         Check(result.Sequence == 3 && result.Gesture == "POINT", "result fields");
         Check(result.BootId == UInt32.MaxValue, "uint32 boundary");
-        PhoneProtocol.ValidateSubscribed("{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}", "week7-demo");
-        Check(PhoneProtocol.Subscribe("week7-demo") == "{\"v\":1,\"type\":\"SUBSCRIBE\",\"session_id\":\"week7-demo\"}", "subscribe contract");
+        PhoneProtocol.ValidateSubscribed("{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"ltc-comms\"}", "ltc-comms");
+        Check(PhoneProtocol.Subscribe("ltc-comms") == "{\"v\":1,\"type\":\"SUBSCRIBE\",\"session_id\":\"ltc-comms\"}", "subscribe contract");
         Check(PhoneProtocol.Subscribe(new string('a', 128)).Contains(new string('a', 128)), "128-character session matches server");
         string randomResult = Result.Replace("\"v\":1", "\"v\":2,\"request_id\":null").Replace("\"POINT\"", "\"REST\"");
-        Check(PhoneProtocol.ParseResult(randomResult, "week7-demo").Gesture == "REST", "v2 event is independent of sequence");
+        Check(PhoneProtocol.ParseResult(randomResult, "ltc-comms").Gesture == "REST", "v2 event is independent of sequence");
         string commandResult = randomResult.Replace("\"request_id\":null", "\"request_id\":3").Replace("\"1:4294967295:3\"", "\"cmd:1:4294967295:3\"");
-        Check(PhoneProtocol.ParseResult(commandResult, "week7-demo").ResultId == "cmd:1:4294967295:3", "command trace namespace");
+        Check(PhoneProtocol.ParseResult(commandResult, "ltc-comms").ResultId == "cmd:1:4294967295:3", "command trace namespace");
         foreach (string badRequest in new[] { "true", "-1", "3.0", "4294967296", "2", "\"3\"" })
-            Reject(() => PhoneProtocol.ParseResult(commandResult.Replace("\"request_id\":3", "\"request_id\":" + badRequest), "week7-demo"), "invalid command request identity");
-        Reject(() => PhoneProtocol.ParseResult(randomResult.Replace(",\"request_id\":null", ""), "week7-demo"), "missing v2 request field");
-        Reject(() => PhoneProtocol.ParseResult(randomResult.Replace("\"REST\"", "\"UNKNOWN\""), "week7-demo"), "unknown random gesture");
+            Reject(() => PhoneProtocol.ParseResult(commandResult.Replace("\"request_id\":3", "\"request_id\":" + badRequest), "ltc-comms"), "invalid command request identity");
+        Reject(() => PhoneProtocol.ParseResult(randomResult.Replace(",\"request_id\":null", ""), "ltc-comms"), "missing v2 request field");
+        Reject(() => PhoneProtocol.ParseResult(randomResult.Replace("\"REST\"", "\"UNKNOWN\""), "ltc-comms"), "unknown random gesture");
         string[] bad = {
             Result.Replace("\"v\":1", "\"v\":1,\"v\":1"),
             Result.Replace("\"v\":1", "\"v\":true"),
@@ -57,12 +57,12 @@ public static class CoreSelfTest
             Result.Replace("\"confidence\":1.0", "\"confidence\":0.5"),
             Result.Replace("\"POINT\"", "\"FIST\""),
             Result.Replace("\"1:4294967295:3\"", "\"1:2:3\""),
-            Result.Replace("week7-demo", "other-session"),
+            Result.Replace("ltc-comms", "other-session"),
             Result.Replace("\"v\":1", "\"extra\":1,\"v\":1"),
             Result.Replace("\"v\":1", "\"v\":[]"),
             Result.Replace("\"POINT\"", "\"PO\nINT\"")
         };
-        foreach (string item in bad) Reject(() => PhoneProtocol.ParseResult(item, "week7-demo"), item);
+        foreach (string item in bad) Reject(() => PhoneProtocol.ParseResult(item, "ltc-comms"), item);
         var frame = PhoneFrames.Encode(Result);
         Check(frame[0] == 0 && frame[1] == 0 && frame[2] == 0 && frame[3] == Encoding.UTF8.GetByteCount(Result), "big endian length");
         using (var stream = new ShortReadStream(frame, 1))
@@ -95,10 +95,10 @@ public static class CoreSelfTest
         var delivery = new FreshResultQueue(2, TimeSpan.FromMilliseconds(30));
         delivery.NewConnection(); delivery.Enqueue(result); delivery.NewConnection();
         Check(!delivery.TryDequeue(out result), "disconnect clears handoff");
-        result = PhoneProtocol.ParseResult(Result, "week7-demo");
+        result = PhoneProtocol.ParseResult(Result, "ltc-comms");
         delivery.Enqueue(result); await Task.Delay(60);
         Check(!delivery.TryDequeue(out result), "stale handoff discarded");
-        result = PhoneProtocol.ParseResult(Result, "week7-demo");
+        result = PhoneProtocol.ParseResult(Result, "ltc-comms");
         long dropsBefore = delivery.Dropped;
         delivery.Enqueue(result); delivery.Enqueue(result); delivery.Enqueue(result);
         Check(delivery.Count == 2 && delivery.Dropped == dropsBefore + 1, "bounded main-thread queue");
@@ -194,8 +194,8 @@ public static class CoreSelfTest
                     {
                         await tls.AuthenticateAsServerAsync(serverCertificate, false, SslProtocols.Tls12, false);
                         string subscription = await PhoneFrames.ReadAsync(tls, TimeSpan.FromSeconds(2), timeout.Token);
-                        if (subscription != PhoneProtocol.Subscribe("week7-demo")) throw new Exception("wrong actual subscription");
-                        await PhoneFrames.WriteAsync(tls, attempt == 0 ? "{\"v\":2,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}" : "{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}", TimeSpan.FromSeconds(2), timeout.Token);
+                        if (subscription != PhoneProtocol.Subscribe("ltc-comms")) throw new Exception("wrong actual subscription");
+                        await PhoneFrames.WriteAsync(tls, attempt == 0 ? "{\"v\":2,\"type\":\"SUBSCRIBED\",\"session_id\":\"ltc-comms\"}" : "{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"ltc-comms\"}", TimeSpan.FromSeconds(2), timeout.Token);
                         if (attempt == 1)
                         {
                             await PhoneFrames.WriteAsync(tls, Result, TimeSpan.FromSeconds(2), timeout.Token);
@@ -205,7 +205,7 @@ public static class CoreSelfTest
                 }
             });
             var queue = new FreshResultQueue(32, TimeSpan.FromSeconds(2));
-            using (var receiver = new PhoneReceiver(root.Export(X509ContentType.Cert), queue, "week7-demo", ((IPEndPoint)listener.LocalEndpoint).Port))
+            using (var receiver = new PhoneReceiver(root.Export(X509ContentType.Cert), queue, port: ((IPEndPoint)listener.LocalEndpoint).Port))
             {
                 var receiving = receiver.RunAsync(timeout.Token);
                 bool delivered = false;
@@ -251,13 +251,13 @@ public static class CoreSelfTest
                 {
                     await tls.AuthenticateAsServerAsync(serverCertificate, false, SslProtocols.Tls12, false);
                     await PhoneFrames.ReadAsync(tls, TimeSpan.FromSeconds(2), timeout.Token);
-                    await PhoneFrames.WriteAsync(tls, "{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"week7-demo\"}", TimeSpan.FromSeconds(2), timeout.Token);
+                    await PhoneFrames.WriteAsync(tls, "{\"v\":1,\"type\":\"SUBSCRIBED\",\"session_id\":\"ltc-comms\"}", TimeSpan.FromSeconds(2), timeout.Token);
                     subscribed.TrySetResult(true);
                     await release.Task;
                 }
             });
             var queue = new FreshResultQueue(32, TimeSpan.FromSeconds(2));
-            using (var receiver = new PhoneReceiver(root.Export(X509ContentType.Cert), queue, "week7-demo", ((IPEndPoint)listener.LocalEndpoint).Port))
+            using (var receiver = new PhoneReceiver(root.Export(X509ContentType.Cert), queue, "ltc-comms", ((IPEndPoint)listener.LocalEndpoint).Port))
             {
                 var receiving = receiver.RunAsync(timeout.Token);
                 bool healthy;

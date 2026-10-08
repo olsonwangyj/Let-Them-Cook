@@ -408,7 +408,7 @@ def _parser():
     parser.add_argument("--right-address")
     parser.add_argument("--ca", required=True)
     parser.add_argument("--port", type=int, default=18888)
-    parser.add_argument("--session-id", default="week7-demo")
+    parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--duration", type=float, default=600.0)
     parser.add_argument("--queue-capacity", type=int, default=64)
     parser.add_argument("--ack-window", type=_ack_window, default=32,

@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 
-from tools.demo_boards import CONFIG_PATH, address, load_boards, save_boards
+from tools.demo_boards import CONFIG_PATH, LEGACY_CONFIG_PATH, address, load_boards, save_boards
 
 ROOT = Path(__file__).resolve().parent
 ROLES = ("left", "right")
@@ -148,7 +148,12 @@ def main(argv=None):
         elif args.boards:
             for device_id, (label, bluetooth) in enumerate(load_boards(), start=1):
                 print(f'{label.upper()} / ID {device_id}: {bluetooth}')
-            print(f'Mapping: {CONFIG_PATH}' if CONFIG_PATH.exists() else 'Using legacy defaults; flash.py records new upload order.')
+            if CONFIG_PATH.exists():
+                print(f'Mapping: {CONFIG_PATH}')
+            elif LEGACY_CONFIG_PATH.exists():
+                print(f'Mapping: {LEGACY_CONFIG_PATH} (existing mapping; next upload writes {CONFIG_PATH})')
+            else:
+                print('Using legacy defaults; flash.py records new upload order.')
         elif args.pair:
             _pair(args.pair)
         elif args.monitor:

@@ -1,5 +1,7 @@
 # B07 通信子系统：按教师原编号的 Live 演示稿
 
+**标识更新（2026-10-08）：** 下文的 `W7`/`W7S1` 字节和 `week7-demo` 消息示例对应原来已部署的小板、Ultra96 服务与 iPhone 应用。本次源码重新编译的固件发送 `LC`/`LCS1`，源码默认会话为 `ltc-comms`；更新后的 Laptop 仍可读取旧包。按本稿连接原服务和手机时，先在终端 B 执行 `$env:LTC_COMMS_SESSION = 'week7-demo'`。若重新刷入本仓库固件，现场展示的 magic 应按新值讲解。详见[标识对照表](communications-quickstart.md#source-and-deployment-identifiers)。
+
 **部署说明：** 文中的 `D:\LetThemCook`、默认 SSH 账号、`demo.py service` 和手机上的 **Week 7 Connect** 是原 B07 实体演示环境。其他检出目录请使用实际仓库根目录，并按[通信快速上手](communications-quickstart.md)明确设置 SSH 和公有 CA；更换 Ultra96 还需核验手机端信任信息并重建安装应用。
 
 **现场协议导航：** [1 Laptop ↔ Ultra96](#live-protocol-laptop) · [2 Ultra96 ↔ iPhone](#live-protocol-phone) · [4.1 FireBeetle ID、包类型和布局](#live-protocol-firebeetle) · [附录 B：全部演示文件的作用与代码跳转](#appendix-file-map) · [独立协议详解](B07-CO-protocol-explained.zh-CN.md)
@@ -116,9 +118,9 @@ TCP、TLS、SSH、JSON 是已有标准或通用格式；`SENSOR_BATCH`、`INGEST
 
 ```powershell
 $demoCa = Join-Path $HOME '.codex/private/cg4002-week7-20260906/ca-cert.pem'
-$dummyDir = Join-Path (Get-Location) ('.week7-local/dummy-' + [guid]::NewGuid().ToString('N'))
+$dummyDir = Join-Path (Get-Location) ('.comms-local/dummy-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dummyDir | Out-Null
-python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --duration 20 --expected-rate 10 --progress-interval 1 --report (Join-Path $dummyDir 'report.json') --evidence (Join-Path $dummyDir 'packets.jsonl')
+python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --session-id week7-demo --duration 20 --expected-rate 10 --progress-interval 1 --report (Join-Path $dummyDir 'report.json') --evidence (Join-Path $dummyDir 'packets.jsonl')
 $dummyExit = $LASTEXITCODE
 $dummyReport = Get-Content -Raw -LiteralPath (Join-Path $dummyDir 'report.json') | ConvertFrom-Json
 $dummyExit
@@ -331,7 +333,7 @@ sequenceDiagram
 | `boot_id` | 小板启动时随机 uint32 | 区分同一设备的不同启动；教学例为 42 |
 | 自动流 `seq` | 小板每生成一条样本分配 | 两板各自计数，可查缺号 |
 | `request_id` | Laptop 为控制事务分配的非零 uint32 | 关联命令/响应；普通网络 sensor 为 null |
-| `session_id` | 三端配置，当前 `week7-demo` | 区分应用演示会话；不在 W7 二进制包中 |
+| `session_id` | 三端配置，原部署为 `week7-demo`，新源码默认 `ltc-comms` | 区分应用演示会话；不在 BLE 二进制包中 |
 | `result_id` | Ultra96 由输入身份组成 | 手机结果对应普通 `1:42:7` 或命令 `cmd:1:42:1001` |
 
 代码：[左右构建配置](../firmware/esp32/platformio.ini#L18)、[设备 ID 与 UUID](../firmware/esp32/src/main.cpp#L31)、[启动时生成 boot ID](../firmware/esp32/src/main.cpp#L406)、[分配自动样本序号](../firmware/esp32/include/comms_source_stats.h#L19)、[Laptop 构建命令](../laptop/bridge.py#L256)。
@@ -388,7 +390,7 @@ PACKET_SIZE = _PACKET.size
 
 > 有符号表示可以解释负数。这里 int16 的范围是负 32768 到正 32767，uint32 则是零到 4294967295。同样的两个字节 FF FF，用无符号方式看是 65535，按本协议 int16 看是负一。发送的比特没有改变，解释规则由协议决定。
 
-32 字节是应用包的长度，不包含蓝牙无线开销。GATT notification 的数据容量是 ATT MTU 减 3：默认 MTU 23 只能放 20 字节。**当前固件要求 MTU 至少 35，才发送完整 32 字节 W7**；它没有把 W7 拆成两个应用通知再让 Laptop 重组的实现。Laptop 解码也要求正好 32 字节。见[MTU 条件](../firmware/esp32/include/comms_security.h#L19)、[固件发送检查](../firmware/esp32/src/main.cpp#L500)、[Laptop 长度检查](../common/sensor.py#L72)。底层无线分片与这里的应用包边界是不同层次。
+32 字节是应用包的长度，不包含蓝牙无线开销。GATT notification 的数据容量是 ATT MTU 减 3：默认 MTU 23 只能放 20 字节。**当前固件要求 MTU 至少 35，才发送完整 32 字节 sensor 包（新 `LC`，原部署 `W7`）**；它没有把 sensor 包拆成两个应用通知再让 Laptop 重组的实现。Laptop 解码也要求正好 32 字节。见[MTU 条件](../firmware/esp32/include/comms_security.h#L19)、[固件发送检查](../firmware/esp32/src/main.cpp#L500)、[Laptop 长度检查](../common/sensor.py#L72)。底层无线分片与这里的应用包边界是不同层次。
 
 #### 4.1.3 现场照读：包家族、GATT service 和七个 characteristics
 
@@ -619,9 +621,9 @@ sequenceDiagram
 | W7 的 W 是 device ID 吗？ | 不是，前两字节 `W7` 是格式标记；device ID 在 offset 3。 |
 | W7 的 packet type 在哪里？ | W7 没有单独的 packet_type 字节，承载 characteristic 和 magic 识别包家族；version 表示版本，device_id 表示来源。B7 用 opcode 区分操作，网络 JSON 用 type 字符串区分消息。 |
 | 为什么包长 32，但日志行长短不一？ | 32 是 BLE 二进制应用包；日志是带字段名、事件和十进制值的文字。 |
-| 32 字节超过默认 20 字节怎么办？ | 当前实现协商并检查 MTU 至少 35 才发完整 W7；没有用两个应用通知重组 W7。 |
+| 32 字节超过默认 20 字节怎么办？ | 当前实现协商并检查 MTU 至少 35 才发完整 sensor 包（新 `LC`、原 `W7`）；没有用两个应用通知重组 sensor 包。 |
 | 按 1 是让自动 seq 加一吗？ | 按键产生额外命令和 request ID；自动 sensor 流的序号独立。 |
-| 为什么版本有 1 又有 2？ | B7 控制头为 v1；当前内部 W7 sensor 与网络数据为 v2；订阅握手仍为 v1，各自约定不同。 |
+| 为什么版本有 1 又有 2？ | B7 控制头为 v1；当前内部 sensor 包（新 `LC`、原 `W7`）与网络数据为 v2；订阅握手仍为 v1，各自约定不同。 |
 | 八值真来自动作测量吗？ | 本轮来自多组 dummy fixture；实体板真实发送它们，但不能称为实际测量或真实 AI 推理。 |
 | uint16 是否表示没有负数？ | uint16 用于字节拼装和回绕计算；包内八值按 int16 解码，允许负数。 |
 | 有控制响应是否代表 Ultra96 或手机收到？ | B7 响应只到 Laptop；随后看 command_ingested，再看手机 cmd 结果 ID。 |
@@ -661,15 +663,15 @@ sequenceDiagram
 1. 在仓库根目录生成 4096 字节测试文件，并显示电脑侧 SHA-256。命令如下；它创建的是**文件 payload**，不是单个 sensor 包：
 
    ```powershell
-   New-Item -ItemType Directory -Force '.week7-local' | Out-Null
-   $demoFile = Join-Path (Get-Location) '.week7-local/demo-file-4096.bin'
+   New-Item -ItemType Directory -Force '.comms-local' | Out-Null
+   $demoFile = Join-Path (Get-Location) '.comms-local/demo-file-4096.bin'
    [byte[]]$demoBytes = 0..4095 | ForEach-Object { [byte]($_ % 256) }
    [IO.File]::WriteAllBytes($demoFile, $demoBytes)
    (Get-Item -LiteralPath $demoFile).Length
    Get-FileHash -Algorithm SHA256 $demoFile
    ```
 
-2. 确认手机 `Subscribed`，终端 B 运行 `python demo.py run --duration 75 --file .week7-local/demo-file-4096.bin --file-device 1`。Laptop 通过受保护的 BLE control 把文件从 Laptop 发到 LEFT 的 RAM；RIGHT 同时继续常规 sensor 流。文件先发长度+SHA-256，再按 offset 发真实字节，4096 字节在最大 180 字节 chunk 下共 23 块。见[发送端](../laptop/controls.py#L218)、[ESP 收块](../firmware/esp32/include/comms_control.h#L182)。
+2. 确认手机 `Subscribed`，终端 B 运行 `python demo.py run --duration 75 --file .comms-local/demo-file-4096.bin --file-device 1`。Laptop 通过受保护的 BLE control 把文件从 Laptop 发到 LEFT 的 RAM；RIGHT 同时继续常规 sensor 流。文件先发长度+SHA-256，再按 offset 发真实字节，4096 字节在最大 180 字节 chunk 下共 23 块。见[发送端](../laptop/controls.py#L218)、[ESP 收块](../firmware/esp32/include/comms_control.h#L182)。
 3. **结束后打开本轮证据。** 记下 `Saved in:` 后面的**电脑本地目录**，运行 `python demo.py report '<Saved in 的完整目录>'`；在 `BLE file result` 中核对 `verified=True`、`sender_bytes=receiver_bytes=4096`、`sender_sha256=receiver_sha256`。再打开同目录 `packets.log`，找同一个 `transfer_id` 的 `type=file_begin` 与 `type=file_complete`，确认没有对应的 `type=file_failed`。`file_begin` 只说明开始，不能独立证明板子收完。还要看 RIGHT 的 received/acked 继续增长。
 4. **用现成源文件也能演示。** 今天用过的另一种命令是 `python demo.py run --duration 75 --file 'firmware/esp32/include/comms_packet.h' --file-device 1`；这里 `--file` 是电脑上要读出的文件，`--file-device 1` 是接收文件的 **LEFT ESP**，不是 Ultra96 设备、不是手机，也不是文件编号。该文件内容作为普通字节被送到 ESP，不会因此被板子编译或执行。要传 RIGHT 改成 `--file-device 2`。
 5. **解释 SHA-256 和保存位置。** SHA-256 是把任意长度内容算成 256 位（64 个十六进制字符）的摘要；它帮助比较两端内容是否一致，不是文件本身。ESP 收完字节后在 RAM 中重建并独立算摘要，再把长度和摘要回给 Laptop；Laptop 对比后才写 `verified=True`。[ESP 收块与计算摘要](../firmware/esp32/include/comms_control.h#L182)。`Saved in:` 是**电脑上的日志和报告目录**，不是板上的文件路径。当前固件没有从 ESP 读回、打开或长期保存此文件的接口；蓝牙断开会清除 RAM 副本，不能靠“在板上打开文件”证明这次传输。
@@ -884,7 +886,7 @@ sequenceDiagram
 
 1. `firmware/esp32/src/main.cpp` 的 `setup()` 生成本次 `bootId`，建立 BLE 服务并广播。Windows 的 `laptop/bridge.py::ble_loop()` 扫描到正确的 BLE 地址和服务，连接、检查认证配对及 MTU，并订阅 sensor notification。**连接成功不等于有数据**；还需看到 notification 和递增序号。
 2. 小板的 `loop()` 按 `controls->rateHz()` 决定发送间隔，为新样本分配 `seq`，`serializeFixturePacket()` 从编译进固件的多组假数据中随机选一组，填成 32 字节。`submitNotification()` 把它交给 BLE 栈；板端 source 统计分别记“生成了多少”和“成功提交了多少”。如果速率过高，两者可能不同。
-3. `laptop/bridge.py::enqueue()` 收到 BLE 字节，`decode_packet()` 检查恰好 32 字节、`W7`、版本、设备 ID 和数值范围，然后记录 `sensor` 证据和接收时间。`_prepare_item()` 再看来源是否正确、序号是否重复或缺号、数据是否超过新鲜度上限。通过后将包变成 JSON `SENSOR_BATCH`。
+3. `laptop/bridge.py::enqueue()` 收到 BLE 字节，`decode_packet()` 检查恰好 32 字节、`LC` 或兼容的 `W7`、版本、设备 ID 和数值范围，然后记录 `sensor` 证据和接收时间。`_prepare_item()` 再看来源是否正确、序号是否重复或缺号、数据是否超过新鲜度上限。通过后将包变成 JSON `SENSOR_BATCH`。
 4. `laptop/bridge.py` 经 Windows 本地 18889 的 SSH 转发建立 TLS 连接；`common/wire.py::encode_frame()` 在 JSON 前写 4 字节长度。Ultra96 的 `ultra96/server.py::_ingest()` 用 `read_frame()` 读完整消息，交 `ultra96/protocol.py::validate_message()` 验证。它对新身份生成一个随机的 `GESTURE_RESULT`，放进手机订阅队列，随后返回匹配身份的 `INGEST_ACK` 给 Laptop。**结果队列与 ACK 是两条不同的出口**，两者到达屏幕/终端的先后顺序不必一致。
 5. Laptop 的 `_check_ack()` 比对 session、设备、boot、seq、版本、request ID 和状态，才增加 `acked`。Ultra96 的结果发送任务把事件经手机独立连接送出；iPhone 的 v2 解码器校验结果 ID 和手势值，显示层在接受新的结果 ID 后更新标签和 `Received`。若没有手机订阅者，Ultra96 可以仍然 ACK Laptop，但没有手机结果可显示。
 
@@ -949,7 +951,7 @@ flowchart LR
 
 #### A.2.2 设备 ID、数据包类型和实际字节格式
 
-`common/sensor.py` 的 `_PACKET = struct.Struct("<2sBBIII8h")` 是现场最值得打开的一行。`<` 表示小端；2 字节 `W7` 标记、1 字节版本、1 字节设备 ID、3 个 4 字节无符号整数（boot ID、seq、uptime_ms），再加 8 个 2 字节有符号整数，总计 **32 字节**。设备 ID 1/2 表示 LEFT/RIGHT 的逻辑来源；BLE MAC 是实体硬件地址，不能用 COM 口号代替。`boot_id` 每次重启重新生成；同一 boot 中 `seq` 递增，所以 `device:boot:seq` 可辨认一条传感器记录。八个值是模拟 IMU 格式的通道值，不是真实测量。v2 从 `common/dummy_fixtures.json` 随机挑选完整的八值数组，重复选到同一组是正常的。当前 JSON 有四组，包括 `32767/-32768` 边界值；修改时每组必须保持八个 int16。
+`common/sensor.py` 的 `_PACKET = struct.Struct("<2sBBIII8h")` 是现场最值得打开的一行。`<` 表示小端；2 字节标记（新 `LC`，原 `W7`）、1 字节版本、1 字节设备 ID、3 个 4 字节无符号整数（boot ID、seq、uptime_ms），再加 8 个 2 字节有符号整数，总计 **32 字节**。设备 ID 1/2 表示 LEFT/RIGHT 的逻辑来源；BLE MAC 是实体硬件地址，不能用 COM 口号代替。`boot_id` 每次重启重新生成；同一 boot 中 `seq` 递增，所以 `device:boot:seq` 可辨认一条传感器记录。八个值是模拟 IMU 格式的通道值，不是真实测量。v2 从 `common/dummy_fixtures.json` 随机挑选完整的八值数组，重复选到同一组是正常的。当前 JSON 有四组，包括 `32767/-32768` 边界值；修改时每组必须保持八个 int16。
 
 逐字节看，老师如果指着原始十六进制问“第几位是什么”，可以按这张表回答：
 
@@ -967,7 +969,7 @@ flowchart LR
 
 `common/control.py` 的 `_HEADER = struct.Struct('<2sBBBBII')` 定义 **14 字节 BLE 控制头**：`B7`、控制版本 1、opcode、设备 ID、状态、request/transfer ID、offset。opcode 1 是键盘命令、2 是设定速率、16/17/18/19 是文件 begin/chunk/end/abort；响应把 opcode 的第 7 位设为 1。命令的 payload 仍是**完整的 32 字节 v2 sensor 包**，不是纯文本或整数。文件块 payload 按协商 MTU 限制，最大 `min(180, MTU-3-14)` 字节。
 
-Windows 发往 Ultra96 的 `SENSOR_BATCH`、返回的 `INGEST_ACK`、发往手机的 `GESTURE_RESULT` 是 JSON 消息；v2 均带 `request_id`。普通传感器流的该字段为 `null`；键盘命令为非零 ID，且 `seq == request_id`。普通结果 ID 为 `device:boot:seq`；命令结果为 `cmd:device:boot:request_id`，避免与连续传感器流混淆。`session_id` 是本次服务会话标识，默认 `week7-demo`。`SUBSCRIBE`/`SUBSCRIBED` 仍使用 v1 envelope。
+Windows 发往 Ultra96 的 `SENSOR_BATCH`、返回的 `INGEST_ACK`、发往手机的 `GESTURE_RESULT` 是 JSON 消息；v2 均带 `request_id`。普通传感器流的该字段为 `null`；键盘命令为非零 ID，且 `seq == request_id`。普通结果 ID 为 `device:boot:seq`；命令结果为 `cmd:device:boot:request_id`，避免与连续传感器流混淆。`session_id` 是本次服务会话标识：原部署用 `week7-demo`，更新后源码默认 `ltc-comms`。`SUBSCRIBE`/`SUBSCRIBED` 仍使用 v1 envelope。
 
 **TCP 分帧必须会解释：** `common/wire.py` 把每个 UTF-8 JSON 对象前面放一个 **4 字节大端长度**，最多 16384 字节；`read_frame()` 用 `readexactly(4)` 读头，再用 `readexactly(length)` 读完整正文。TCP 没有应用“包”的边界，一次 `recv` 可以只拿到半个正文或多个消息的字节；按长度循环读才能正确处理拆分和合并。`ultra96/protocol.py` 再检查字段、版本、范围、session、身份和结果格式。当前 32 字节 BLE sensor 包**没有应用层 CRC 字段**；演示日志可讲序列、值、BLE/TLS 的保护和文件 SHA-256，不能虚构 CRC。
 
@@ -1019,7 +1021,7 @@ sequenceDiagram
 
 **A. 固件从多组 fixture 里挑一组。** `firmware/esp32/include/comms_packet.h::serializeFixturePacket()` 的关键表达式是 `kDummyFixtures[randomWord % kDummyFixtureCount]`。`kDummyFixtures` 是编译进小板的二维表；`kDummyFixtureCount` 是表中组数；随机数取余产生合法下标。整个八值数组一起选，因而始终是协议规定的八通道格式。选完后版本字节设为 2。`firmware/esp32/src/main.cpp::loop()` 调用它并写入 device、boot、seq、uptime。若老师改 JSON，必须重生固件头并烧录，原因就在于表已经**编译进小板**。
 
-**B. Laptop 接收后先验证，再转发。** `laptop/bridge.py::enqueue()` 收到 `data`，调用 `decode_packet(data)`；`common/sensor.py::decode_packet()` 先要求 `len(data)==32`，再检查 `W7`/版本，最后构造含八值的 `SensorPacket`。`_prepare_item()` 检查这条包确实属于本设备、序号没有异常、数据未过期，随后网络发送者将 `packet.to_message(session_id)` 交给 `write_frame()`。所以屏幕上的 `received` 只是“蓝牙来了”；只有 `_check_ack()` 比对返回身份后，`acked` 才增加。
+**B. Laptop 接收后先验证，再转发。** `laptop/bridge.py::enqueue()` 收到 `data`，调用 `decode_packet(data)`；`common/sensor.py::decode_packet()` 先要求 `len(data)==32`，再检查 `LC` 或兼容的 `W7` 及版本，最后构造含八值的 `SensorPacket`。`_prepare_item()` 检查这条包确实属于本设备、序号没有异常、数据未过期，随后网络发送者将 `packet.to_message(session_id)` 交给 `write_frame()`。所以屏幕上的 `received` 只是“蓝牙来了”；只有 `_check_ack()` 比对返回身份后，`acked` 才增加。
 
 **C. 网络端按长度完整读取。** 下面是 `common/wire.py::read_frame()` 的核心逻辑，省略异常处理：
 
@@ -1061,7 +1063,7 @@ message = json.loads(body.decode("utf-8"), object_pairs_hook=_object,
 
 ### A.3. 推荐的现场命令与观测
 
-以下命令均在 relay laptop 的 PowerShell 终端 B、仓库根目录运行；终端 A 的 `python demo.py tunnel` 和手机订阅保持运行。每条 `demo.py run/live` 都会新建 `.week7-local/B07-*`，保存 `live.log`、`packets.jsonl`、可读的 `packets.log`、`report.json`、`exit-code.txt`，并在结束时打印 matched sensor/ACK 示例。显示结果以**该次** `Saved in:` 路径为准。报告里的 `CAPTURE PASSED` 证明物理 BLE → Ultra96 ACK 与源端对账，**不自动证明手机收到**。
+以下命令均在 relay laptop 的 PowerShell 终端 B、仓库根目录运行；终端 A 的 `python demo.py tunnel` 和手机订阅保持运行。更新后的每条 `demo.py run/live` 都会新建 `.comms-local/B07-*`，保存 `live.log`、`packets.jsonl`、可读的 `packets.log`、`report.json`、`exit-code.txt`，并在结束时打印 matched sensor/ACK 示例。显示结果以**该次** `Saved in:` 路径为准。报告里的 `CAPTURE PASSED` 证明物理 BLE → Ultra96 ACK 与源端对账，**不自动证明手机收到**。
 
 #### A.3.1 第一次完整演示：一步一步照做
 
@@ -1083,7 +1085,7 @@ message = json.loads(body.decode("utf-8"), object_pairs_hook=_object,
 如果不知道怎样打开保存的结果，先把下面第一行的示例路径换成**终端刚打印的原样路径**，再逐行运行：
 
 ```powershell
-$runDir = 'D:\LetThemCook\.week7-local\B07-把这里替换成刚才的完整目录名'
+$runDir = 'D:\LetThemCook\.comms-local\B07-把这里替换成刚才的完整目录名'
 python demo.py report $runDir
 Get-Content -LiteralPath (Join-Path $runDir 'packets.log') -TotalCount 30
 Select-String -LiteralPath (Join-Path $runDir 'packets.log') -Pattern 'command_original|command_modified'
@@ -1098,7 +1100,7 @@ Select-String -LiteralPath (Join-Path $runDir 'packets.log') -Pattern 'command_o
 | 完整链路；双板并发；>1 分钟 dummy sensor；键盘双向通信 | 先拍手机 `Received` 起点；`python demo.py live --duration 75`，期间分别按几次 `1`、`2` | 两板 `received/acked` 同时递增，`commands.completed` 对应按键；`command_original` 与 `command_modified` 的八值逐项相差 1。报告两板 `generated=received=acked`、`missing=0` 才是干净基线；手机终值减起点应等于两板实际 generated 总数加完成的命令数。包数可能因启动/收尾超过简单的 `75×10×2`。 |
 | 双板速度统计 | 上一条的进度行和 `report.json`；也可 `python demo.py report "<Saved in 路径>"` | 每板 `BLE_sensor_kbps_rolling/average` 和 combined kbps。正常 10 Hz 约 2.56/2.56/5.12，但以实测值和 `sensor_goodput.elapsed_seconds` 为准；队列、drop、error 同时查看。 |
 | 最高已测试可持续速率 | 两板近距离、独立供电，另开 `python demo.py run --duration 65 --rate 70`，手机在开始前订阅并记数 | 设定 70 Hz 不等于实际 70 包/秒。要求两个源的 generated/received/ACKed 对账、无 source submission failures，观测期不少于 65 秒，显示各板实际包/秒和 combined kbps。9 月 28 日的两次干净 70 Hz 约 66 包/秒/板、33.792 kbps；75 Hz 的右板曾拒绝 260 个源端提交，因此“70 是该条件下最高已测试干净设置”，不是绝对物理上限。现场失败需如实报告并回到 10 Hz。 |
-| BLE 文件传输 | 预先准备 4096 字节的普通文件，如 `.week7-local/demo-file-4096.bin`；`python demo.py run --duration 75 --file .week7-local/demo-file-4096.bin --file-device 1` | `file_transfer.verified=true`、sender/receiver bytes 均为 4096、两端 SHA-256 完全一致；RIGHT 的 sensor/ACK 继续增加。可换 `--file-device 2` 对右板重复。4096 字节在 MTU 517、最大 180 字节 payload 时需要 23 个 chunk，因此确实测试了分块，不只是一个写入。 |
+| BLE 文件传输 | 预先准备 4096 字节的普通文件，如 `.comms-local/demo-file-4096.bin`；`python demo.py run --duration 75 --file .comms-local/demo-file-4096.bin --file-device 1` | `file_transfer.verified=true`、sender/receiver bytes 均为 4096、两端 SHA-256 完全一致；RIGHT 的 sensor/ACK 继续增加。可换 `--file-device 2` 对右板重复。4096 字节在 MTU 517、最大 180 字节 payload 时需要 23 个 chunk，因此确实测试了分块，不只是一个写入。 |
 | 单板断电恢复 | `python demo.py live --duration 120`，稳定后只断开 RIGHT 的独立电源，等待实际 BLE 断线，再恢复；LEFT 不动 | 观察 RIGHT `disconnected`、重新认证连接、新 boot ID 和恢复的新 seq/ACK；LEFT 在同一窗口继续收到并 ACK。保留故障报告，即使退出码非零/`clean=false`。不要声称右板断电期间的数据零丢失。之后独立运行 `python demo.py run --duration 65`，要求新的 clean 基线。 |
 | 单板离开范围再回来 | 两板各自独立供电；用 `python demo.py live --duration 180` 观察，携 RIGHT 的电源和板离开直到**实际出现 BLE disconnect**，随后返回；LEFT 留在 laptop 附近 | 应看到 RIGHT 断线及重新连接后的新数据，LEFT 持续前进。仅 RSSI 变弱或包率下降不等于已离开连接范围。记录发生时间、实际位置/距离、健康板计数和任何缺失；未看到断线则该项尚未演示成功。再做 65 秒 clean 基线。此物理范围试验截至 9 月 28 日记录仍未完成。 |
 
@@ -1106,7 +1108,7 @@ Select-String -LiteralPath (Join-Path $runDir 'packets.log') -Pattern 'command_o
 
 **测最高已测试速率。** 先按 3.1 完成 10 Hz clean 基线并保存路径。保持板子位置、电源、Laptop 和手机状态不变；记手机起点，再运行 `python demo.py run --duration 65 --rate 70`。`--rate 70` 会向两块 ESP 写 SET_RATE，收到确认后才开始正常观测。等结束，查看报告中的两板 `source_rate_confirmed_hz`、`sensor_goodput.average_kbps`、源端生成/提交/接收/ACK 四项和错误数；可以按 `实际包数 ÷ 65 秒` 解释每秒包数。65 秒、650 个包的示例是 `650×32×8÷65÷1000=2.56 kbps`。历史 70 Hz 结果约 66 包/秒/板，是受连接时序影响的**实测率**。最后运行 `python demo.py run --duration 65 --rate 10` 恢复并验证基线。现场无需重复已知会失败的 75 Hz；如被要求比较，明确引用历史失败报告。
 
-**测文件传输。** 先按下方命令生成文件，并把 `Get-FileHash` 的 SHA-256 留在屏幕上。确认文件正好 4096 字节，手机处于 `Subscribed`；运行 `python demo.py run --duration 75 --file .week7-local/demo-file-4096.bin --file-device 1`。结束后看 `file_transfer` 中的 `sender_bytes`、`receiver_bytes`、`sender_sha256`、`receiver_sha256` 和 `verified`。4096÷180 需要 22 个完整 chunk 再加 1 个余下的 136 字节 chunk；每块都有 offset 和应答。报告 `verified=true` 才能说板子收到了与源文件相同的内容。还要看 ID 2 的 received/ACK 在文件传输期间持续增长，说明文件工作没有把另一块板完全堵住。这个文件只在 ESP 内存里，不是让手机接收文件。
+**测文件传输。** 先按下方命令生成文件，并把 `Get-FileHash` 的 SHA-256 留在屏幕上。确认文件正好 4096 字节，手机处于 `Subscribed`；运行 `python demo.py run --duration 75 --file .comms-local/demo-file-4096.bin --file-device 1`。结束后看 `file_transfer` 中的 `sender_bytes`、`receiver_bytes`、`sender_sha256`、`receiver_sha256` 和 `verified`。4096÷180 需要 22 个完整 chunk 再加 1 个余下的 136 字节 chunk；每块都有 offset 和应答。报告 `verified=true` 才能说板子收到了与源文件相同的内容。还要看 ID 2 的 received/ACK 在文件传输期间持续增长，说明文件工作没有把另一块板完全堵住。这个文件只在 ESP 内存里，不是让手机接收文件。
 
 **测断电。** 在一轮 120 秒 `live` 开始后先等两板计数稳定，口头指出当前 RIGHT 的 boot ID 和 LEFT 的计数。只拔 RIGHT 的独立供电，持续观察直至日志出现 RIGHT 的 BLE disconnect；记录大致时间。给 RIGHT 恢复供电，等它重新广播、认证、订阅，看到新的 boot ID 和新的包/ACK。对照同时间 LEFT 的计数变化。故障报告可能 `clean=false`，这说明严格无中断条件没通过，**不否认已观察到恢复**。接着新开 65 秒 10 Hz clean 采集，单独证明恢复后的正常状态。
 
@@ -1115,8 +1117,8 @@ Select-String -LiteralPath (Join-Path $runDir 'packets.log') -Pattern 'command_o
 **文件准备示例：** 只在演示前执行一次下面的 PowerShell 命令，会生成本地 4096 字节测试文件；它是文件传输 payload，不是传感器数据包。
 
 ```powershell
-$demoFile = Join-Path (Get-Location) '.week7-local/demo-file-4096.bin'
-New-Item -ItemType Directory -Force '.week7-local' | Out-Null
+$demoFile = Join-Path (Get-Location) '.comms-local/demo-file-4096.bin'
+New-Item -ItemType Directory -Force '.comms-local' | Out-Null
 [byte[]]$bytes = 0..4095 | ForEach-Object { [byte]($_ % 256) }
 [IO.File]::WriteAllBytes($demoFile, $bytes)
 Get-FileHash -Algorithm SHA256 $demoFile
@@ -1135,7 +1137,7 @@ Get-FileHash -Algorithm SHA256 $demoFile
 
 ```powershell
 $ca = Join-Path $HOME '.codex/private/cg4002-week7-20260906/ca-cert.pem'
-python -m laptop.dual_bridge --mock --ca $ca --port 18889 --duration 20 --expected-rate 10 --progress-interval 1
+python -m laptop.dual_bridge --mock --ca $ca --port 18889 --session-id week7-demo --duration 20 --expected-rate 10 --progress-interval 1
 ```
 
 `--mock` 使用符合 v2 格式的完整 sensor 消息，经过真实 SSH/TLS 到 Ultra96，并读回相应 `INGEST_ACK`；它**不证明实体 BLE**。若手机已订阅，也应收到相应模拟结果，但报告属于 synthetic。可用 `common/sensor.py`、`common/wire.py` 和 `ultra96/protocol.py` 解释为何消息有效。
@@ -1277,13 +1279,13 @@ sequenceDiagram
 
 **优先阅读顺序：** `demo.py` → `laptop/dual_bridge.py` → `laptop/bridge.py` → `common/sensor.py`、`common/wire.py` → `ultra96/server.py` → 手机 `Subscriber.swift`、`DisplayState.swift`。讲板端格式时读 `comms_packet.h`；讲按键和传文件时读两端的 `controls.py/comms_control.h`。
 
-每行链接到一个第一方源文件、配置文件或明确标注的目录；测试和大量 Unity 生成/第三方文件按用途归组。运行中产生的 `.week7-local/` 日志、缓存和编译产物不属于需逐个背诵的源码，如何读证据见 A.6。
+每行链接到一个第一方源文件、配置文件或明确标注的目录；测试和大量 Unity 生成/第三方文件按用途归组。运行中产生的 `.comms-local/` 日志（旧报告可能仍在 `.week7-local/`）、缓存和编译产物不属于需逐个背诵的源码，如何读证据见 A.6。
 
 ### B.1 电脑操作入口和依赖
 
 | 文件 / 代码跳转 | 作用和主要内容 | 对应演示 / 什么时候看 |
 |---|---|---|
-| [demo.py](../demo.py#L36) | 现场主入口；解析 `service/tunnel/run/live/report`，启动双板采集并把日志和报告存入 `.week7-local`。`live` 打开键盘输入，`run` 默认只观察自动流。 | 所有现场命令；先看这里，再沿模块往下找。 |
+| [demo.py](../demo.py#L36) | 现场主入口；解析 `service/tunnel/run/live/report`，启动双板采集并把新日志和报告存入 `.comms-local`。`live` 打开键盘输入，`run` 默认只观察自动流。 | 所有现场命令；先看这里，再沿模块往下找。 |
 | [flash.py](../flash.py#L90) | 电脑端烧录入口；生成 fixture 头文件、按 LEFT/RIGHT 编译和烧录，读取实体 BLE 地址并保存映射，也能显示映射和配对。 | 准备/第 3 项；不是 BLE 传普通文件的入口。 |
 | [laptop/requirements.txt](../laptop/requirements.txt#L1) | 电脑运行依赖，当前固定 `bleak==3.0.1`，用于访问 BLE。 | 准备电脑环境。 |
 | [requirements-dev.txt](../requirements-dev.txt#L1) | 本地测试、证书生成和串口准备工具的依赖：pytest、cryptography、pyserial；Ultra96 运行时使用 Python 标准库。 | 开发/准备；不是运行 Ultra96 必装的清单。 |
@@ -1293,7 +1295,7 @@ sequenceDiagram
 | 文件 / 代码跳转 | 作用和主要内容 | 对应演示 / 什么时候看 |
 |---|---|---|
 | [common/__init__.py](../common/__init__.py#L1) | Python 包说明，让 `common.*` 模块归属同一个包；没有独立演示逻辑。 | 理解文件结构。 |
-| [common/sensor.py](../common/sensor.py#L22) | 定义 `SensorPacket`；编码/解码 32 字节 `W7` sensor 帧，检查设备号和八个 int16，并转成网络 `SENSOR_BATCH`。也读取和随机选择 dummy fixture。 | 第 1、4.1 项；32 字节怎么算、BLE 怎么变 JSON。 |
+| [common/sensor.py](../common/sensor.py#L22) | 定义 `SensorPacket`；编码/解码 32 字节 sensor 帧（新 `LC`、原 `W7`），检查设备号和八个 int16，并转成网络 `SENSOR_BATCH`。也读取和随机选择 dummy fixture。 | 第 1、4.1 项；32 字节怎么算、BLE 怎么变 JSON。 |
 | [common/control.py](../common/control.py#L21) | 定义 14 字节 `B7` 控制头、opcode/status、请求号、offset；编解码命令/设速率/文件帧，并规定 int16 加一回绕。 | 第 4.1、4.5、4.6、5 项。 |
 | [common/dummy_fixtures.json](../common/dummy_fixtures.json#L1) | 可编辑的多组八通道假数据源；Laptop/mock 运行时读取，ESP 使用由它生成并编译进固件的数组。 | 解释随机数据来源；改文件不会自动改变已烧录 ESP。 |
 | [common/wire.py](../common/wire.py#L35) | 网络消息编解码：UTF-8 JSON 前加四字节大端长度；严格读取完整帧，拒绝无效 JSON、超长、截断和超时。 | 第 1、2 项；TCP 为什么要加长度。 |
@@ -1335,7 +1337,7 @@ sequenceDiagram
 |---|---|---|
 | [firmware/esp32/platformio.ini](../firmware/esp32/platformio.ini#L18) | PlatformIO 工程配置，定义 LEFT/RIGHT 两种构建及各自 device ID；还保留明确标识的未保护诊断配置。 | 第 3、4.1 项；同一套代码怎样得到两块不同身份的板。 |
 | [firmware/esp32/src/main.cpp](../firmware/esp32/src/main.cpp#L404) | ESP 主程序；`setup()` 初始化 BLE 服务、安全、特征与 boot ID，`loop()` 按设定节拍发 sensor、处理控制队列/文件并维护统计。 | 第 4、5 项；板子通电后怎样工作。 |
-| [firmware/esp32/include/comms_packet.h](../firmware/esp32/include/comms_packet.h#L22) | C++ 的 32 字节 `W7` 序列化；明确小端字段和八个 int16，并从 fixture 表随机挑一行形成 sensor 包。 | 第 4.1 项；也是你传文件演示的电脑端样例文件。 |
+| [firmware/esp32/include/comms_packet.h](../firmware/esp32/include/comms_packet.h#L22) | C++ 的 32 字节 `LC` 序列化；明确小端字段和八个 int16，并从 fixture 表随机挑一行形成 sensor 包。 | 第 4.1 项；也是你传文件演示的电脑端样例文件。 |
 | [firmware/esp32/include/comms_control.h](../firmware/esp32/include/comms_control.h#L35) | 板端 `ControlEngine`；验证 `B7` 请求，执行八值加一/设速率、缓存重复命令结果，在 RAM 收文件块并计算 SHA-256。 | 第 4.5、4.6、5 项；文件真的到板的依据。 |
 | [firmware/esp32/include/comms_fixtures.h](../firmware/esp32/include/comms_fixtures.h#L7) | 由 JSON 自动生成的 C++ 八值数组；数组随固件一起烧入 ESP。 | 解释 dummy 数据生成；修改源 JSON 后需重新生成/编译/烧录。 |
 | [firmware/esp32/include/comms_source_stats.h](../firmware/esp32/include/comms_source_stats.h#L12) | 板端源统计结构及 24 字节序列化；区分生成样本和交给 BLE 栈成功/失败，为 Laptop 对账提供源头数据。 | 第 4.3、4.5 项；如何知道板子真的发了。 |

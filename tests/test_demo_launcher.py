@@ -45,7 +45,7 @@ def physical_report():
         "clean": True,
         "mock_input": False,
         "report_saved": True,
-        "session_id": "week7-demo",
+        "session_id": "ltc-comms",
         "devices": devices,
         "run": {"mode": "physical", "requested_duration_seconds": 60.0},
     }
@@ -164,6 +164,7 @@ def test_run_streams_both_child_streams_and_saves_a_unique_capture(
 
 def test_run_defaults_build_the_existing_physical_dual_bridge_command(
         tmp_path, dummy_ca, monkeypatch):
+    monkeypatch.delenv("LTC_COMMS_SESSION", raising=False)
     emitted = []
     original_command = demo.capture_command
 
@@ -182,7 +183,7 @@ def test_run_defaults_build_the_existing_physical_dual_bridge_command(
     assert options["--right-address"] == "38:18:2B:18:9D:6A"
     assert options["--port"] == "18889"
     assert float(options["--duration"]) == 60
-    assert options["--session-id"] == "week7-demo"
+    assert options["--session-id"] == "ltc-comms"
     assert Path(options["--report"]).parent.parent == root
     assert Path(options["--report"]).name == "report.json"
     assert "--mock" not in command
@@ -203,6 +204,33 @@ def test_explicit_capture_options_reach_the_existing_bridge(tmp_path):
     assert options["--port"] == "19999"
     assert options["--ca"] == str(tmp_path / "custom ca.pem")
     assert options["--report"] == str(report_path)
+
+
+@pytest.mark.parametrize("mode", ["run", "live"])
+@pytest.mark.parametrize("environment, extra, expected", [
+    (None, [], "ltc-comms"),
+    ("week7-demo", [], "week7-demo"),
+    ("another-session", ["--session-id", "week7-demo"], "week7-demo"),
+])
+def test_capture_session_selection(tmp_path, monkeypatch, mode, environment, extra, expected):
+    if environment is None:
+        monkeypatch.delenv("LTC_COMMS_SESSION", raising=False)
+    else:
+        monkeypatch.setenv("LTC_COMMS_SESSION", environment)
+    args = demo._parser().parse_args([mode, *extra])
+    command = demo.capture_command(args, tmp_path / "report.json")
+    assert command[command.index("--session-id") + 1] == expected
+
+
+def test_capture_defaults_to_comms_local():
+    assert demo._parser().parse_args(["run"]).output_root == demo.ROOT / ".comms-local"
+
+
+def test_latest_report_finds_existing_legacy_capture(tmp_path, monkeypatch):
+    new_root = tmp_path / ".comms-local"
+    legacy = saved_capture(tmp_path / ".week7-local")
+    monkeypatch.setattr(demo, "OUTPUT_ROOT", new_root)
+    assert demo.latest_report(new_root) == legacy / "report.json"
 
 
 def test_nonzero_child_exit_survives_capture_and_saved_report_review(

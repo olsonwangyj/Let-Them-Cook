@@ -138,7 +138,7 @@ class ObservedBridge(Bridge):
 
 
 async def rehearse_remote(ca_file, duration=40.0, target=100, ble=False,
-                         ingest_port=18888, gateway_port=19999, session_id="week7-demo",
+                         ingest_port=18888, gateway_port=19999, session_id="ltc-comms",
                          confirmed_remote_topology=False, on_event=None, address=None):
     """Use two independently supplied forwards; collect JSON-safe exact evidence.
 
@@ -292,7 +292,7 @@ def main():
     parser.add_argument("--ca", required=True)
     parser.add_argument("--ingest-port", type=int, default=18888)
     parser.add_argument("--gateway-port", type=int, default=19999)
-    parser.add_argument("--session-id", default="week7-demo")
+    parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--duration", type=float, default=40)
     parser.add_argument("--target", type=int, default=100, help="0 runs for the full duration")
     parser.add_argument("--ble", action="store_true", help="use protected real BLE instead of synthetic input")

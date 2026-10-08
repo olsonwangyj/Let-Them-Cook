@@ -53,7 +53,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         bridge.inbox.activate(1)
         bridge.inbox.put(1, payload(), bridge.clock())
         bridge._write_frame = AsyncMock()
-        bridge._read_frame = AsyncMock(return_value=dict(v=1, type="INGEST_ACK", session_id="week7-demo",
+        bridge._read_frame = AsyncMock(return_value=dict(v=1, type="INGEST_ACK", session_id="ltc-comms",
             device_id=1, boot_id=7, seq=999, status="accepted"))
         await bridge.forward_one()
         self.assertEqual(bridge.metrics.ack_errors, 1)
@@ -67,7 +67,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         bridge = Bridge(BridgeConfig(ca_file="unused"), connector=connector)
         bridge.inbox.activate(1)
         bridge._write_frame = AsyncMock()
-        bridge._read_frame = AsyncMock(return_value=dict(v=1, type="INGEST_ACK", session_id="week7-demo",
+        bridge._read_frame = AsyncMock(return_value=dict(v=1, type="INGEST_ACK", session_id="ltc-comms",
             device_id=1, boot_id=7, seq=0, status="accepted"))
         bridge.inbox.put(1, payload(), bridge.clock())
         await bridge.forward_one()
@@ -189,7 +189,7 @@ class BleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         async def read(_reader, timeout):
             await asyncio.sleep(0)
             inflight[0] -= 1
-            return dict(v=1, type="INGEST_ACK", session_id="week7-demo", device_id=1,
+            return dict(v=1, type="INGEST_ACK", session_id="ltc-comms", device_id=1,
                         boot_id=7, seq=sent[-1], status="accepted")
         bridge._write_frame, bridge._read_frame = write, read
         await asyncio.gather(*(bridge.forward_one() for _ in range(3)))

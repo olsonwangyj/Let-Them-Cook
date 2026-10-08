@@ -13,6 +13,39 @@ ROOT = Path(__file__).resolve().parents[1]
 VECTORS = json.loads((FIXTURES / "comms-golden.json").read_text())["vectors"]
 
 
+def test_encoder_emits_lc_magic():
+    from common.sensor import SensorPacket, encode_packet
+
+    raw = encode_packet(SensorPacket(**VECTORS[0]["packet"]))
+    assert len(raw) == 32
+    assert raw[:2] == b"LC"
+
+
+def test_encoder_can_emit_legacy_magic_for_old_firmware_commands():
+    from common.sensor import SensorPacket, encode_packet
+
+    packet = SensorPacket(**VECTORS[0]["packet"])
+    raw = encode_packet(packet, magic=b"W7")
+    assert raw == b"W7" + (FIXTURES / "comms-dummy.bin").read_bytes()[2:]
+
+
+def test_encoder_rejects_unknown_magic():
+    from common.sensor import SensorPacket, encode_packet
+
+    with pytest.raises(ValueError, match="magic"):
+        encode_packet(SensorPacket(**VECTORS[0]["packet"]), magic=b"WC")
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_decoder_accepts_legacy_w7_magic(version):
+    from common.sensor import SensorPacket, decode_packet
+
+    raw = bytearray((FIXTURES / "comms-dummy.bin").read_bytes())
+    raw[:2] = b"W7"
+    raw[2] = version
+    assert decode_packet(raw) == SensorPacket(**VECTORS[0]["packet"], version=version)
+
+
 @pytest.mark.parametrize("vector", VECTORS)
 def test_fixed_vector_decodes_encodes_and_maps_to_wire_message(vector):
     from common.sensor import SensorPacket, decode_packet, encode_packet
@@ -23,7 +56,7 @@ def test_fixed_vector_decodes_encodes_and_maps_to_wire_message(vector):
     expected = SensorPacket(**vector["packet"])
     assert decode_packet(raw) == expected
     assert encode_packet(expected) == raw
-    assert expected.to_message("week7-demo") == vector["message"]
+    assert expected.to_message("ltc-comms") == vector["message"]
 
 
 @pytest.mark.parametrize("length", [0, 1, 16, 20, 31, 33, 64])

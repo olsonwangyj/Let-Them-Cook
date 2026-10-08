@@ -153,8 +153,8 @@ final class FixtureConnections {
 
 final class LocalPeers {
     enum Behavior { case good, idle, partialPrefix, partialBody, resultBeforeAck, malformedResult, closeFirst }
-    static let result = #"{"v":1,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":1,"boot_id":7,"seq":42,"result_id":"1:7:42","gesture":"OPEN","confidence":1.0}"#
-    static let ack = #"{"v":1,"type":"SUBSCRIBED","session_id":"week7-demo"}"#
+    static let result = #"{"v":1,"type":"GESTURE_RESULT","session_id":"ltc-comms","device_id":1,"boot_id":7,"seq":42,"result_id":"1:7:42","gesture":"OPEN","confidence":1.0}"#
+    static let ack = #"{"v":1,"type":"SUBSCRIBED","session_id":"ltc-comms"}"#
     let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     let boardKey = NIOSSHPrivateKey(ed25519Key: Curve25519.Signing.PrivateKey())
     let jumpKey = NIOSSHPrivateKey(ed25519Key: Curve25519.Signing.PrivateKey())
@@ -261,7 +261,7 @@ final class FixtureProtocol: ChannelInboundHandler {
         let body = Array(bytes[4..<(length + 4)])
         bytes.removeFirst(length + 4)
         let value = (try? JSONSerialization.jsonObject(with: Data(body))) as? [String: Any]
-        let valid = value?.count == 3 && value?["type"] as? String == "SUBSCRIBE" && value?["session_id"] as? String == "week7-demo" && value?["v"] as? Int == 1
+        let valid = value?.count == 3 && value?["type"] as? String == "SUBSCRIBE" && value?["session_id"] as? String == "ltc-comms" && value?["v"] as? Int == 1
         let count = subscribe(valid)
         guard valid else { context.close(promise: nil); return }
         if behavior == .closeFirst && count == 1 { context.close(promise: nil); return }

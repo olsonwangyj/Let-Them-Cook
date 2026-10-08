@@ -45,7 +45,7 @@ def sensor(device, *, boot=None, seq=7):
     return {"timestamp_utc": "2026-09-29T00:00:00+00:00", "monotonic_seconds": 1.0,
             "type": "sensor", "device_id": device, "direction": "ESP->laptop",
             "version": 2, "boot_id": boot, "seq": seq, "uptime_ms": 100,
-            "values": values, "raw_hex": struct.pack("<2sBBIII8h", b"W7", 2, device,
+            "values": values, "raw_hex": struct.pack("<2sBBIII8h", b"LC", 2, device,
                 boot, seq, 100, *values).hex(), "validation": "decoded",
             "received_monotonic": 1.0}
 

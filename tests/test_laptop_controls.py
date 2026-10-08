@@ -46,6 +46,135 @@ def test_command_loop_correlates_and_verifies_modified_payload():
     asyncio.run(run())
 
 
+@pytest.mark.parametrize("observed_magic, expected_magic", [
+    (None, b"LC"),
+    (b"W7", b"W7"),
+    (b"LC", b"LC"),
+])
+def test_bridge_command_matches_observed_board_packet_magic(observed_magic, expected_magic):
+    from common.control import COMMAND, ControlFrame, decode_control, encode_control, transformed_values
+    from common.sensor import SensorPacket, encode_packet
+    from laptop.bridge import Bridge, BridgeConfig
+
+    async def run():
+        bridge = Bridge(BridgeConfig(ca_file="unused", expected_device_id=1,
+                                     source_audit=True, controls_enabled=True))
+        sent = []
+
+        class Client:
+            mtu_size = 64
+
+            async def write_gatt_char(self, _uuid, data, response):
+                request = decode_control(data, mtu=64)
+                sent.append(request.payload[:2])
+                original = SensorPacket(1, 7, request.request_id, 0, (0,) * 8, version=2)
+                modified = SensorPacket(1, 7, request.request_id, 50,
+                                        transformed_values(original.values), version=2)
+                bridge.control.receive(None, encode_control(ControlFrame(COMMAND | 128, 1,
+                    request.request_id, payload=encode_packet(modified, magic=expected_magic)), mtu=64))
+
+        bridge.control.attach(Client(), 7)
+        bridge.inbox.activate(1)
+        if observed_magic is not None:
+            sensor = SensorPacket(1, 7, 1, 100, (0,) * 8, version=2)
+            assert bridge.enqueue(1, encode_packet(sensor, magic=observed_magic))
+        command = SensorPacket(1, 7, 101, 0, (0,) * 8, version=2)
+        await bridge.control.command(command)
+        assert sent == [expected_magic]
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("stats_magic, command_magic", [
+    (b"W7S1", b"W7"),
+    (b"LCS1", b"LC"),
+])
+def test_command_uses_validated_source_stats_magic_before_first_sensor(
+        monkeypatch, stats_magic, command_magic):
+    from types import SimpleNamespace
+
+    from common.control import (COMMAND, CONTROL_UUID, RESPONSE_UUID, ControlFrame,
+                                decode_control, encode_control, transformed_values)
+    from common.sensor import SensorPacket, decode_packet, encode_packet
+    from laptop.bridge import Bridge, BridgeConfig, SENSOR_UUID, SERVICE_UUID
+    from laptop.source_audit import SOURCE_STATS_UUID
+    import laptop.windows_pairing as pairing
+
+    async def paired(_client):
+        pass
+
+    monkeypatch.setattr(pairing, "require_authenticated_bond", paired)
+
+    async def run():
+        bridge = Bridge(BridgeConfig(ca_file="unused", address="AA:BB",
+                                     expected_device_id=1, source_audit=True,
+                                     controls_enabled=True))
+        active = asyncio.Event()
+        sent = []
+
+        class Scanner:
+            @staticmethod
+            async def find_device_by_filter(predicate, timeout):
+                device = SimpleNamespace(address="AA:BB")
+                assert predicate(device, SimpleNamespace(service_uuids=[SERVICE_UUID]))
+                return device
+
+        class Client:
+            mtu_size = 64
+
+            def __init__(self, device, disconnected_callback):
+                self.is_connected = False
+                characteristics = {
+                    SENSOR_UUID: SimpleNamespace(properties=["notify"]),
+                    SOURCE_STATS_UUID: SimpleNamespace(properties=["read"]),
+                    CONTROL_UUID: SimpleNamespace(properties=["write"]),
+                    RESPONSE_UUID: SimpleNamespace(properties=["notify"]),
+                }
+                service = SimpleNamespace(get_characteristic=characteristics.get)
+                self.services = SimpleNamespace(get_service=lambda uuid: service)
+
+            async def connect(self):
+                self.is_connected = True
+
+            async def disconnect(self):
+                self.is_connected = False
+
+            async def read_gatt_char(self, uuid, **kwargs):
+                assert uuid == SOURCE_STATS_UUID
+                return struct.pack("<4sB3xIIII", stats_magic, 1, 7, 0, 0, 0)
+
+            async def start_notify(self, uuid, callback):
+                if uuid == RESPONSE_UUID:
+                    self.response_callback = callback
+
+            async def stop_notify(self, uuid):
+                pass
+
+            async def write_gatt_char(self, uuid, data, response):
+                assert uuid == CONTROL_UUID
+                request = decode_control(data)
+                assert request.opcode == COMMAND
+                sent.append(request.payload[:2])
+                original = decode_packet(request.payload)
+                modified = SensorPacket(1, 7, request.request_id, 50,
+                                        transformed_values(original.values), version=2)
+                self.response_callback(None, encode_control(ControlFrame(COMMAND | 128, 1,
+                    request.request_id, payload=encode_packet(modified, magic=request.payload[:2]))))
+
+        worker = asyncio.create_task(bridge.ble_loop(scanner=Scanner, client_factory=Client,
+                                                     active_event=active))
+        try:
+            await asyncio.wait_for(active.wait(), 1)
+            command = SensorPacket(1, 7, 101, 0, (0,) * 8, version=2)
+            await bridge.control.command(command)
+            assert sent == [command_magic]
+        finally:
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+
+    asyncio.run(run())
+
+
 def test_bounded_acceptance_and_disconnect_fail_every_accepted_command():
     from common.sensor import SensorPacket
     from laptop.controls import ControlChannel, CommandPipeline
@@ -169,7 +298,7 @@ def test_control_forward_uses_separate_tls_and_checks_request_ack():
             assert writer is not bridge.writer
             messages.append(message)
         async def read(reader, timeout):
-            return dict(v=2, type="INGEST_ACK", session_id="week7-demo", device_id=1,
+            return dict(v=2, type="INGEST_ACK", session_id="ltc-comms", device_id=1,
                         boot_id=7, seq=12, request_id=12, status="accepted")
         bridge._write_frame, bridge._read_frame = write, read
         await bridge.forward_command(packet, 12)
@@ -310,7 +439,7 @@ def test_rate_ack_must_echo_requested_rate_and_command_ack_request_is_strict():
             await channel.set_rate(80)
         bridge = Bridge(BridgeConfig(ca_file="unused"))
         packet = SensorPacket(1, 7, 12, 5, (0,) * 8, version=2)
-        ack = dict(v=2, type="INGEST_ACK", session_id="week7-demo", device_id=1,
+        ack = dict(v=2, type="INGEST_ACK", session_id="ltc-comms", device_id=1,
                    boot_id=7, seq=12, request_id=13, status="accepted")
         with pytest.raises(ProtocolError, match="uncorrelated"):
             bridge._check_ack(ack, packet, request_id=12)

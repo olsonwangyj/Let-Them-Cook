@@ -12,6 +12,14 @@ def packet(device_id, boot_id, seq):
 
 
 def test_literal_source_snapshot_decodes_all_wire_fields():
+    raw = (b"LCS1" + bytes([2, 0, 0, 0])
+           + bytes.fromhex("07000000030000000300000000000000"))
+
+    assert parse_source_stats(raw, expected_device_id=2) == SourceStats(
+        device_id=2, boot_id=7, next_seq=3, submitted=3, failures=0)
+
+
+def test_legacy_source_snapshot_still_decodes():
     raw = (b"W7S1" + bytes([2, 0, 0, 0])
            + bytes.fromhex("07000000030000000300000000000000"))
 

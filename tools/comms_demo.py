@@ -17,13 +17,13 @@ from ultra96.protocol import validate_message, validate_session
 def packet_example():
     """A reproducible teaching example, explicitly separate from live evidence."""
     packet = SensorPacket(1, 7, 42, 4200, dummy_values(42))
-    batch = packet.to_message("week7-demo")
-    trace = dict(session_id="week7-demo", device_id=1, boot_id=7, seq=42)
+    batch = packet.to_message("ltc-comms")
+    trace = dict(session_id="ltc-comms", device_id=1, boot_id=7, seq=42)
     ack = dict(v=1, type="INGEST_ACK", **trace, status="accepted")
     result = dict(v=1, type="GESTURE_RESULT", **trace, result_id="1:7:42", gesture="OPEN", confidence=1.0)
     messages = dict(sensor_batch=batch, ingest_ack=ack, gesture_result=result,
-                    subscribe=dict(v=1, type="SUBSCRIBE", session_id="week7-demo"),
-                    subscribed=dict(v=1, type="SUBSCRIBED", session_id="week7-demo"))
+                    subscribe=dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"),
+                    subscribed=dict(v=1, type="SUBSCRIBED", session_id="ltc-comms"))
     frames = {}
     for name, message in messages.items():
         validate_message(message)
@@ -122,7 +122,7 @@ def _digest(path):
     return digest.hexdigest()
 
 
-def audit_logs(path, *, phone_results=None, minimum_count=100, session_id="week7-demo"):
+def audit_logs(path, *, phone_results=None, minimum_count=100, session_id="ltc-comms"):
     """Recompute identity correlation; a file cannot prove remote/Phone provenance."""
     if type(minimum_count) is not int or minimum_count < 1:
         raise ValueError("minimum count must be positive")
@@ -240,7 +240,7 @@ def main(argv=None):
     sender = sub.add_parser("sender", help="protected real BLE sender with packet/ACK display; no subscriber")
     sender.add_argument("--ca", required=True)
     sender.add_argument("--port", type=int, default=18888)
-    sender.add_argument("--session-id", default="week7-demo")
+    sender.add_argument("--session-id", default="ltc-comms")
     sender.add_argument("--address")
     sender.add_argument("--duration", type=float, default=60)
     sender.add_argument("--target", type=int, default=100)
@@ -248,7 +248,7 @@ def main(argv=None):
     audit.add_argument("log", type=Path)
     audit.add_argument("--phone-results", type=Path)
     audit.add_argument("--minimum-count", type=int, default=100)
-    audit.add_argument("--session-id", default="week7-demo")
+    audit.add_argument("--session-id", default="ltc-comms")
     args = parser.parse_args(argv)
     try:
         if args.command == "sender":

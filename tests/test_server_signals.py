@@ -65,9 +65,9 @@ class LinuxSignalTests(unittest.TestCase):
                     raw = socket.create_connection(("127.0.0.1", port), timeout=3)
                     connections.append(context.wrap_socket(raw, server_hostname=TLS_SERVER_NAME))
                 ingest, viewer = connections
-                viewer.sendall(encode_frame(dict(v=1, type="SUBSCRIBE", session_id="week7-demo")))
+                viewer.sendall(encode_frame(dict(v=1, type="SUBSCRIBE", session_id="ltc-comms")))
                 self.assertEqual(read_message(viewer)["type"], "SUBSCRIBED")
-                ingest.sendall(encode_frame(dict(v=1, type="SENSOR_BATCH", session_id="week7-demo",
+                ingest.sendall(encode_frame(dict(v=1, type="SENSOR_BATCH", session_id="ltc-comms",
                     device_id=1, boot_id=42, seq=0, uptime_ms=0,
                     values=[-1000 + 10 * index for index in range(8)])))
                 self.assertEqual(read_message(ingest)["status"], "accepted")
@@ -131,7 +131,7 @@ class SignalFallbackTests(unittest.IsolatedAsyncioTestCase):
                 self.closed = True
 
         service = Service()
-        args = SimpleNamespace(cert="unused", key="unused", session_id="week7-demo",
+        args = SimpleNamespace(cert="unused", key="unused", session_id="ltc-comms",
                                ingest_port=8888, gateway_port=9999)
         loop = asyncio.get_running_loop()
         output = io.StringIO()

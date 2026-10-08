@@ -24,8 +24,8 @@ inline bool serializePacket(uint8_t* output, size_t capacity, uint8_t deviceId,
                             const int16_t* values) {
   if (output == nullptr || values == nullptr || capacity < kPacketSize ||
       (deviceId != 1 && deviceId != 2)) return false;
-  output[0] = 'W';
-  output[1] = '7';
+  output[0] = 'L';
+  output[1] = 'C';
   output[2] = 1;
   output[3] = deviceId;
   writeUint32Le(output + 4, bootId);

@@ -13,14 +13,14 @@ from ultra96.server import ResultQueue, CommsServer
 
 
 def sensor(seq=0, request_id=None, device=1, boot=7):
-    return dict(v=2, type="SENSOR_BATCH", session_id="week7-demo", device_id=device,
+    return dict(v=2, type="SENSOR_BATCH", session_id="ltc-comms", device_id=device,
                 boot_id=boot, seq=seq, uptime_ms=42,
                 values=[-32768, 32767, 0, 1, -1, 100, 200, 300], request_id=request_id)
 
 
 def result(request_id=None):
     seq = 0 if request_id is None else request_id
-    return dict(v=2, type="GESTURE_RESULT", session_id="week7-demo", device_id=1,
+    return dict(v=2, type="GESTURE_RESULT", session_id="ltc-comms", device_id=1,
                 boot_id=7, seq=seq, result_id="1:7:0" if request_id is None else "cmd:1:7:" + str(seq),
                 gesture="POINT", confidence=1.0, request_id=request_id)
 
@@ -58,7 +58,7 @@ def test_v2_stream_and_command_validate_independently_of_sequence_gesture():
         assert validate_message(sensor(seq=request or 0, request_id=request))['request_id'] == request
         message = result(request)
         assert validate_message(message) == message
-        assert phone_result(message, "week7-demo") == message
+        assert phone_result(message, "ltc-comms") == message
 
 
 @pytest.mark.parametrize("change", [dict(request_id=True), dict(request_id=-1), dict(request_id=0),

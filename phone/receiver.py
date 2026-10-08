@@ -196,7 +196,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ca", required=True, type=Path, help="Verified B07 Communications public CA PEM")
     parser.add_argument("--port", type=int, default=19999, help="This Phone's localhost forward port")
-    parser.add_argument("--session", default="week7-demo")
+    parser.add_argument("--session", default="ltc-comms")
     parser.add_argument("--count", type=int, default=0, help="Stop after N unique results; 0 continues")
     parser.add_argument("--duration", type=float, help="Overall test duration in seconds")
     args = parser.parse_args(argv)

@@ -1,5 +1,7 @@
 # B07 CO 录像操作稿：实物拍摄 + 十分钟以内电脑录屏
 
+**标识更新（2026-10-08）：** 这份录像稿对应原部署，示例中的 `W7`/`W7S1` 与 `week7-demo` 均保留原样。用更新后的 `demo.py` 连接原 Ultra96 和已安装的手机应用时，先在执行 `run`/`live` 的 PowerShell 终端设置 `$env:LTC_COMMS_SESSION = 'week7-demo'`。新刷入的固件会发送 `LC`/`LCS1`；见[快速上手](communications-quickstart.md#source-and-deployment-identifiers)。
+
 **部署说明：** 本稿的固定路径、`demo.py service` 与默认 SSH/CA 配置对应原 B07 实体部署。其他电脑请先按[通信快速上手](communications-quickstart.md)设置自己的 `--jump`、`--target` 和公有 CA `--ca`。已部署手机应用显示 **Week 7 Connect**；本次交接只包含未来重建用的 `CommsNative` 源码，不含 Unity 导出的 Xcode 工程。
 
 **电脑录屏直接看下方“第二阶段 B”：只讲 8 节，目标 8–9 分钟，10 分钟以内；A 实拍另计。**
@@ -106,7 +108,7 @@ python flash.py
 | 第二块 → RIGHT | 拔第一块，用同一根线连接另一块、按 Enter；成功后贴 RIGHT / ID 2 | 第二块的地址、device 2 环境、upload 成功及 Board mapping saved |
 | 两次完成 | 拔掉右板；两块板各接独立电源 | 两板均不再连接 laptop USB |
 
-每个阶段重新检测串口：一个候选自动选择，多个时才选实际 COM。**两次可以是同一 COM 号**，脚本另读硬件身份；第二次仍是第一块板时，第二次上传会被拦截。两次都成功后，地址映射写入 `D:\LetThemCook\.week7-local\boards.json`，由采集和配对共用，无需手改 MAC。烧录中途失败/取消时重新完成 `python flash.py`，普通采集会拦截尚未完成的配置。
+每个阶段重新检测串口：一个候选自动选择，多个时才选实际 COM。**两次可以是同一 COM 号**，脚本另读硬件身份；第二次仍是第一块板时，第二次上传会被拦截。两次都成功后，更新后的脚本把地址映射写入 `D:\LetThemCook\.comms-local\boards.json`，由采集和配对共用，无需手改 MAC。烧录中途失败/取消时重新完成 `python flash.py`，普通采集会拦截尚未完成的配置。
 
 > This script regenerates the fixture table and builds both device profiles. The first board I program becomes the left hand with device ID one. I then connect a different board, which becomes the right hand with device ID two. The script identifies the hardware and saves both Bluetooth addresses for capture and pairing. I label each board after its upload succeeds.
 
@@ -129,7 +131,7 @@ python flash.py
 | 右板口令/认证 | 用 `--ports` 查看当前 COM，再在串口终端运行 `--monitor 实际COM`；终端 B 运行 `python flash.py --pair right` |
 | 结束 | 退出右板 monitor，拔右板 USB，右板也换独立电源 |
 
-先完成两次烧录；配对按 `.week7-local/boards.json` 中本次保存的左右地址进行。新板需要首次配对，已有认证绑定可复用。成功应显示 `authenticated_bond: true`。不录 `PAIR LOCALLY`、不保存串口日志；若先运行配对才发现未开 monitor，Ctrl+C 取消后按上表重试，不猜口令。无参数的 `--pair` 会检查两板，一根烧录 USB 线的首次流程使用上面的显式 left/right，避免等待另一块尚未读取的口令。
+先完成两次烧录；配对按 `.comms-local/boards.json` 中本次保存的左右地址进行；若还没写入新映射，更新后的脚本会读取旧 `.week7-local/boards.json`。新板需要首次配对，已有认证绑定可复用。成功应显示 `authenticated_bond: true`。不录 `PAIR LOCALLY`、不保存串口日志；若先运行配对才发现未开 monitor，Ctrl+C 取消后按上表重试，不猜口令。无参数的 `--pair` 会检查两板，一根烧录 USB 线的首次流程使用上面的显式 left/right，避免等待另一块尚未读取的口令。
 
 **A1.5 拍清两板均已独立供电。** 最后一块板烧录/必要配对后，摄影手机拍到它从 laptop USB 拔下并换独立电源；同时拍清另一块已独立供电。沿电源线拍到两个电源，laptop 的 USB 口不再连接任何 FireBeetle。此时不再运行额外配对或串口命令；A4 启动时的认证连接日志是正常检查证据。
 
@@ -213,7 +215,7 @@ progress mode=physical phase=observation device=2 received=100 processed=100 ack
 | [N1] / [N2] | 报告 Device 1 / 2 的 Generated | 每台 Generated = Received = ACKed；MissingBLE / MissingACK 均 0 |
 | 手机预期增量 | `Phone expected increase` | Video 未开 keyboard，预期为 N1 + N2；这是计算值 |
 | 手机实际接收 | 同次录像的开始、增长及结束画面 | Received 真实增长，出现两个设备的结果；可读时与预期增量比较 |
-| [CAPTURE] | 本次 `Saved in` 完整目录 | 默认 `D:\LetThemCook\.week7-local\B07-...`，保留该次全部文件 |
+| [CAPTURE] | 本次 `Saved in` 完整目录 | 更新后的默认路径为 `D:\LetThemCook\.comms-local\B07-...`，保留该次全部文件 |
 | 采集摘要 | 同一份报告 | `Exit=0 clean=True mock_input=False report_saved=True`，且 `CAPTURE PASSED` |
 
 运行中收到数与 ACK 数暂时不同可以正常；最终排空后再比较。手机画面不清楚或增量不符时，不能宣称手机计数一致。程序不读取 iPhone 屏幕，也不生成手机逐条收据或自动手机通过结论。

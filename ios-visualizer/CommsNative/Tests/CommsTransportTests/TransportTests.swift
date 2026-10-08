@@ -14,7 +14,7 @@ final class TransportTests: XCTestCase {
     func testTwoHopSSHThenVerifiedTLSDeliversResult() throws {
         let peers = try LocalPeers(pki: Self.pki)
         let got = expectation(description: "validated result")
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: {
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: {
             XCTAssertEqual($0.resultID, "1:7:42"); XCTAssertEqual($0.gesture, "OPEN"); got.fulfill()
         })
         client.start(); wait(for: [got], timeout: 4); client.stop()
@@ -25,7 +25,7 @@ final class TransportTests: XCTestCase {
     func testDirectSSHRouteAlsoDeliversResult() throws {
         let peers = try LocalPeers(pki: Self.pki)
         let got = expectation(description: "direct result")
-        let client = CommsClient(route: peers.route(twoHop: false), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
+        let client = CommsClient(route: peers.route(twoHop: false), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
         client.start(); wait(for: [got], timeout: 4); client.stop()
         XCTAssertEqual(peers.subscriptionCount, 1)
     }
@@ -36,7 +36,7 @@ final class TransportTests: XCTestCase {
         let route = SSHRoute(boardHost: "dual-stack.fixture", boardUser: normal.boardUser, boardPassword: normal.boardPassword, boardHostKey: normal.boardHostKey, caPEM: normal.caPEM)
         var options = peers.options; options.resolver = DualStackResolver(loop: peers.group.next())
         let got = expectation(description: "IPv4 fallback result")
-        let client = CommsClient(route: route, session: "week7-demo", options: options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
+        let client = CommsClient(route: route, session: "ltc-comms", options: options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
         client.start(); wait(for: [got], timeout: 4); client.stop()
         XCTAssertEqual(peers.subscriptionCount, 1)
     }
@@ -79,7 +79,7 @@ final class TransportTests: XCTestCase {
         let accepted = expectation(description: "SSH root accepted")
         let peers = try LocalPeers(pki: Self.pki, stallSSH: true, onSSHConnection: { accepted.fulfill() })
         let retired = expectation(description: "retired result"); retired.isInverted = true
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: { _ in retired.fulfill() })
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: { _ in retired.fulfill() })
         client.start(); wait(for: [accepted], timeout: 3); client.stop()
         wait(for: [retired], timeout: 0.5)
         XCTAssertEqual(peers.connections.activeCount, 0)
@@ -116,7 +116,7 @@ final class TransportTests: XCTestCase {
             let rejected = expectation(description: "identified terminal rejection")
             let repeated = expectation(description: "credentials retried"); repeated.isInverted = true; repeated.assertForOverFulfill = false
             let lock = NSLock(); var rejectedOnce = false
-            let client = CommsClient(route: route, session: "week7-demo", options: peers.options, onStatus: { status in
+            let client = CommsClient(route: route, session: "ltc-comms", options: peers.options, onStatus: { status in
                 lock.lock(); defer { lock.unlock() }
                 if rejectedOnce { repeated.fulfill() }
                 else if status.hasPrefix("Disconnected") {
@@ -137,7 +137,7 @@ final class TransportTests: XCTestCase {
             let rejected = expectation(description: "terminal rejection")
             let repeated = expectation(description: "credentials retried"); repeated.isInverted = true; repeated.assertForOverFulfill = false
             let lock = NSLock(); var rejectedOnce = false
-            let client = CommsClient(route: route, session: "week7-demo", options: peers.options, onStatus: { status in
+            let client = CommsClient(route: route, session: "ltc-comms", options: peers.options, onStatus: { status in
                 lock.lock(); defer { lock.unlock() }
                 if rejectedOnce { repeated.fulfill() }
                 else if status.hasPrefix("Disconnected") { rejectedOnce = true; rejected.fulfill() }
@@ -152,7 +152,7 @@ final class TransportTests: XCTestCase {
         let channel = EmbeddedChannel(loop: loop)
         var failures = 0
         var results: [String] = []
-        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { results.append($0.resultID) }, onFailure: { _ in failures += 1 })
+        let handler = Subscriber(session: "ltc-comms", options: TransportOptions(), onSubscribed: {}, onResult: { results.append($0.resultID) }, onFailure: { _ in failures += 1 })
         try channel.pipeline.syncOperations.addHandler(handler)
         channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
         var ack = channel.allocator.buffer(capacity: 100)
@@ -178,7 +178,7 @@ final class TransportTests: XCTestCase {
         let loop = EmbeddedEventLoop()
         let channel = EmbeddedChannel(loop: loop)
         var failures = 0
-        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
+        let handler = Subscriber(session: "ltc-comms", options: TransportOptions(), onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
         try channel.pipeline.syncOperations.addHandler(handler)
         channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
         var ack = channel.allocator.buffer(capacity: 100)
@@ -203,7 +203,7 @@ final class TransportTests: XCTestCase {
         let channel = EmbeddedChannel(loop: loop)
         var failures = 0
         var results = 0
-        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { _ in results += 1 }, onFailure: { _ in failures += 1 })
+        let handler = Subscriber(session: "ltc-comms", options: TransportOptions(), onSubscribed: {}, onResult: { _ in results += 1 }, onFailure: { _ in failures += 1 })
         try channel.pipeline.syncOperations.addHandler(handler)
         channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
         var ack = channel.allocator.buffer(capacity: 100)
@@ -233,7 +233,7 @@ final class TransportTests: XCTestCase {
         let loop = EmbeddedEventLoop()
         let channel = EmbeddedChannel(loop: loop)
         var failures = 0
-        let handler = Subscriber(session: "week7-demo", options: TransportOptions(), onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
+        let handler = Subscriber(session: "ltc-comms", options: TransportOptions(), onSubscribed: {}, onResult: { _ in }, onFailure: { _ in failures += 1 })
         try channel.pipeline.syncOperations.addHandler(handler)
         channel.pipeline.fireUserInboundEventTriggered(TLSUserEvent.handshakeCompleted(negotiatedProtocol: nil))
         loop.advanceTime(by: .seconds(5))
@@ -268,7 +268,7 @@ final class TransportTests: XCTestCase {
             let peers = try LocalPeers(pki: Self.pki, behavior: behavior)
             let failed = expectation(description: "partial frame expires")
             let got = expectation(description: "no partial result"); got.isInverted = true
-            let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { status in
+            let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { status in
                 if status.contains("frame deadline") { failed.fulfill() }
             }, onResult: { _ in got.fulfill() })
             client.start(); wait(for: [failed], timeout: 3); client.stop()
@@ -282,7 +282,7 @@ final class TransportTests: XCTestCase {
         let unexpectedReconnect = expectation(description: "idle reconnect"); unexpectedReconnect.isInverted = true
         let recovered = expectation(description: "subscription after transport loss")
         let lock = NSLock(); var count = 0; var transportFailed = false
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { status in
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { status in
             guard status == "Subscribed" else { return }
             lock.lock(); count += 1; let current = count; let failed = transportFailed; lock.unlock()
             if current == 1 { subscribed.fulfill() }
@@ -301,7 +301,7 @@ final class TransportTests: XCTestCase {
     func testConnectionRecoveryResubscribesExactlyOncePerConnection() throws {
         let peers = try LocalPeers(pki: Self.pki, behavior: .closeFirst)
         let got = expectation(description: "result after reconnect")
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
         client.start(); wait(for: [got], timeout: 4); client.stop()
         XCTAssertEqual(peers.subscriptionCount, 2)
         XCTAssertEqual(peers.invalidSubscriptions, 0)
@@ -310,7 +310,7 @@ final class TransportTests: XCTestCase {
     func testTemporaryDirectForwardFailureReconnects() throws {
         let peers = try LocalPeers(pki: Self.pki, rejectFirstForward: true)
         let got = expectation(description: "result after direct forwarding recovers")
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: { _ in got.fulfill() })
         client.start(); wait(for: [got], timeout: 4); client.stop()
         XCTAssertEqual(peers.subscriptionCount, 1)
     }
@@ -319,7 +319,7 @@ final class TransportTests: XCTestCase {
         let peers = try LocalPeers(pki: Self.pki)
         let got = expectation(description: "result before and after root loss"); got.expectedFulfillmentCount = 2
         let lock = NSLock(); var count = 0
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: { _ in
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: { _ in
             lock.lock(); count += 1; let first = count == 1; lock.unlock()
             got.fulfill()
             if first { peers.closeConnections() }
@@ -333,7 +333,7 @@ final class TransportTests: XCTestCase {
         let got = expectation(description: "result")
         let retired = expectation(description: "retired callback"); retired.isInverted = true
         let lock = NSLock(); var stopped = false
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in
             lock.lock(); defer { lock.unlock() }; if stopped { retired.fulfill() }
         }, onResult: { _ in
             lock.lock(); defer { lock.unlock() }; if stopped { retired.fulfill() } else { got.fulfill() }
@@ -348,7 +348,7 @@ final class TransportTests: XCTestCase {
     func testImmediateStopPreventsConnectionAndFutureCallbacks() throws {
         let peers = try LocalPeers(pki: Self.pki)
         let retired = expectation(description: "retired result"); retired.isInverted = true
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: peers.options, onStatus: { _ in }, onResult: { _ in retired.fulfill() })
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: peers.options, onStatus: { _ in }, onResult: { _ in retired.fulfill() })
         client.start(); client.stop()
         wait(for: [retired], timeout: 0.5)
         XCTAssertEqual(peers.connections.activeCount, 0)
@@ -358,7 +358,7 @@ final class TransportTests: XCTestCase {
     private func assertRejected(_ peers: LocalPeers, route: SSHRoute) throws {
         let failure = expectation(description: "connection rejected")
         let got = expectation(description: "untrusted result"); got.isInverted = true
-        let client = CommsClient(route: route, session: "week7-demo", options: peers.options, onStatus: { status in
+        let client = CommsClient(route: route, session: "ltc-comms", options: peers.options, onStatus: { status in
             if status.hasPrefix("Disconnected") { failure.fulfill() }
         }, onResult: { _ in got.fulfill() })
         client.start(); wait(for: [failure], timeout: 4); client.stop()

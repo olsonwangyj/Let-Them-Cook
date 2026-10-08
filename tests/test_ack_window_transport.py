@@ -134,12 +134,12 @@ async def _subscribe(pki, server: CommsServer):
         server_hostname=TLS_SERVER_NAME,
     )
     await write_frame(
-        writer, {"v": 1, "type": "SUBSCRIBE", "session_id": "week7-demo"}
+        writer, {"v": 1, "type": "SUBSCRIBE", "session_id": "ltc-comms"}
     )
     assert await read_frame(reader) == {
         "v": 1,
         "type": "SUBSCRIBED",
-        "session_id": "week7-demo",
+        "session_id": "ltc-comms",
     }
     return reader, writer
 

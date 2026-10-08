@@ -65,7 +65,7 @@ class AcceptRecoveryTests(unittest.IsolatedAsyncioTestCase):
             async def close(self):
                 self.closed = True
         service = Service()
-        args = SimpleNamespace(cert="unused", key="unused", session_id="week7-demo", ingest_port=8888, gateway_port=9999)
+        args = SimpleNamespace(cert="unused", key="unused", session_id="ltc-comms", ingest_port=8888, gateway_port=9999)
         with patch("ultra96.server.CommsServer", return_value=service), patch("ultra96.server.server_context", return_value=context()), contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(RuntimeError, "listener failed"):
                 await asyncio.wait_for(_run(args), 0.1)

@@ -5,8 +5,8 @@ import XCTest
 final class DisplayStateTests: XCTestCase {
     private func result(seq: UInt32 = 42, boot: UInt32 = 7) throws -> GestureResult {
         let gestures = ["REST", "FIST", "OPEN", "POINT"]
-        let body = "{\"v\":1,\"type\":\"GESTURE_RESULT\",\"session_id\":\"week7-demo\",\"device_id\":1,\"boot_id\":\(boot),\"seq\":\(seq),\"result_id\":\"1:\(boot):\(seq)\",\"gesture\":\"\(gestures[Int(seq % 4)])\",\"confidence\":1}"
-        return try CommsProtocol.result(Array(body.utf8), session: "week7-demo")
+        let body = "{\"v\":1,\"type\":\"GESTURE_RESULT\",\"session_id\":\"ltc-comms\",\"device_id\":1,\"boot_id\":\(boot),\"seq\":\(seq),\"result_id\":\"1:\(boot):\(seq)\",\"gesture\":\"\(gestures[Int(seq % 4)])\",\"confidence\":1}"
+        return try CommsProtocol.result(Array(body.utf8), session: "ltc-comms")
     }
 
     func testOnlyNewestResultIsDisplayedAndExpiresAtTwoSeconds() throws {

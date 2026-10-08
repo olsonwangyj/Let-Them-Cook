@@ -40,7 +40,7 @@ final class PythonBoardTests: XCTestCase {
         received.expectedFulfillmentCount = 100
         received.assertForOverFulfill = true
         let results = LockedResults()
-        let client = CommsClient(route: peers.route(), session: "week7-demo", options: options, onStatus: { status in
+        let client = CommsClient(route: peers.route(), session: "ltc-comms", options: options, onStatus: { status in
             if status == "Subscribed" { subscribed.fulfill() }
             else if status.hasPrefix("Disconnected") { XCTFail("Python/native session failed: \(status)") }
         }, onResult: { result in
@@ -103,11 +103,11 @@ final class PythonBoardTests: XCTestCase {
             server_hostname=TLS_SERVER_NAME, ssl_handshake_timeout=5.0), 5.0)
         try:
             for seq in range(100):
-                await write_frame(writer, dict(v=1, type="SENSOR_BATCH", session_id="week7-demo",
+                await write_frame(writer, dict(v=1, type="SENSOR_BATCH", session_id="ltc-comms",
                     device_id=1, boot_id=7, seq=seq, uptime_ms=seq * 100,
                     values=list(dummy_values(seq))))
                 ack = await read_frame(reader)
-                assert ack == dict(v=1, type="INGEST_ACK", session_id="week7-demo",
+                assert ack == dict(v=1, type="INGEST_ACK", session_id="ltc-comms",
                     device_id=1, boot_id=7, seq=seq, status="accepted"), "unexpected ingestion ACK"
                 await asyncio.sleep(0.02)
         finally:

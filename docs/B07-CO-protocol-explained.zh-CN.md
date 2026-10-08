@@ -1,8 +1,10 @@
 # B07 Communications：三个 Live 协议项目的零基础讲解
 
+**标识更新（2026-10-08）：** 本稿的 `W7`、`W7S1` 和 `week7-demo` 是原实体部署的字节及会话示例。新源码固件发送 `LC`、`LCS1`，服务与客户端默认 `ltc-comms`；包长度与字段布局不变，Laptop 同时接受旧标记。原 Ultra96 服务及已安装 iPhone 仍需 `week7-demo`，运行更新后的 Laptop 程序前请设 `$env:LTC_COMMS_SESSION = 'week7-demo'`。参见[快速上手](communications-quickstart.md#source-and-deployment-identifiers)。
+
 **环境说明：** 下文使用 `D:\LetThemCook` 的命令是原演示电脑示例；其他电脑请先按[通信快速上手](communications-quickstart.md)切换到实际仓库根目录，并设置自己的 SSH 身份和公有 CA 路径。
 
-本稿按老师要求的三项排列：**1. Laptop ↔ Ultra96；2. Ultra96 ↔ iPhone Visualizer；3. FireBeetle 的设备 ID、包类型和包格式。**内容依据本次打包前的当前源码核对。下面的消息与字节示例是教学示例，已经用当前 Python 编解码器和消息校验器验证，不是假装现场采集到的日志。
+本稿按老师要求的三项排列：**1. Laptop ↔ Ultra96；2. Ultra96 ↔ iPhone Visualizer；3. FireBeetle 的设备 ID、包类型和包格式。**内容依据原实体部署时的源码核对。下面的消息与字节示例是原版本验证过的教学示例，不是假装现场采集到的日志；新源码使用的标记与会话见上方更新说明。
 
 配合使用：[中文 Live 全稿](B07-CO-live-demo-guide.zh-CN.md)、[英文 Live 全稿](B07-CO-live-demo-guide.en.md)。代码链接采用相对路径，项目整体移动后仍能找到文件；`#L数字` 表示关键行号，若当前 Markdown 查看器没有自动定位，打开文件后按编辑器的“转到行”输入数字。
 
@@ -181,9 +183,9 @@ Laptop 不能随便收到一个 ACK 就加一。它会逐项比较 `v`、`sessio
 
    ```powershell
    $demoCa = Join-Path $HOME '.codex\private\cg4002-week7-20260906\ca-cert.pem'
-   $dummyDir = Join-Path (Get-Location) ('.week7-local\dummy-' + [guid]::NewGuid().ToString('N'))
+   $dummyDir = Join-Path (Get-Location) ('.comms-local\dummy-' + [guid]::NewGuid().ToString('N'))
    New-Item -ItemType Directory -Path $dummyDir | Out-Null
-   python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --duration 20 --expected-rate 10 --progress-interval 1 --report (Join-Path $dummyDir 'report.json') --evidence (Join-Path $dummyDir 'packets.jsonl')
+   python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --session-id week7-demo --duration 20 --expected-rate 10 --progress-interval 1 --report (Join-Path $dummyDir 'report.json') --evidence (Join-Path $dummyDir 'packets.jsonl')
    $dummyExit = $LASTEXITCODE
    $dummyReport = Get-Content -Raw -LiteralPath (Join-Path $dummyDir 'report.json') | ConvertFrom-Json
    $dummyExit
@@ -330,7 +332,7 @@ Ultra96 回复：
 | `boot_id` | uint32 | 这是这块板哪次启动？ | 固件启动时随机生成，重启通常改变；不是数学保证永不碰撞的全球唯一 ID |
 | `seq` | uint32 | 当前启动、当前自动流的第几条样本？ | 自动产生新样本时前进；两块板独立 |
 | `request_id` | 非零 uint32 | 哪次控制命令/事务？ | Laptop 分配；普通自动网络消息该字段为 null |
-| `session_id` | 字符串 | 当前服务配置的哪个逻辑演示会话？ | 配置改变时变化；默认 week7-demo，不是每轮 run 自动随机生成 |
+| `session_id` | 字符串 | 当前服务配置的哪个逻辑演示会话？ | 原部署为 `week7-demo`；新源码默认 `ltc-comms`；不是每轮 run 自动随机生成 |
 | `result_id` | 字符串组合 | 手机这条结果对应哪个输入？ | 从输入身份生成，不是另抽一个随机数 |
 
 LEFT 编译环境设置 `COMMS_DEVICE_ID=1`，RIGHT 设置为 2。Laptop 根据地址连上板后，还检查数据包内的 `device_id`，不能只靠同名的 BLE 广播名称区分。

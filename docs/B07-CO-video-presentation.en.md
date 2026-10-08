@@ -1,5 +1,7 @@
 # B07 — Communication Subsystem
 
+**Identifier update (8 October 2026):** These slides illustrate the original deployment's `W7`/`W7S1` packet markers and `week7-demo` session. Firmware built from the updated source emits `LC`/`LCS1`, and new server/client source defaults to `ltc-comms`; packet sizes and field offsets stay the same. For the installed server and iPhone, set `$env:LTC_COMMS_SESSION = 'week7-demo'` before updated laptop `run`/`live` commands. See the [identifier table](communications-quickstart.md#source-and-deployment-identifiers).
+
 [01 Architecture + IDs](#b1) · [02 Packets](#b2) · [03 BLE](#b3) · [04 Laptop–Ultra96](#b4) · [05 Visualizer](#b5) · [06 Encryption](#b6) · [07 Laptop concurrency](#b7) · [08 Ultra96 concurrency](#b8)
 
 <a id="b1"></a>

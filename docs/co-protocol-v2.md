@@ -4,11 +4,13 @@ This describes the software extension to the existing transport. Historical test
 
 ## Sensor data and random events
 
-The BLE sensor value remains 32 bytes: `W7`, version, device ID, little-endian boot ID, sequence, uptime milliseconds and eight signed int16 channels. Version 1 preserves the deterministic Week 7 formula. Version 2 accepts all schema-valid channel values and chooses random fixtures from `common/dummy_fixtures.json`.
+The BLE sensor value remains 32 bytes: new ASCII magic `LC` (`4C 43`), version, device ID, little-endian boot ID, sequence, uptime milliseconds and eight signed int16 channels. Updated decoders also accept legacy `W7` (`57 37`) from existing boards. The source-statistics characteristic remains 24 bytes with new magic `LCS1`; updated laptop readers also accept legacy `W7S1`. The byte offsets, packet sizes and versions do not change. Version 1 preserves the deterministic legacy formula. Version 2 accepts all schema-valid channel values and chooses random fixtures from `common/dummy_fixtures.json`.
 
 After editing the JSON, run `python -m tools.generate_dummy_fixtures` and rebuild firmware. Python reloads fixtures when its process starts. Firmware uses ESP randomness normally; compile with `COMMS_FIXTURE_SEED` for reproducible fixture selection. `--seed` controls laptop/mock fixture selection, not firmware randomness. `COMMS_LEGACY_DUMMY=1` selects the old sensor stream; `COMMS_INITIAL_RATE_HZ` sets initial firmware rate (default 10).
 
 Version 2 `SENSOR_BATCH`, `INGEST_ACK` and `GESTURE_RESULT` retain existing fields and require `request_id`. It is JSON null for a sensor stream or a nonzero uint32 for a command. A command has `seq == request_id`. Stream result IDs remain `device:boot:seq`; command result IDs are `cmd:device:boot:request_id`. Subscription envelopes remain version 1. Updated receivers accept both result versions, and reject unknown/duplicate fields or unsupported versions.
+
+New source defaults to the `ltc-comms` session ID. The original deployed Ultra96 service and installed iPhone use `week7-demo`; all three network participants must use the same session. Use `LTC_COMMS_SESSION=week7-demo` or `demo.py run/live --session-id week7-demo` on the updated laptop launcher when operating the original deployment. A newly deployed server and rebuilt phone source can use `ltc-comms` together.
 
 Ultra96 selects a random label from REST, FIST, OPEN and POINT for each accepted v2 input. Confidence remains 1.0; these are simulated events. Legacy v1 events retain their deterministic label. Exact v2 retries do not generate another event. Conflicting identities reject. Sensor replay protection retains namespace high-water marks and 4096 recent fingerprints; stale identities outside that window reject. The server keeps at most 128 sensor boot namespaces and 4096 command identities without evicting replay protection. A new configured session/server is required when capacity is exhausted. This state is in memory, so replay protection across server restart requires a fresh session ID.
 
@@ -29,7 +31,7 @@ Every control message begins with the 14-byte little-endian header `<2sBBBBII>`:
 
 A response sets bit 7 of the opcode. Controls require negotiated ATT MTU >=64. Payloads are at most `min(180, MTU - 3 - 14)` bytes. Each BLE write carries exactly one control message; TCP framing does not apply here.
 
-Command payloads contain a complete v2 sensor packet addressed to the current boot. ESP increments every channel by one, with 32767 wrapping to -32768, and replaces uptime with its current clock. The sensor stream keeps its own sequence and accounting. Laptop stores original/expected values, verifies the response, and forwards it over a separately owned TLS transaction. Firmware caches eight command responses per connection and rejects older evicted requests; IDs increase during that connection. Disconnect clears local control state. The board's command ledger prevents a repeated command identity from causing another event.
+Command payloads contain a complete v2 sensor packet addressed to the current boot. The updated laptop selects `LC` or legacy `W7` from each board's validated source-statistics record and subsequent sensor packets; the updated firmware accepts either marker and echoes it in the response. This keeps commands working with original deployed boards. ESP increments every channel by one, with 32767 wrapping to -32768, and replaces uptime with its current clock. The sensor stream keeps its own sequence and accounting. Laptop stores original/expected values, verifies the response, and forwards it over a separately owned TLS transaction. Firmware caches eight command responses per connection and rejects older evicted requests; IDs increase during that connection. Disconnect clears local control state. The board's command ledger prevents a repeated command identity from causing another event.
 
 One control transaction is active per device. Keyboard keys `1` and `2` submit a random packet to the corresponding device without Enter. Each device has a bounded queue of eight waiting commands. Overload/disconnect rejects explicitly. Accepted commands finish or are recorded as failed; timeout is not retried automatically. Board ACK is ingestion evidence, and does not prove phone receipt.
 
@@ -45,7 +47,7 @@ The client retries an identical chunk up to twice after a timeout. Failure abort
 
 ## Running the updated software
 
-Examples from the repository, after installing matching firmware/server/receiver versions. For a teammate machine, add `--ca` with the verified public CA as shown in the [communications quickstart](communications-quickstart.md); these short forms use the original operator default:
+Examples from the repository, after installing matching firmware/server/receiver versions. For a teammate machine, add `--ca` with the verified public CA as shown in the [communications quickstart](communications-quickstart.md); these short forms use the original operator's CA path and the new `ltc-comms` session default:
 
 ```powershell
 python demo.py run --duration 90 --keyboard

@@ -363,7 +363,7 @@ namespace LetThemCook.Comms
         private TcpClient active;
         private readonly TimeSpan timeout = TimeSpan.FromSeconds(5);
         public volatile string LastStatus = "Stopped";
-        public PhoneReceiver(byte[] authorityDer, FreshResultQueue results, string session = "week7-demo", int port = 19999)
+        public PhoneReceiver(byte[] authorityDer, FreshResultQueue results, string session = "ltc-comms", int port = 19999)
         {
             if (port < 1 || port > 65535) throw new ArgumentOutOfRangeException("port");
             PhoneProtocol.Subscribe(session); // Validate configuration before opening a socket.

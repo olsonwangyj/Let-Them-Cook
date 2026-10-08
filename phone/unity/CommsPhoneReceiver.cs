@@ -13,7 +13,7 @@ namespace LetThemCook.Comms
         [Serializable] public sealed class ResultEvent : UnityEvent<string> { }
         [SerializeField] private TextAsset authorityDer;
         [SerializeField] private int localForwardPort = 19999;
-        [SerializeField] private string sessionId = "week7-demo";
+        [SerializeField] private string sessionId = "ltc-comms";
         [SerializeField] private bool showOverlay = true;
         [SerializeField] private ResultEvent onResultJson = new ResultEvent();
 

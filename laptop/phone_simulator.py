@@ -10,7 +10,7 @@ from common.wire import STREAM_LIMIT, read_frame, write_frame
 from ultra96.protocol import validate_message, validate_session
 
 
-async def receive_results(host, port, ca_file, session_id="week7-demo", count=0,
+async def receive_results(host, port, ca_file, session_id="ltc-comms", count=0,
                           on_result=None, timeout=5.0):
     """Receive one TLS subscription; return count, or raise for invalid peers/frames."""
     validate_session(session_id)
@@ -71,7 +71,7 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=19999)
     parser.add_argument("--ca", required=True)
-    parser.add_argument("--session-id", default="week7-demo")
+    parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--count", type=int, default=0, help="0 receives until interrupted")
     parser.add_argument("--reconnect", action="store_true", help="resubscribe after transport failures")
     args = parser.parse_args()

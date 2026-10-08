@@ -16,7 +16,7 @@ from laptop.bridge import BridgeConfig
 def test_packet_example_matches_literal_bytes_and_real_protocol():
     example = packet_example()
     assert example["kind"] == "illustrative example; not captured hardware evidence"
-    assert example["ble_hex"] == "57370101070000002a0000006810000042fc4cfc56fc60fc6afc74fc7efc88fc"
+    assert example["ble_hex"] == "4c430101070000002a0000006810000042fc4cfc56fc60fc6afc74fc7efc88fc"
     assert example["ble_bytes"] == 32
     assert example["sensor_batch"]["values"] == [-958, -948, -938, -928, -918, -908, -898, -888]
     assert example["gesture_result"]["result_id"] == "1:7:42"
@@ -27,10 +27,10 @@ def test_packet_example_matches_literal_bytes_and_real_protocol():
 
 def records():
     return [
-        {"event": "subscribed", "session_id": "week7-demo"},
-        {"event": "result", "session_id": "week7-demo", "result_id": "1:7:42", "gesture": "OPEN", "confidence": 1.0},
-        {"event": "ack", "session_id": "week7-demo", "result_id": "1:7:42", "status": "accepted"},
-        {"event": "summary", "session_id": "week7-demo", "passed": True, "source": "real BLE", "bridge": {"acked": 1}},
+        {"event": "subscribed", "session_id": "ltc-comms"},
+        {"event": "result", "session_id": "ltc-comms", "result_id": "1:7:42", "gesture": "OPEN", "confidence": 1.0},
+        {"event": "ack", "session_id": "ltc-comms", "result_id": "1:7:42", "status": "accepted"},
+        {"event": "summary", "session_id": "ltc-comms", "passed": True, "source": "real BLE", "bridge": {"acked": 1}},
     ]
 
 
@@ -102,7 +102,7 @@ def test_invalid_evidence_is_rejected(tmp_path, change):
 def test_raw_phone_results_match_sender_ack_without_desktop_subscriber(tmp_path):
     rows = records()
     rows.pop(1)
-    phone_result = dict(v=1, type="GESTURE_RESULT", session_id="week7-demo", device_id=1,
+    phone_result = dict(v=1, type="GESTURE_RESULT", session_id="ltc-comms", device_id=1,
                         boot_id=7, seq=42, result_id="1:7:42", gesture="OPEN", confidence=1.0)
     phone = save(tmp_path, [phone_result], "phone.jsonl")
     result = audit_logs(save(tmp_path, rows), phone_results=phone, minimum_count=1)
@@ -114,7 +114,7 @@ def test_raw_phone_results_match_sender_ack_without_desktop_subscriber(tmp_path)
 
 def test_recorded_reconnect_is_retained_as_failed_fault_not_invalid_log(tmp_path):
     rows = records()
-    rows.insert(1, dict(event="subscriber_reconnect", session_id="week7-demo",
+    rows.insert(1, dict(event="subscriber_reconnect", session_id="ltc-comms",
                         error_type="ConnectionResetError", delay_seconds=.5))
     result = audit_logs(save(tmp_path, rows), minimum_count=1)
     assert result["matched"] == 1
@@ -127,7 +127,7 @@ def test_sender_timing_exposes_stall_and_trailing_silence():
         now = [100.0]
         bridge = DemoBridge(BridgeConfig(ca_file="unused.pem"), lambda e: None, clock=lambda: now[0])
         packet = SensorPacket(1, 7, 42, 4200, dummy_values(42))
-        ack = dict(v=1, type="INGEST_ACK", session_id="week7-demo", device_id=1, boot_id=7, seq=42, status="accepted")
+        ack = dict(v=1, type="INGEST_ACK", session_id="ltc-comms", device_id=1, boot_id=7, seq=42, status="accepted")
         now[0] = 103.0
         bridge._check_ack(ack, packet)
         now[0] = 109.0
@@ -156,7 +156,7 @@ def test_sender_observes_actual_tls_ack_and_does_not_create_a_subscriber(tmp_pat
         try:
             reader, writer = await asyncio.open_connection("127.0.0.1", server.gateway_port,
                 ssl=client_context(pki / "ca-cert.pem"), server_hostname="ultra96.week7.internal")
-            await write_frame(writer, dict(v=1, type="SUBSCRIBE", session_id="week7-demo"))
+            await write_frame(writer, dict(v=1, type="SUBSCRIBE", session_id="ltc-comms"))
             assert (await read_frame(reader))["type"] == "SUBSCRIBED"
             packet = SensorPacket(1, 7, 42, 4200, dummy_values(42))
             bridge.inbox.activate(1)
@@ -169,7 +169,7 @@ def test_sender_observes_actual_tls_ack_and_does_not_create_a_subscriber(tmp_pat
             assert bridge.metrics.acked == 1
             before = len(events)
             with pytest.raises(ProtocolError):
-                bridge._check_ack(dict(v=1, type="INGEST_ACK", session_id="week7-demo",
+                bridge._check_ack(dict(v=1, type="INGEST_ACK", session_id="ltc-comms",
                     device_id=1, boot_id=8, seq=42, status="accepted"), packet)
             assert len(events) == before
         finally:

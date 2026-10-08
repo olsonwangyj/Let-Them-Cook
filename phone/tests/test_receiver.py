@@ -14,7 +14,7 @@ from phone.receiver import ProtocolError, encode_frame, read_frame, receive, tls
 
 
 def result():
-    return dict(v=1, type="GESTURE_RESULT", session_id="week7-demo", device_id=1,
+    return dict(v=1, type="GESTURE_RESULT", session_id="ltc-comms", device_id=1,
                 boot_id=4294967295, seq=3, result_id="1:4294967295:3", gesture="POINT", confidence=1.0)
 
 
@@ -24,15 +24,15 @@ class ContractTests(unittest.IsolatedAsyncioTestCase):
         for invalid in ["", "a" * 129, "line\nbreak", "\ud800"]:
             with self.assertRaises(ProtocolError):
                 validate_session(invalid)
-        self.assertEqual(validate_result(result(), "week7-demo"), result())
-        validate_subscribed(dict(v=1, type="SUBSCRIBED", session_id="week7-demo"), "week7-demo")
+        self.assertEqual(validate_result(result(), "ltc-comms"), result())
+        validate_subscribed(dict(v=1, type="SUBSCRIBED", session_id="ltc-comms"), "ltc-comms")
         for field, value in [("v", True), ("seq", -1), ("boot_id", 2**32),
                              ("confidence", float("nan")), ("confidence", True),
                              ("gesture", "FIST"), ("result_id", "1:2:3"),
                              ("session_id", "elsewhere"), ("extra", 1)]:
             item = result(); item[field] = value
             with self.subTest(field=field), self.assertRaises(ProtocolError):
-                validate_result(item, "week7-demo")
+                validate_result(item, "ltc-comms")
 
     async def test_split_and_coalesced_frames(self):
         stream = asyncio.StreamReader()
@@ -112,9 +112,9 @@ class ContractTests(unittest.IsolatedAsyncioTestCase):
 class ReceiverCloseTests(unittest.IsolatedAsyncioTestCase):
     async def receiver_with_writer(self, writer):
         stream = asyncio.StreamReader()
-        stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="week7-demo")))
+        stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="ltc-comms")))
         stream.feed_data(encode_frame(result()))
-        args = SimpleNamespace(ca="unused", port=19999, session="week7-demo", count=1, duration=None)
+        args = SimpleNamespace(ca="unused", port=19999, session="ltc-comms", count=1, duration=None)
         with patch("phone.receiver.tls_context", return_value=object()), \
              patch("phone.receiver.asyncio.open_connection", AsyncMock(return_value=(stream, writer))), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -176,7 +176,7 @@ class ReceiverStartupTests(unittest.IsolatedAsyncioTestCase):
         writers = [ClosingWriter(stall=False) for _ in streams]
         output, errors = io.StringIO(), io.StringIO()
         statistics = dict(received=0, reconnects=0)
-        args = SimpleNamespace(ca="unused", port=19999, session="week7-demo", count=count, duration=None)
+        args = SimpleNamespace(ca="unused", port=19999, session="ltc-comms", count=count, duration=None)
 
         async def fast_frame(reader, timeout=5.0, first_byte_timeout=None, allow_idle=False):
             options = {} if first_byte_timeout is None else dict(first_byte_timeout=first_byte_timeout * 0.02)
@@ -199,7 +199,7 @@ class ReceiverStartupTests(unittest.IsolatedAsyncioTestCase):
 
     def subscribed_stream(self):
         stream = asyncio.StreamReader()
-        stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="week7-demo")))
+        stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="ltc-comms")))
         return stream
 
     async def test_cold_start_waits_beyond_frame_deadline_without_reconnecting(self):
@@ -274,7 +274,7 @@ class ReceiverDurationTests(unittest.TestCase):
 
         async def open_stream(*args, **kwargs):
             stream = asyncio.StreamReader()
-            stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="week7-demo")))
+            stream.feed_data(encode_frame(dict(v=1, type="SUBSCRIBED", session_id="ltc-comms")))
             writer = ClosingWriter(stall=False)
             writers.append(writer)
             return stream, writer
@@ -312,7 +312,7 @@ class TlsReceiverTests(unittest.IsolatedAsyncioTestCase):
             task = asyncio.current_task(); handlers.add(task)
             try:
                 attempts.append(await read_frame(reader))
-                writer.write(encode_frame(dict(v=2 if len(attempts) == 1 else 1, type="SUBSCRIBED", session_id="week7-demo")))
+                writer.write(encode_frame(dict(v=2 if len(attempts) == 1 else 1, type="SUBSCRIBED", session_id="ltc-comms")))
                 if len(attempts) > 1:
                     writer.write(encode_frame(result()))
                 await writer.drain()
@@ -326,14 +326,14 @@ class TlsReceiverTests(unittest.IsolatedAsyncioTestCase):
                 handlers.discard(task)
         server = await asyncio.start_server(handle, "127.0.0.1", 0, ssl=self.server_context)
         args = SimpleNamespace(ca=self.folder / "pki/ca-cert.pem", port=server.sockets[0].getsockname()[1],
-                               session="week7-demo", count=1, duration=4)
+                               session="ltc-comms", count=1, duration=4)
         output = io.StringIO()
         try:
             with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
                 summary = await asyncio.wait_for(receive(args), 5)
             self.assertEqual(json.loads(output.getvalue()), result())
             self.assertEqual(summary, dict(received=1, reconnects=1))
-            self.assertEqual(attempts, [dict(v=1, type="SUBSCRIBE", session_id="week7-demo")] * 2)
+            self.assertEqual(attempts, [dict(v=1, type="SUBSCRIBE", session_id="ltc-comms")] * 2)
         finally:
             server.close(); await server.wait_closed()
             if handlers:

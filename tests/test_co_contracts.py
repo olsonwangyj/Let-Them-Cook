@@ -10,7 +10,7 @@ from common import sensor
 def test_v2_retains_fixed_layout_and_explicit_command_correlation():
     packet = sensor.SensorPacket(2, 0x01020304, 9, 10, (-32768, 32767, 1, 2, 3, 4, 5, 6), version=2)
     raw = sensor.encode_packet(packet)
-    assert raw[:8] == bytes.fromhex('5737020204030201')
+    assert raw[:8] == bytes.fromhex('4c43020204030201')
     assert len(raw) == 32
     assert sensor.decode_packet(raw) == packet
     assert packet.to_message('test')['request_id'] is None

@@ -58,16 +58,25 @@ enum AuthorityImport {
 // Deliberately has no password fields. Secrets live only in UI/transport memory.
 final class ConfigurationStore {
     private let directory: URL
-    init(directory: URL) { self.directory = directory }
+    private let legacyDirectory: URL
+    init(directory: URL, legacyDirectory: URL) {
+        self.directory = directory
+        self.legacyDirectory = legacyDirectory
+    }
     private var configURL: URL { directory.appendingPathComponent("public-settings.json") }
-    private var caURL: URL { directory.appendingPathComponent("week7-ca.pem") }
+    private var caURL: URL { directory.appendingPathComponent("comms-ca.pem") }
+    private var legacyConfigURL: URL { legacyDirectory.appendingPathComponent("public-settings.json") }
+    private var legacyCAURL: URL { legacyDirectory.appendingPathComponent("week7-ca.pem") }
+    private func loadURL(current: URL, legacy: URL) -> URL {
+        FileManager.default.fileExists(atPath: current.path) ? current : legacy
+    }
     func load() -> PublicConfiguration {
-        guard let data = try? Data(contentsOf: configURL),
+        guard let data = try? Data(contentsOf: loadURL(current: configURL, legacy: legacyConfigURL)),
               let config = try? JSONDecoder().decode(PublicConfiguration.self, from: data) else { return PublicConfiguration() }
         return config
     }
     func loadCA() -> String? {
-        guard let data = try? Data(contentsOf: caURL), data.count <= 65_536,
+        guard let data = try? Data(contentsOf: loadURL(current: caURL, legacy: legacyCAURL)), data.count <= 65_536,
               let pem = String(data: data, encoding: .utf8) else { return nil }
         return try? AuthorityImport.validate(pem)
     }

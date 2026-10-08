@@ -84,7 +84,7 @@ class ResultQueue:
 
 
 class CommsServer:
-    def __init__(self, ssl_context, session_id="week7-demo", ingest_port=8888, gateway_port=9999,
+    def __init__(self, ssl_context, session_id="ltc-comms", ingest_port=8888, gateway_port=9999,
                  *, observer=None, rng=None, max_v2_namespaces=128, max_v2_commands=4096):
         if (not isinstance(ssl_context, ssl.SSLContext)
                 or ssl_context.minimum_version < ssl.TLSVersion.TLSv1_2):
@@ -460,7 +460,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cert", required=True)
     parser.add_argument("--key", required=True)
-    parser.add_argument("--session-id", default="week7-demo")
+    parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--ingest-port", type=int, default=8888)
     parser.add_argument("--gateway-port", type=int, default=9999)
     parser.add_argument("--event-log-dir", help="new directory for bounded result-path diagnostics")

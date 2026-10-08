@@ -37,8 +37,8 @@ inline bool serializeSourceStats(uint8_t* output, size_t capacity,
     return false;
   }
 
-  output[0] = 'W';
-  output[1] = '7';
+  output[0] = 'L';
+  output[1] = 'C';
   output[2] = 'S';
   output[3] = '1';
   output[4] = deviceId;

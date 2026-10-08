@@ -1,5 +1,7 @@
 # B07 Communications: live demonstration in the instructor's exact order
 
+**Identifier update (8 October 2026):** The literal `W7`/`W7S1` bytes and `week7-demo` examples below describe the original deployed boards, Ultra96 service and installed iPhone app. This source checkout builds firmware that emits `LC`/`LCS1` and defaults to `ltc-comms`; its laptop decoder also accepts the original board packets. Before using the commands below with the original server/app, set `$env:LTC_COMMS_SESSION = 'week7-demo'` in terminal B. If you reflash the boards from this checkout, explain the new packet magic when showing actual bytes. See the [identifier table](communications-quickstart.md#source-and-deployment-identifiers).
+
 **Deployment note:** `D:\LetThemCook`, the default SSH account, `demo.py service`, and the installed phone's **Week 7 Connect** label describe the original B07 demonstration. In another checkout, use its actual repository root and the explicit SSH/CA options in the [communications quickstart](communications-quickstart.md). A different Ultra96 also needs a verified iPhone trust update and rebuilt app.
 
 **Protocol navigation:** [1. Laptop ↔ Ultra96](#live-protocol-laptop) · [2. Ultra96 ↔ iPhone](#live-protocol-phone) · [4.1 FireBeetle IDs, packet types, and layouts](#live-protocol-firebeetle) · [Appendix B: file roles and source jumps](#appendix-file-map) · [Optional Chinese beginner protocol explanation](B07-CO-protocol-explained.zh-CN.md)
@@ -128,7 +130,7 @@ The frame reader permits bodies of 1–16384 bytes and rejects invalid lengths, 
 
 ```powershell
 $demoCa = Join-Path $HOME '.codex/private/cg4002-week7-20260906/ca-cert.pem'
-python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --duration 20 --expected-rate 10 --progress-interval 1
+python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --session-id week7-demo --duration 20 --expected-rate 10 --progress-interval 1
 ```
 
 Expect `mode=synthetic` and `mock_input=true`; inspect final JSON, matching ACKs, errors and exit status. These are real laptop–Ultra96 exchanges with synthetic input, not physical BLE evidence. **`demo.py` has no `--mock` option.** Return to the primary physical command for the remaining board demonstrations.
@@ -381,7 +383,7 @@ The source explicitly assigns this to video. Live, show only existing LEFT/RIGHT
 | `boot_id` | Which startup of that board | Random unsigned 32-bit value at startup; not a mathematical guarantee of global uniqueness |
 | Automatic `seq` | Which automatically generated sample | Separate counter per board/boot |
 | `request_id` | Which control request or file transaction | Nonzero unsigned 32-bit ID allocated by laptop; network automatic telemetry uses `null` |
-| `session_id` | Which configured network session | Current launcher and phone use `week7-demo`; not automatically new each run |
+| `session_id` | Which configured network session | Original launcher/server/phone use `week7-demo`; updated source defaults to `ltc-comms`. It is not automatically new each run. |
 | `result_id` | Which input produced this phone result | `device:boot:seq`; command result adds `cmd:` |
 
 Code: [LEFT/RIGHT builds](../firmware/esp32/platformio.ini#L18), [firmware ID](../firmware/esp32/src/main.cpp#L33), [boot creation](../firmware/esp32/src/main.cpp#L406), [command construction](../laptop/bridge.py#L256), [result identity](../ultra96/protocol.py#L94).
@@ -432,7 +434,7 @@ The exact Python layout is `struct.Struct("<2sBBIII8h")` in [the sensor codec](.
 >
 > “Signed means negative values are allowed. An int16 value ranges from minus 32768 to 32767. Unsigned means only nonnegative values: a uint32 ranges from zero to 4294967295. The same sixteen bits FFFF represent minus one when interpreted as signed, or 65535 when interpreted as unsigned. Our channel fields are always interpreted as signed int16.”
 
-`W7` is a marker, not a checksum. This layout has no independent CRC field. The 32 bytes exclude BLE radio overhead. A GATT notification can carry up to **ATT MTU − 3** application bytes; this implementation therefore requires **MTU ≥ 35** for a complete W7 packet. Default MTU 23 would allow only 20 application bytes. Current firmware suppresses sensor submission when the packet will not fit, and the laptop rejects MTU below 35; it does **not** split W7 into two application notifications and reassemble them. That differs from the TCP stream framing in sections 1 and 2. See [firmware fit check](../firmware/esp32/include/comms_security.h#L19), [single sensor submission](../firmware/esp32/src/main.cpp#L500), and [laptop MTU check](../laptop/bridge.py#L719).
+`W7` is a marker, not a checksum. This layout has no independent CRC field. The 32 bytes exclude BLE radio overhead. A GATT notification can carry up to **ATT MTU − 3** application bytes; this implementation therefore requires **MTU ≥ 35** for a complete 32-byte sensor packet. Default MTU 23 would allow only 20 application bytes. Current firmware suppresses sensor submission when the packet will not fit, and the laptop rejects MTU below 35; it does **not** split the sensor packet into two application notifications and reassemble them. That differs from the TCP stream framing in sections 1 and 2. See [firmware fit check](../firmware/esp32/include/comms_security.h#L19), [single sensor submission](../firmware/esp32/src/main.cpp#L500), and [laptop MTU check](../laptop/bridge.py#L719).
 
 #### 4.1.3 Packet families and the BLE GATT channels
 
@@ -698,15 +700,15 @@ Open [independent command upload](../laptop/bridge.py#L263) and [completion log]
 1. In the repository root, create a 4096-byte test file and show its laptop SHA-256. This is a **file payload**, not one sensor packet:
 
    ```powershell
-   New-Item -ItemType Directory -Force '.week7-local' | Out-Null
-   $demoFile = Join-Path (Get-Location) '.week7-local/demo-file-4096.bin'
+   New-Item -ItemType Directory -Force '.comms-local' | Out-Null
+   $demoFile = Join-Path (Get-Location) '.comms-local/demo-file-4096.bin'
    [byte[]]$demoBytes = 0..4095 | ForEach-Object { [byte]($_ % 256) }
    [IO.File]::WriteAllBytes($demoFile, $demoBytes)
    (Get-Item -LiteralPath $demoFile).Length
    Get-FileHash -Algorithm SHA256 $demoFile
    ```
 
-2. Confirm phone `Subscribed`. In B run `python demo.py run --duration 75 --file .week7-local/demo-file-4096.bin --file-device 1`. Laptop sends the file to LEFT's RAM over protected BLE control while RIGHT continues ordinary sensor traffic. Begin carries length and SHA-256, then ordered offset chunks carry actual bytes; at most 180 bytes per chunk means 23 chunks for 4096 bytes. See [sender](../laptop/controls.py#L218) and [ESP chunk receiver](../firmware/esp32/include/comms_control.h#L182).
+2. Confirm phone `Subscribed`. In B run `python demo.py run --duration 75 --file .comms-local/demo-file-4096.bin --file-device 1`. Laptop sends the file to LEFT's RAM over protected BLE control while RIGHT continues ordinary sensor traffic. Begin carries length and SHA-256, then ordered offset chunks carry actual bytes; at most 180 bytes per chunk means 23 chunks for 4096 bytes. See [sender](../laptop/controls.py#L218) and [ESP chunk receiver](../firmware/esp32/include/comms_control.h#L182).
 3. **Open this run's evidence after it ends.** Copy the **local laptop folder** printed after `Saved in:`. Run `python demo.py report '<full Saved in folder>'`; under `BLE file result`, require `verified=True`, `sender_bytes=receiver_bytes=4096`, and `sender_sha256=receiver_sha256`. In that folder's `packets.log`, find `type=file_begin` and `type=file_complete` with the same `transfer_id`, with no matching `type=file_failed`. `file_begin` alone proves only that sending started. Check that RIGHT's received/acked counters continued to advance.
 4. **A real source file is also a valid payload.** Another command used in the rehearsal was `python demo.py run --duration 75 --file 'firmware/esp32/include/comms_packet.h' --file-device 1`. `--file` selects bytes from a file on the laptop; `--file-device 1` selects the **LEFT ESP** as recipient. The 1 is not an Ultra96 identity, a phone identity, or a file number. Sending these source-file bytes does not compile or execute them on the ESP. Use `--file-device 2` for RIGHT.
 5. **Explain SHA-256 and where the file goes.** SHA-256 maps any content to a 256-bit (64-hex-character) digest for comparing the two copies; the digest is not the file contents. The ESP reconstructs all bytes in RAM, computes its own digest, and returns digest and length to the laptop. The laptop sets `verified=True` only after matching them. See [ESP chunk reception and digest](../firmware/esp32/include/comms_control.h#L182). `Saved in:` identifies **laptop logs and reports**, not an ESP filesystem path. This firmware has no API to read back, open, or persist that file on the ESP; disconnect clears the RAM copy. “Open it on the ESP” is therefore not this demo's proof.
@@ -919,7 +921,7 @@ sequenceDiagram
 
 1. `setup()` in `firmware/esp32/src/main.cpp` generates the boot ID, creates the BLE service, and advertises it. `ble_loop()` in `laptop/bridge.py` finds the expected BLE address/service, connects, checks authenticated bonding and MTU, and subscribes to sensor notifications. **Connection alone is not proof of traffic**; look for notifications and increasing sequences.
 2. The board's `loop()` uses `controls->rateHz()` to pace samples, allocates a new `seq`, and calls `serializeFixturePacket()` to select one compiled-in dummy row and encode 32 bytes. `submitNotification()` hands it to the BLE stack. Source counters distinguish generated samples from successfully submitted notifications; under overload these can differ.
-3. `enqueue()` in `laptop/bridge.py` receives BLE bytes. `decode_packet()` checks exact size, `W7`, version, device ID, and value ranges, then logs a `sensor` event and reception time. `_prepare_item()` also checks the expected source, duplicates/gaps, and freshness before constructing JSON `SENSOR_BATCH`.
+3. `enqueue()` in `laptop/bridge.py` receives BLE bytes. `decode_packet()` checks exact size, `LC` or legacy `W7`, version, device ID, and value ranges, then logs a `sensor` event and reception time. `_prepare_item()` also checks the expected source, duplicates/gaps, and freshness before constructing JSON `SENSOR_BATCH`.
 4. The laptop opens TLS through the Windows 18889 SSH forward; `encode_frame()` in `common/wire.py` prefixes JSON with its four-byte length. `_ingest()` in `ultra96/server.py` reads a complete frame and calls `validate_message()` in `ultra96/protocol.py`. For a new identity it queues a random `GESTURE_RESULT` for the phone and sends a matching `INGEST_ACK` back to the laptop. **The result queue and ACK are separate outlets**; screen and terminal events need not appear in a fixed order.
 5. `_check_ack()` on the laptop verifies session, device, boot, sequence, version, request ID, and status before incrementing `acked`. Ultra96's result sender uses the phone's separate connection. The iPhone's v2 decoder checks result ID/gesture; its display state updates the label and `Received` after accepting a new ID. If no phone is subscribed, Ultra96 can still ACK the laptop without any phone result appearing.
 
@@ -984,7 +986,7 @@ The one `_ingest` box represents a function type: the server actually creates se
 
 #### A.2.2 Device IDs, packet types, and exact format
 
-The central code line is `_PACKET = struct.Struct("<2sBBIII8h")` in `common/sensor.py`. `<` means little-endian: two bytes `W7`, one version byte, one device-ID byte, three unsigned 32-bit fields (`boot_id`, `seq`, `uptime_ms`), and eight signed 16-bit channels. Total: **32 bytes**. ID 1/2 is the logical LEFT/RIGHT source; a BLE MAC identifies physical hardware, and a COM port is neither. A reboot produces a new boot ID, while `seq` increments within one boot; `device:boot:seq` therefore names one sensor record. The eight values have the intended sensor field format but are dummy values, not real IMU measurements. Version 2 selects a whole eight-value row randomly from `common/dummy_fixtures.json`; selecting the same row twice is possible. The current file has four rows, including signed-16-bit boundary values.
+The central code line is `_PACKET = struct.Struct("<2sBBIII8h")` in `common/sensor.py`. `<` means little-endian: two magic bytes (`LC` in new packets, `W7` in original packets), one version byte, one device-ID byte, three unsigned 32-bit fields (`boot_id`, `seq`, `uptime_ms`), and eight signed 16-bit channels. Total: **32 bytes**. ID 1/2 is the logical LEFT/RIGHT source; a BLE MAC identifies physical hardware, and a COM port is neither. A reboot produces a new boot ID, while `seq` increments within one boot; `device:boot:seq` therefore names one sensor record. The eight values have the intended sensor field format but are dummy values, not real IMU measurements. Version 2 selects a whole eight-value row randomly from `common/dummy_fixtures.json`; selecting the same row twice is possible. The current file has four rows, including signed-16-bit boundary values.
 
 If asked to identify bytes in a hexadecimal packet, use this map:
 
@@ -1002,7 +1004,7 @@ For example, `boot_id=42` is `2A 00 00 00` in little-endian order; `seq=7` is `0
 
 `common/control.py` defines the **14-byte BLE control header** with `_HEADER = struct.Struct('<2sBBBBII')`: `B7`, control version 1, opcode, device ID, status, request/transfer ID, and offset. Opcode 1 is a command, 2 sets source rate, and 16/17/18/19 begin/chunk/end/abort a file. A response sets opcode bit 7. A keyboard command carries a **full 32-byte v2 sensor packet**, rather than a plain integer or text. A file payload is capped by `min(180, MTU-3-14)` bytes per write.
 
-`SENSOR_BATCH` to Ultra96, `INGEST_ACK` back, and `GESTURE_RESULT` to the phone are JSON messages. In v2 each has `request_id`: `null` for telemetry and a nonzero ID for a keyboard command, where `seq == request_id`. A telemetry result ID is `device:boot:seq`; a command result ID is `cmd:device:boot:request_id`. The default `session_id` is `week7-demo`. Subscription messages `SUBSCRIBE` and `SUBSCRIBED` retain v1 envelopes.
+`SENSOR_BATCH` to Ultra96, `INGEST_ACK` back, and `GESTURE_RESULT` to the phone are JSON messages. In v2 each has `request_id`: `null` for telemetry and a nonzero ID for a keyboard command, where `seq == request_id`. A telemetry result ID is `device:boot:seq`; a command result ID is `cmd:device:boot:request_id`. The original deployment uses `session_id` `week7-demo`; updated source defaults to `ltc-comms`. Subscription messages `SUBSCRIBE` and `SUBSCRIBED` retain v1 envelopes.
 
 **Explain TCP framing precisely.** `common/wire.py` puts a **four-byte big-endian length** before each UTF-8 JSON object, with a maximum body size of 16,384 bytes. `read_frame()` calls `readexactly(4)` for the prefix and `readexactly(length)` for the body. TCP is a byte stream: one receive may contain a partial message or bytes from several messages. Reading the declared length prevents this from corrupting parsing. `ultra96/protocol.py` then validates fields, version, numeric ranges, session, identities, and result format. The 32-byte BLE sensor packet has **no application CRC field**. Show its real sequence, values, transport protection, and file SHA-256 instead of inventing a CRC.
 
@@ -1055,7 +1057,7 @@ On BLE disconnection, the bridge attempts reconnection and security/identity che
 
 **A. Firmware chooses one full dummy row.** The key expression in `firmware/esp32/include/comms_packet.h::serializeFixturePacket()` is `kDummyFixtures[randomWord % kDummyFixtureCount]`. `kDummyFixtures` is a table compiled into the board; the count is its number of rows; modulo selects a valid index. It picks all eight values together, preserving the protocol's eight-channel format, then sets the version byte to 2. `loop()` in `firmware/esp32/src/main.cpp` supplies device, boot, sequence, and uptime. Changing the JSON requires rebuilding/reflashing because the table is **compiled into the board**.
 
-**B. The laptop validates before forwarding.** `enqueue()` in `laptop/bridge.py` receives `data` and calls `decode_packet(data)`. `decode_packet()` in `common/sensor.py` requires `len(data)==32`, verifies `W7` and the version, then creates a `SensorPacket` with eight validated values. `_prepare_item()` checks that this is the expected device, sequence/order is sound, and data is fresh. The network sender passes `packet.to_message(session_id)` to `write_frame()`. Thus laptop `received` means “BLE arrived”; `acked` rises only after `_check_ack()` validates the returned identity.
+**B. The laptop validates before forwarding.** `enqueue()` in `laptop/bridge.py` receives `data` and calls `decode_packet(data)`. `decode_packet()` in `common/sensor.py` requires `len(data)==32`, verifies `LC` or legacy `W7` and the version, then creates a `SensorPacket` with eight validated values. `_prepare_item()` checks that this is the expected device, sequence/order is sound, and data is fresh. The network sender passes `packet.to_message(session_id)` to `write_frame()`. Thus laptop `received` means “BLE arrived”; `acked` rises only after `_check_ack()` validates the returned identity.
 
 **C. Network code collects an entire frame.** This is the core of `read_frame()` in `common/wire.py`, with error handling omitted:
 
@@ -1097,7 +1099,7 @@ The `#L...` links refer to line numbers in this checkout. If a Markdown viewer o
 
 ### A.3. Live commands and expected observations
 
-Run these from PowerShell terminal B in the repository root, with terminal A's `python demo.py tunnel` and the phone subscription active. Every `demo.py run/live` creates a fresh `.week7-local/B07-*` folder containing `live.log`, `packets.jsonl`, readable `packets.log`, `report.json`, and `exit-code.txt`. It prints matched sensor/ACK examples at the end. Use the exact `Saved in:` path from **this run**. `CAPTURE PASSED` means physical BLE → Ultra96 ACK and source reconciliation; it **does not by itself prove phone reception**.
+Run these from PowerShell terminal B in the repository root, with terminal A's `python demo.py tunnel` and the phone subscription active. Every updated `demo.py run/live` creates a fresh `.comms-local/B07-*` folder containing `live.log`, `packets.jsonl`, readable `packets.log`, `report.json`, and `exit-code.txt`. It prints matched sensor/ACK examples at the end. Use the exact `Saved in:` path from **this run**. `CAPTURE PASSED` means physical BLE → Ultra96 ACK and source reconciliation; it **does not by itself prove phone reception**.
 
 #### A.3.1 Your first complete live run, without skipped steps
 
@@ -1119,7 +1121,7 @@ Run these from PowerShell terminal B in the repository root, with terminal A's `
 To reopen saved evidence, replace the example in the first line with the **exact path printed by this run**, then execute each line:
 
 ```powershell
-$runDir = 'D:\LetThemCook\.week7-local\B07-replace-with-the-full-printed-folder-name'
+$runDir = 'D:\LetThemCook\.comms-local\B07-replace-with-the-full-printed-folder-name'
 python demo.py report $runDir
 Get-Content -LiteralPath (Join-Path $runDir 'packets.log') -TotalCount 30
 Select-String -LiteralPath (Join-Path $runDir 'packets.log') -Pattern 'command_original|command_modified'
@@ -1134,7 +1136,7 @@ To read a progress example, `device=1 received=100 processed=99 acked=98 queue=1
 | Complete pipeline; two concurrent boards; >1 minute dummy stream; two-way keyboard path | Film starting phone `Received`. Run `python demo.py live --duration 75`; press `1` and `2` several times. | Both devices' `received/acked` advance at once; `commands.completed` matches accepted keys; `command_original`/`command_modified` values differ by one. A clean baseline requires `generated=received=acked` and zero missing per board. The phone count increase should equal actual generated telemetry plus completed commands. Startup/drain can make counts differ from `75×10×2`. |
 | Live transmission statistics | Read the preceding progress lines and `report.json`, or reopen using `python demo.py report "<Saved in folder>"`. | Per-device `BLE_sensor_kbps_rolling/average` and combined kbps appear. About 2.56/2.56/5.12 at 10 Hz is a reference; use measured values and `sensor_goodput.elapsed_seconds`, together with queue/drop/error counters. |
 | Highest tested sustainable dual-device rate | Keep boards nearby and independently powered. Run `python demo.py run --duration 65 --rate 70`; subscribe/record phone count first. | Requested 70 Hz is not 70 received packets/s. Require complete generated/received/ACK reconciliation for **both** boards, no source submission failures, and at least 65 seconds of common observation. The 28 September repeat measured about 66 packets/s per board and 33.792 kbps combined. At 75 Hz the right board rejected 260 source submissions. Say “highest tested clean setting under these conditions,” not an absolute hardware maximum. If the fresh run fails, report it and restore 10 Hz. |
-| BLE file transfer | Prepare a 4096-byte file such as `.week7-local/demo-file-4096.bin`. Run `python demo.py run --duration 75 --file .week7-local/demo-file-4096.bin --file-device 1`. | `file_transfer.verified=true`; sender and receiver byte counts are both 4096 and SHA-256 digests match. RIGHT sensor/ACK traffic continues. Repeat with `--file-device 2` if asked. At 180 bytes per chunk, 4096 bytes spans 23 chunks, proving actual fragmentation. |
+| BLE file transfer | Prepare a 4096-byte file such as `.comms-local/demo-file-4096.bin`. Run `python demo.py run --duration 75 --file .comms-local/demo-file-4096.bin --file-device 1`. | `file_transfer.verified=true`; sender and receiver byte counts are both 4096 and SHA-256 digests match. RIGHT sensor/ACK traffic continues. Repeat with `--file-device 2` if asked. At 180 bytes per chunk, 4096 bytes spans 23 chunks, proving actual fragmentation. |
 | One-board power failure and recovery | Run `python demo.py live --duration 120`. Once steady, remove **only RIGHT's independent power**, wait for an actual BLE disconnect, and restore power. Leave LEFT running. | RIGHT disconnects, authenticates/reconnects, gets a new boot ID, and resumes new sequence/ACK traffic; LEFT progresses during the outage. Preserve the fault report even if exit code is nonzero or `clean=false`. Do not claim zero lost data across RIGHT's power cut. Then run a separate `python demo.py run --duration 65` clean baseline. |
 | Walk one board out of range and return | Keep separate board power. Run `python demo.py live --duration 180`; carry RIGHT and its power source away until an **actual BLE disconnect**, then return. LEFT stays near the laptop. | RIGHT disconnects and later receives/ACKs new data; LEFT continues. Lower RSSI or throughput alone does not establish an out-of-range disconnect. Record times, actual location/distance, healthy-peer counts, and any loss. If no disconnect is observed, this item has not passed. Follow with a 65-second clean baseline. This physical range test was still outstanding in the 28 September record. |
 
@@ -1142,7 +1144,7 @@ To read a progress example, `device=1 received=100 processed=99 acked=98 queue=1
 
 **Highest tested rate.** First complete and save a clean 10 Hz baseline using 3.1. Keep board positions, power, laptop, and phone conditions stable. Record the phone's starting count; run `python demo.py run --duration 65 --rate 70`. `--rate 70` sends SET_RATE to both ESPs; capture begins after they respond. When it ends, read both devices' `source_rate_confirmed_hz`, `sensor_goodput.average_kbps`, generated/submitted/received/ACKed totals, and errors. Explain received packets per second as `actual packet count ÷ 65 seconds`. As an arithmetic example, 650 packets in 65 seconds gives `650×32×8÷65÷1000=2.56 kbps`. The historical 70 Hz setting delivered about 66 packets/s per board because real link scheduling affects measured rate. Finally run `python demo.py run --duration 65 --rate 10` to restore and verify baseline. You need not repeat the known failing 75 Hz setting live; cite the saved failed run if comparison is requested.
 
-**File transfer.** Create the file with the commands below and leave the `Get-FileHash` SHA-256 visible. Confirm exactly 4096 bytes and `Subscribed` on the phone. Run `python demo.py run --duration 75 --file .week7-local/demo-file-4096.bin --file-device 1`. Inspect `file_transfer.sender_bytes`, `receiver_bytes`, `sender_sha256`, `receiver_sha256`, and `verified`. `4096÷180` is 22 full chunks plus a last 136-byte chunk; each has an offset and acknowledgement. Only `verified=true` with matching lengths/digests supports the claim that the board reconstructed the same content. Check device 2's sensor/ACK progress during this work. The ESP holds the file in RAM; the phone does not receive the file.
+**File transfer.** Create the file with the commands below and leave the `Get-FileHash` SHA-256 visible. Confirm exactly 4096 bytes and `Subscribed` on the phone. Run `python demo.py run --duration 75 --file .comms-local/demo-file-4096.bin --file-device 1`. Inspect `file_transfer.sender_bytes`, `receiver_bytes`, `sender_sha256`, `receiver_sha256`, and `verified`. `4096÷180` is 22 full chunks plus a last 136-byte chunk; each has an offset and acknowledgement. Only `verified=true` with matching lengths/digests supports the claim that the board reconstructed the same content. Check device 2's sensor/ACK progress during this work. The ESP holds the file in RAM; the phone does not receive the file.
 
 **Power failure.** Start a 120-second `live` run and wait until both board counts advance steadily. Point out RIGHT's current boot ID and LEFT's counter. Remove **only RIGHT's independent power**, observe an actual RIGHT BLE disconnect, and note its approximate time. Restore RIGHT power and wait for advertising, authenticated reconnection, subscription, a new boot ID, and new packets/ACKs. Compare LEFT's counts over the same interval. A fault report may show `clean=false`: the strict uninterrupted-run criterion failed, while recovery may still have been observed. Start a **new** 65-second 10 Hz clean run to demonstrate normal operation after recovery.
 
@@ -1151,8 +1153,8 @@ To read a progress example, `device=1 received=100 processed=99 acked=98 queue=1
 To prepare a 4096-byte payload once in PowerShell before the demo:
 
 ```powershell
-$demoFile = Join-Path (Get-Location) '.week7-local/demo-file-4096.bin'
-New-Item -ItemType Directory -Force '.week7-local' | Out-Null
+$demoFile = Join-Path (Get-Location) '.comms-local/demo-file-4096.bin'
+New-Item -ItemType Directory -Force '.comms-local' | Out-Null
 [byte[]]$bytes = 0..4095 | ForEach-Object { [byte]($_ % 256) }
 [IO.File]::WriteAllBytes($demoFile, $bytes)
 Get-FileHash -Algorithm SHA256 $demoFile
@@ -1171,7 +1173,7 @@ This is a file-transfer payload, not a sensor packet. After a high-rate or fault
 
 ```powershell
 $ca = Join-Path $HOME '.codex/private/cg4002-week7-20260906/ca-cert.pem'
-python -m laptop.dual_bridge --mock --ca $ca --port 18889 --duration 20 --expected-rate 10 --progress-interval 1
+python -m laptop.dual_bridge --mock --ca $ca --port 18889 --session-id week7-demo --duration 20 --expected-rate 10 --progress-interval 1
 ```
 
 `--mock` builds complete v2 sensor messages, sends them through the real SSH/TLS route, and checks `INGEST_ACK`; it **does not prove physical BLE**. If the phone is subscribed, it should receive the corresponding simulated results. Label the report synthetic. Use `common/sensor.py`, `common/wire.py`, and `ultra96/protocol.py` to explain the validity of the dummy payload and framing.
@@ -1313,13 +1315,13 @@ Links are relative to this guide's `docs/` directory. A `#Lnumber` suffix record
 
 **Suggested reading order:** `demo.py` → `laptop/dual_bridge.py` → `laptop/bridge.py` → `common/sensor.py` and `common/wire.py` → `ultra96/server.py` → the phone's `Subscriber.swift` and `DisplayState.swift`. Use `comms_packet.h` for the firmware layout and `controls.py/comms_control.h` for the two ends of commands/file transfer.
 
-Rows link to individual first-party source/configuration files or explicitly named directories. Tests and the large generated/third-party Unity tree are grouped by purpose. Runtime `.week7-local/` evidence, caches, and build products are not source files to memorize; evidence reading is covered in A.6.
+Rows link to individual first-party source/configuration files or explicitly named directories. Tests and the large generated/third-party Unity tree are grouped by purpose. Runtime `.comms-local/` evidence (and older `.week7-local/` reports), caches, and build products are not source files to memorize; evidence reading is covered in A.6.
 
 ### B.1 Laptop entry points and dependencies
 
 | File / source jump | Role and main contents | Demo item / when to inspect |
 |---|---|---|
-| [demo.py](../demo.py#L36) | Main live entry point: parses `service/tunnel/run/live/report`, launches the dual capture, and saves evidence under `.week7-local`. `live` enables keyboard input; `run` normally observes automatic streams. | All live commands; begin here and follow imported modules. |
+| [demo.py](../demo.py#L36) | Main live entry point: parses `service/tunnel/run/live/report`, launches the dual capture, and saves new evidence under `.comms-local`. `live` enables keyboard input; `run` normally observes automatic streams. | All live commands; begin here and follow imported modules. |
 | [flash.py](../flash.py#L90) | Laptop flashing entry: generates the fixture header, builds/flashes LEFT and RIGHT, reads physical BLE addresses, and saves their mapping; also displays mappings and pairs boards. | Preparation/item 3; distinct from transferring an ordinary file over BLE. |
 | [laptop/requirements.txt](../laptop/requirements.txt#L1) | Laptop runtime dependency: pins `bleak==3.0.1` for BLE access. | Preparing the laptop environment. |
 | [requirements-dev.txt](../requirements-dev.txt#L1) | Dependencies for local tests, certificate provisioning, and serial tooling: pytest, cryptography, and pyserial; Ultra96 runtime uses the Python standard library. | Development/provisioning; not an Ultra96 runtime installation list. |

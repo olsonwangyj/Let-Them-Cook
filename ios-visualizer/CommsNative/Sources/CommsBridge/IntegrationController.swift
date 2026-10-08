@@ -14,7 +14,8 @@ final class IntegrationController {
     private let store: ConfigurationStore
     private init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        store = ConfigurationStore(directory: support.appendingPathComponent("Week7", isDirectory: true))
+        store = ConfigurationStore(directory: support.appendingPathComponent("Comms", isDirectory: true),
+                                   legacyDirectory: support.appendingPathComponent("Week7", isDirectory: true))
     }
 
     func install(state: DisplayState) {
@@ -70,7 +71,7 @@ final class IntegrationController {
             let route = SSHRoute(boardHost: EnrolledTrust.boardHost, boardUser: config.boardUser,
                                  boardPassword: boardPassword, boardHostKey: EnrolledTrust.boardKey,
                                  jump: jump, caPEM: ca)
-            let client = CommsClient(route: route, session: "week7-demo", onStatus: { status in
+            let client = CommsClient(route: route, session: "ltc-comms", onStatus: { status in
                 if status == "Subscribed" { _ = state.setStatus(status, generation: generation) }
                 else { _ = state.clear(generation: generation, status: status) }
             }, onResult: { result in

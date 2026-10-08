@@ -35,7 +35,7 @@ class BridgeConfig:
     ca_file: str
     host: str = "127.0.0.1"
     port: int = 18888
-    session_id: str = "week7-demo"
+    session_id: str = "ltc-comms"
     queue_capacity: int = 64
     freshness: float = 2.0
     io_timeout: float = 5.0
@@ -289,6 +289,8 @@ class Bridge:
             packet = decode_packet(data)
             if (self.config.expected_device_id is None or
                     packet.device_id == self.config.expected_device_id):
+                if self.control is not None:
+                    self.control.observe_sensor(data, packet)
                 self.goodput.record(packet, received_at)
                 self.log("sensor", direction="ESP->laptop", version=packet.version,
                          boot_id=packet.boot_id, seq=packet.seq, uptime_ms=packet.uptime_ms,
@@ -717,7 +719,7 @@ class Bridge:
                 if characteristic is None or "notify" not in characteristic.properties:
                     raise ValueError("B07 Communications sensor Notify characteristic missing")
                 if client.mtu_size < 35:
-                    raise ValueError("current ATT MTU cannot carry 32-byte W7 packet")
+                    raise ValueError("current ATT MTU cannot carry 32-byte sensor packet")
                 self.negotiated_mtu = client.mtu_size
                 if not self.config.diagnostic_unprotected:
                     from laptop.windows_pairing import require_authenticated_bond
@@ -739,11 +741,12 @@ class Bridge:
                     if source is None or "read" not in source.properties:
                         self.metrics.source_stats_errors += 1
                         self.source_audit.mark_snapshot_error()
-                        raise ValueError("protected W7 source statistics Read characteristic missing")
+                        raise ValueError("protected source statistics Read characteristic missing")
                     try:
+                        raw_snapshot = await self._bounded(client.read_gatt_char(SOURCE_STATS_UUID),
+                                                           self.config.connect_timeout)
                         snapshot = parse_source_stats(
-                            await self._bounded(client.read_gatt_char(SOURCE_STATS_UUID),
-                                                self.config.connect_timeout),
+                            raw_snapshot,
                             expected_device_id=self.config.expected_device_id)
                     except Exception:
                         self.metrics.source_stats_errors += 1
@@ -759,7 +762,8 @@ class Bridge:
                         control_char = service.get_characteristic(uuid)
                         if control_char is None or property_name not in control_char.properties:
                             raise ValueError("protected B07 control characteristics missing; update firmware")
-                    self.control.attach(client, snapshot.boot_id)
+                    self.control.attach(client, snapshot.boot_id,
+                                        packet_magic=bytes(raw_snapshot[:2]))
                     control_generation = self.control._generation
                     def control_notification(sender, data, gen=control_generation):
                         self.control.receive(sender, data, generation=gen)
@@ -1047,7 +1051,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ca", required=True)
     parser.add_argument("--port", type=int, default=18888)
-    parser.add_argument("--session-id", default="week7-demo")
+    parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--duration", type=float, default=60)
     parser.add_argument("--target", type=int, default=0)
     parser.add_argument("--queue-capacity", type=int, default=64)
