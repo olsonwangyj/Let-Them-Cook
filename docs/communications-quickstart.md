@@ -36,13 +36,7 @@ Replace `COMx` with the actual port shown by `--ports`; run the monitor in a sep
 
 The configured Ultra96 service must already be running. `python demo.py service` checks the **original project deployment only**: it uses a fixed original SSH account and board source path. Its `--start` mode has the same fixed target and must only be used for that owned deployment after the port checks pass. A teammate using another account or board must check and deploy that service through their own authorized route.
 
-The updated source defaults to session `ltc-comms`. The original running Ultra96 service and installed iPhone app both use `week7-demo`. When following the original deployment guide, set this in terminal B before running `demo.py run` or `demo.py live`:
-
-```powershell
-$env:LTC_COMMS_SESSION = 'week7-demo'
-```
-
-Alternatively pass `--session-id week7-demo` to each `run` or `live` command. The CLI option takes precedence over the environment variable. On a newly deployed service with a rebuilt phone, configure all three participants for `ltc-comms`. A session mismatch prevents ACK/subscription acceptance.
+Laptop, Ultra96 and phone must use the same session. All three default to `ltc-comms`: `demo.py run`, `demo.py live`, `demo.py service --start` and the phone source. To use another session, pass `--session-id <name>` to each laptop command or set `$env:LTC_COMMS_SESSION`; the CLI option takes precedence. The phone app has its session compiled in, so it must be rebuilt to change. A session mismatch prevents ACK/subscription acceptance.
 
 In terminal A, open and keep the SSH tunnel using your authorized SSH identities:
 
@@ -60,7 +54,7 @@ python demo.py run --ca 'C:\path\to\verified-public-ca.pem'
 
 The `--ca` value is the verified **public** CA certificate, kept outside this repository; no CA or server private key is needed on the laptop. The default CA path in `demo.py` names the original operator’s private directory, so pass `--ca` explicitly on another machine.
 
-The default run lasts 60 seconds at 10 Hz per board. It saves a report and packet evidence under `.comms-local/`, then displays the saved report and matching sensor/ACK examples. Old reports under `.week7-local/` remain readable with `demo.py report`. Check both devices' source, receive, send and ACK counts, the `clean` result, and the process exit code. Compare the **observed** iPhone count increase with the accepted result total; an ingestion ACK alone does not prove phone display.
+The default run lasts 60 seconds at 10 Hz per board. It saves a report and packet evidence under `.comms-local/`, then displays the saved report and matching sensor/ACK examples. Check both devices' source, receive, send and ACK counts, the `clean` result, and the process exit code. Compare the **observed** iPhone count increase with the accepted result total; an ingestion ACK alone does not prove phone display.
 
 For a 120-second keyboard demonstration, press `1` or `2` while this command is running to send a command to the matching board:
 
@@ -74,15 +68,17 @@ For the instructor's full live sequence, see the [English](archive/assessment-we
 
 ## Source and deployment identifiers
 
-| Identifier | New source default | Original deployed system | Migration rule |
-|---|---|---|---|
-| BLE sensor magic | `LC` (`4C 43`) | `W7` (`57 37`) | New firmware emits `LC`; the updated laptop accepts either 32-byte format and matches control commands to each board's validated format. An old laptop needs its matching old firmware. |
-| BLE source statistics | `LCS1` | `W7S1` | New firmware emits `LCS1`; the updated laptop accepts either 24-byte record. |
-| Network session | `ltc-comms` | `week7-demo` | Laptop, Ultra96 and phone must agree. Set `LTC_COMMS_SESSION` or `--session-id` for the updated laptop when using the original deployment. Rebuild and deploy server/phone together for the new default. |
-| TLS service identity | `ultra96.week7.internal` | same | This is a certificate and pinned app trust value. Changing it requires a new verified certificate and rebuilt app. |
-| Local capture and board mapping | `.comms-local/` | `.week7-local/` | New captures and board settings write to `.comms-local/`. If no new mapping exists, the board loader reads the old mapping; old reports remain readable. Both directories are ignored. |
-| Native C bridge | `CommsStart`, `CommsCopyDisplay`, `CommsStop` | `Week7*` | The source keeps wrappers for the installed Unity export. Remove them only after its generated receiver is updated. |
+Since 2026-10-14 the source no longer accepts the Week 7 identifiers. Both boards, the Ultra96 service and the phone app must run builds of the current source.
 
-The source-only `CommsNative` UI names its button **Communications Connect** for a future rebuild; the currently deployed Unity app still shows **Week 7 Connect**. The long B07 live and video guides describe the original deployed system and show its literal legacy packet/session values. Their commands require the session override above when run from this updated checkout.
+| Identifier | Value | Note |
+|---|---|---|
+| BLE sensor magic | `LC` (`4C 43`) | A board on Week 7 firmware (`W7`) is refused by the laptop; flash it with `python flash.py`. |
+| BLE source statistics | `LCS1` | Week 7 firmware answers `W7S1`, which is refused. |
+| Network session | `ltc-comms` | Laptop, Ultra96 and phone must agree. The service started for Week 7 and the app installed for Week 7 use `week7-demo`; restart the service from this source and rebuild the app. |
+| TLS service identity | `ultra96.week7.internal` | Kept: it is written into the server certificate and checked by every client. Changing it needs a new certificate and a rebuilt app. |
+| Local capture and board mapping | `.comms-local/` | The old `.week7-local/` folder is no longer read. Captures recorded with Week 7 firmware hold `W7` packets and do not pass `demo.py report`; review them from commit `ec398b6`. |
+| Native C bridge | `CommsStart`, `CommsCopyDisplay`, `CommsStop` | The `Week7*` wrappers are kept for the Week 7 Unity export only. |
+
+The `CommsNative` UI names its button **Communications Connect**; the Unity app installed for Week 7 shows **Week 7 Connect**. The archived B07 live and video guides describe the Week 7 deployment and show its packet and session values; they are history and no longer match this checkout.
 
 The `phone/` Python, Android Unity C# and iSH helpers are retained as reference and diagnostic clients. The active installed iPhone path for this demo is the Swift `ios-visualizer/CommsNative` client linked into the Unity export; use its setup and result display for phone acceptance.

@@ -9,7 +9,7 @@
 ## What exists now
 
 - The communications path has two independently tracked ESP32 **BLE/GATT** streams through the laptop to Ultra96; the phone receives results directly from Ultra96 through its own SSH/TLS connection. The laptop gets `INGEST_ACK`, which proves ingestion rather than phone delivery. See [bridge](../laptop/dual_bridge.py), [server](../ultra96/server.py), and [phone protocol](../ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift).
-- The current dummy BLE packet is exactly **32 bytes**: `<2sBBIII8h>` = new `LC` magic (legacy `W7` is still accepted by the laptop), version, device ID, boot ID, sequence, uptime in milliseconds, and **eight little-endian signed 16-bit values**. Its version 2 network envelope has one device's eight values and a `request_id` key (`null` for ordinary telemetry). New source defaults to session `ltc-comms`; the original deployment uses `week7-demo`. For example, this is a valid *dummy-contract illustration*, not a real sensor vector:
+- The current dummy BLE packet is exactly **32 bytes**: `<2sBBIII8h>` = `LC` magic, version, device ID, boot ID, sequence, uptime in milliseconds, and **eight little-endian signed 16-bit values**. Its version 2 network envelope has one device's eight values and a `request_id` key (`null` for ordinary telemetry). The session defaults to `ltc-comms`. For example, this is a valid *dummy-contract illustration*, not a real sensor vector:
 
   ```json
   {"v":2,"type":"SENSOR_BATCH","session_id":"ltc-comms","device_id":1,"boot_id":7,"seq":42,"uptime_ms":4200,"values":[1,2,3,4,5,6,7,8],"request_id":null}

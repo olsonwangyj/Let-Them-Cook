@@ -1,6 +1,6 @@
 # B07 Communications：三个 Live 协议项目的零基础讲解
 
-**标识更新（2026-10-08）：** 本稿的 `W7`、`W7S1` 和 `week7-demo` 是原实体部署的字节及会话示例。新源码固件发送 `LC`、`LCS1`，服务与客户端默认 `ltc-comms`；包长度与字段布局不变，Laptop 同时接受旧标记。原 Ultra96 服务及已安装 iPhone 仍需 `week7-demo`，运行更新后的 Laptop 程序前请设 `$env:LTC_COMMS_SESSION = 'week7-demo'`。参见[快速上手](communications-quickstart.md#source-and-deployment-identifiers)。
+**标识更新（2026-10-14）：** 本稿的示例已改为现行标识：传感器包 `LC`、源统计 `LCS1`、会话 `ltc-comms`；包长度和字段布局不变。Week 7 的旧标识（`W7`、`W7S1`、`week7-demo`）已不再被接受，两块板、Ultra96 服务和手机 App 都必须是现行源码的版本。参见[快速上手](communications-quickstart.md#source-and-deployment-identifiers)。
 
 **环境说明：** 下文使用 `D:\LetThemCook` 的命令是原演示电脑示例；其他电脑请先按[通信快速上手](communications-quickstart.md)切换到实际仓库根目录，并设置自己的 SSH 身份和公有 CA 路径。
 
@@ -22,8 +22,8 @@
 
 ```mermaid
 flowchart LR
-    E1["LEFT FireBeetle<br/>device_id = 1"] -->|"BLE / 32-byte W7"| L["一台 Windows Laptop"]
-    E2["RIGHT FireBeetle<br/>device_id = 2"] -->|"BLE / 32-byte W7"| L
+    E1["LEFT FireBeetle<br/>device_id = 1"] -->|"BLE / 32-byte LC"| L["一台 Windows Laptop"]
+    E2["RIGHT FireBeetle<br/>device_id = 2"] -->|"BLE / 32-byte LC"| L
     L -->|"路径 A：Laptop 自己的 SSH + TLS<br/>SENSOR_BATCH，Ultra96 8888"| U["Ultra96 Python 服务<br/>检查输入、生成 dummy gesture"]
     U -->|"路径 A 原连接：INGEST_ACK"| L
     P["iPhone Visualizer"] -->|"路径 B：手机自己的 SSH + TLS<br/>SUBSCRIBE，Ultra96 9999"| U
@@ -38,7 +38,7 @@ flowchart LR
 
 ### 1.1 从“发一条数据”理解连接的几层
 
-假设 LEFT 产生一条八通道数据。小板通过 BLE 发出二进制 W7 包，Laptop 解码后得到设备、启动、序号、时间和八个值。Laptop 再把这些字段装进 `SENSOR_BATCH` JSON，发送给 Ultra96。
+假设 LEFT 产生一条八通道数据。小板通过 BLE 发出二进制 LC 包，Laptop 解码后得到设备、启动、序号、时间和八个值。Laptop 再把这些字段装进 `SENSOR_BATCH` JSON，发送给 Ultra96。
 
 网络这一段分成几层，各层解决不同的问题：
 
@@ -81,14 +81,14 @@ TCP 像连续到来的字节带。发送程序一次写入一条消息，接收�
 下面这个教学示例正文恰好是 **157 字节**，前提是与下面相同的紧凑 JSON：
 
 ```json
-{"v":2,"type":"SENSOR_BATCH","session_id":"week7-demo","device_id":1,"boot_id":42,"seq":7,"uptime_ms":1234,"values":[0,0,1000,0,0,0,10,20],"request_id":null}
+{"v":2,"type":"SENSOR_BATCH","session_id":"ltc-comms","device_id":1,"boot_id":42,"seq":7,"uptime_ms":1234,"values":[0,0,1000,0,0,0,10,20],"request_id":null}
 ```
 
 | 字段 | 示例值 | 零基础解释 |
 |---|---|---|
 | `v` | `2` | 这个消息遵守第 2 版应用消息规则 |
 | `type` | `SENSOR_BATCH` | 这是上传数据的消息。当前一条含一组八通道数据，名称中的 batch 不表示这里塞了很多时间点 |
-| `session_id` | `week7-demo` | 所属演示会话。Laptop、Ultra96 和手机必须一致；它不是密码，也不是时间戳 |
+| `session_id` | `ltc-comms` | 所属演示会话。Laptop、Ultra96 和手机必须一致；它不是密码，也不是时间戳 |
 | `device_id` | `1` | 数据来自 LEFT；2 表示 RIGHT |
 | `boot_id` | `42` | 这块板本次启动的标识。真实固件启动时生成随机 uint32，用于区分重启前后的序号；教学例用 42 |
 | `seq` | `7` | 这次启动中该数据流的序号。各板分别计数，不是两块板共享一个序号 |
@@ -98,7 +98,7 @@ TCP 像连续到来的字节带。发送程序一次写入一条消息，接收�
 
 为什么不能只传八个数？因为只有数字时，收到相同的 `[0,0,1000,...]` 无法判断来自哪块板、是新数据还是重发、重启前还是重启后。身份字段让我们能够逐条核对。
 
-代码跳转：[W7 包转换为 JSON](../common/sensor.py#L41)、[Ultra96 精确字段和范围校验](../ultra96/protocol.py#L28)。v2 必须包含 `request_id` 这个键；普通流要传 JSON 的 `null`，不能直接省略。
+代码跳转：[LC 包转换为 JSON](../common/sensor.py#L41)、[Ultra96 精确字段和范围校验](../ultra96/protocol.py#L28)。v2 必须包含 `request_id` 这个键；普通流要传 JSON 的 `null`，不能直接省略。
 
 ### 1.4 Ultra96 接到后具体做什么，ACK 证明什么
 
@@ -123,7 +123,7 @@ sequenceDiagram
 示例 ACK：
 
 ```json
-{"v":2,"type":"INGEST_ACK","session_id":"week7-demo","device_id":1,"boot_id":42,"seq":7,"request_id":null,"status":"accepted"}
+{"v":2,"type":"INGEST_ACK","session_id":"ltc-comms","device_id":1,"boot_id":42,"seq":7,"request_id":null,"status":"accepted"}
 ```
 
 Laptop 不能随便收到一个 ACK 就加一。它会逐项比较 `v`、`session_id`、`device_id`、`boot_id`、`seq` 和 `request_id`；只有匹配，才确认“刚才这条输入已由 Ultra96 应用处理”。
@@ -185,7 +185,7 @@ Laptop 不能随便收到一个 ACK 就加一。它会逐项比较 `v`、`sessio
    $demoCa = Join-Path $HOME '.codex\private\cg4002-week7-20260906\ca-cert.pem'
    $dummyDir = Join-Path (Get-Location) ('.comms-local\dummy-' + [guid]::NewGuid().ToString('N'))
    New-Item -ItemType Directory -Path $dummyDir | Out-Null
-   python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --session-id week7-demo --duration 20 --expected-rate 10 --progress-interval 1 --report (Join-Path $dummyDir 'report.json') --evidence (Join-Path $dummyDir 'packets.jsonl')
+   python -m laptop.dual_bridge --mock --ca $demoCa --port 18889 --session-id ltc-comms --duration 20 --expected-rate 10 --progress-interval 1 --report (Join-Path $dummyDir 'report.json') --evidence (Join-Path $dummyDir 'packets.jsonl')
    $dummyExit = $LASTEXITCODE
    $dummyReport = Get-Content -Raw -LiteralPath (Join-Path $dummyDir 'report.json') | ConvertFrom-Json
    $dummyExit
@@ -242,13 +242,13 @@ sequenceDiagram
 手机发送：
 
 ```json
-{"v":1,"type":"SUBSCRIBE","session_id":"week7-demo"}
+{"v":1,"type":"SUBSCRIBE","session_id":"ltc-comms"}
 ```
 
 Ultra96 回复：
 
 ```json
-{"v":1,"type":"SUBSCRIBED","session_id":"week7-demo"}
+{"v":1,"type":"SUBSCRIBED","session_id":"ltc-comms"}
 ```
 
 这两个握手消息仍使用 `v:1`；随后手机可接收 v1 或 v2 的结果。这是当前协议规定，不是版本写错。它们也各自有 4 字节大端长度头；上面的紧凑 JSON 正文分别是 52 和 53 字节。
@@ -262,7 +262,7 @@ Ultra96 回复：
 同第 1 项输入相对应的教学结果示例：
 
 ```json
-{"v":2,"type":"GESTURE_RESULT","session_id":"week7-demo","device_id":1,"boot_id":42,"seq":7,"request_id":null,"result_id":"1:42:7","gesture":"OPEN","confidence":1.0}
+{"v":2,"type":"GESTURE_RESULT","session_id":"ltc-comms","device_id":1,"boot_id":42,"seq":7,"request_id":null,"result_id":"1:42:7","gesture":"OPEN","confidence":1.0}
 ```
 
 身份字段继续保留，以便把结果追到原始输入。另外三个字段是：
@@ -332,14 +332,14 @@ Ultra96 回复：
 | `boot_id` | uint32 | 这是这块板哪次启动？ | 固件启动时随机生成，重启通常改变；不是数学保证永不碰撞的全球唯一 ID |
 | `seq` | uint32 | 当前启动、当前自动流的第几条样本？ | 自动产生新样本时前进；两块板独立 |
 | `request_id` | 非零 uint32 | 哪次控制命令/事务？ | Laptop 分配；普通自动网络消息该字段为 null |
-| `session_id` | 字符串 | 当前服务配置的哪个逻辑演示会话？ | 原部署为 `week7-demo`；新源码默认 `ltc-comms`；不是每轮 run 自动随机生成 |
+| `session_id` | 字符串 | 当前服务配置的哪个逻辑演示会话？ | 默认 `ltc-comms`；不是每轮 run 自动随机生成 |
 | `result_id` | 字符串组合 | 手机这条结果对应哪个输入？ | 从输入身份生成，不是另抽一个随机数 |
 
 LEFT 编译环境设置 `COMMS_DEVICE_ID=1`，RIGHT 设置为 2。Laptop 根据地址连上板后，还检查数据包内的 `device_id`，不能只靠同名的 BLE 广播名称区分。
 
 代码跳转：[左右构建环境](../firmware/esp32/platformio.ini#L18)、[固件设备 ID 与 GATT UUID](../firmware/esp32/src/main.cpp#L31)、[启动时生成 boot ID](../firmware/esp32/src/main.cpp#L406)。
 
-### 3.2 固定 32 字节 W7 数据包，逐个字节讲清楚
+### 3.2 固定 32 字节 LC 数据包，逐个字节讲清楚
 
 ESP 自动 sensor 通过 BLE GATT notification 发送。数据特征的完整 UUID 是 `6e1c0005-7a45-4dc4-b678-3f2d5a9c1001`，可以用第一段里的 `0005` 帮助记忆。
 
@@ -354,7 +354,7 @@ ESP 自动 sensor 通过 BLE GATT notification 发送。数据特征的完整 UU
 
 | 偏移（从 0 起） | 长度 | 字段 | 类型与含义 |
 |---|---:|---|---|
-| 0–1 | 2 | magic | ASCII `W7`，十六进制 `57 37`，帮助识别本协议 |
+| 0–1 | 2 | magic | ASCII `LC`，十六进制 `4C 43`，帮助识别本协议 |
 | 2 | 1 | version | 当前正常 dummy 固件发 2；也支持旧 1 |
 | 3 | 1 | device_id | 1=LEFT、2=RIGHT |
 | 4–7 | 4 | boot_id | 无符号 32 位、小端 |
@@ -374,16 +374,16 @@ ESP 自动 sensor 通过 BLE GATT notification 发送。数据特征的完整 UU
 第 1 项示例对应的完整 32 字节为：
 
 ```text
-57 37 02 01 | 2A 00 00 00 | 07 00 00 00 | D2 04 00 00 |
+4C 43 02 01 | 2A 00 00 00 | 07 00 00 00 | D2 04 00 00 |
 00 00 00 00 E8 03 00 00 00 00 00 00 0A 00 14 00
 
-W7 v2 ID1  | boot 42     | seq 7       | uptime 1234 |
+LC v2 ID1  | boot 42     | seq 7       | uptime 1234 |
 values = [0, 0, 1000, 0, 0, 0, 10, 20]
 ```
 
-这里的 `W7` 是标记，不是校验和；该 32 字节应用包没有单独 CRC 字段。BLE/TLS 各层有各自的保护，不能虚构这里存在一个 CRC 字段。
+这里的 `LC` 是标记，不是校验和；该 32 字节应用包没有单独 CRC 字段。BLE/TLS 各层有各自的保护，不能虚构这里存在一个 CRC 字段。
 
-这里 32 字节指应用数据，不包括 BLE 无线协议的开销。一次 GATT notification 的应用承载容量受 ATT MTU 限制，通常为 `MTU - 3`；因此本实现要求 sensor 通道 MTU 至少 35，才发送完整 32 字节 W7。普通默认 MTU 23 只能承载 20 字节，程序需要先完成 MTU 协商，不能直接塞下该包。代码跳转：[sensor MTU 检查](../firmware/esp32/include/comms_security.h#L19)。
+这里 32 字节指应用数据，不包括 BLE 无线协议的开销。一次 GATT notification 的应用承载容量受 ATT MTU 限制，通常为 `MTU - 3`；因此本实现要求 sensor 通道 MTU 至少 35，才发送完整 32 字节 LC。普通默认 MTU 23 只能承载 20 字节，程序需要先完成 MTU 协商，不能直接塞下该包。代码跳转：[sensor MTU 检查](../firmware/esp32/include/comms_security.h#L19)。
 
 源码创建一个 GATT service（UUID 第一段里的 `0001`）和七个 GATT characteristics（`0002` 至 `0008`）；主数据、控制、统计及测试特征的用途不同，下节会按用途说明。
 
@@ -408,16 +408,16 @@ values = [0, 0, 1000, 0, 0, 0, 10, 20]
 
 代码跳转：[固件位模式加一](../firmware/esp32/include/comms_control.h#L138)、[Laptop 计算预期输出](../common/control.py#L119)。
 
-### 3.4 Packet types：W7 数据、B7 控制、W7S1 统计
+### 3.4 Packet types：LC 数据、B7 控制、LCS1 统计
 
-32 字节 W7 头里没有另一个独立 `packet_type` 字段。它被定义为 sensor 数据结构；控制操作使用另一种 `B7` 帧，其中才有 opcode 区分具体操作。GATT characteristic 也区分数据、控制请求、控制响应和统计。
+32 字节 LC 头里没有另一个独立 `packet_type` 字段。它被定义为 sensor 数据结构；控制操作使用另一种 `B7` 帧，其中才有 opcode 区分具体操作。GATT characteristic 也区分数据、控制请求、控制响应和统计。
 
 | 应用数据/包 | 方向与承载位置 | 用途 |
 |---|---|---|
-| W7，32 字节 | ESP → Laptop，sensor characteristic notification | 自动 dummy sensor 流 |
+| LC，32 字节 | ESP → Laptop，sensor characteristic notification | 自动 dummy sensor 流 |
 | B7 请求 | Laptop → ESP，control characteristic write | 命令修改、设定速率、文件传输 |
-| B7 响应 | ESP → Laptop，response characteristic notification | 返回状态、命令修改后的 W7 包、文件进度或摘要 |
-| W7S1，24 字节 | Laptop 读取 ESP source statistics characteristic | 核对 boot、生成序号、BLE 提交成功与失败计数 |
+| B7 响应 | ESP → Laptop，response characteristic notification | 返回状态、命令修改后的 LC 包、文件进度或摘要 |
+| LCS1，24 字节 | Laptop 读取 ESP source statistics characteristic | 核对 boot、生成序号、BLE 提交成功与失败计数 |
 | Counter，4 字节 | ESP → Laptop，counter characteristic notification | 早期计数/链路测试；不是完整 sensor 证据 |
 | MTU probe control / payload | 独立的测试特征 | 验证协商后可承载的 BLE 数据长度 |
 
@@ -426,17 +426,17 @@ B7 控制头是 **14 字节，小端**，后面跟操作对应的 payload：
 | 偏移 | 长度 | 字段 | 说明 |
 |---|---:|---|---|
 | 0–1 | 2 | magic | `B7`，十六进制 `42 37` |
-| 2 | 1 | control version | 1，与内部 W7 sensor 的 v2 是各自版本 |
+| 2 | 1 | control version | 1，与内部 LC sensor 的 v2 是各自版本 |
 | 3 | 1 | opcode | 操作码；响应把最高位设为 1，即请求 opcode OR `0x80` |
 | 4 | 1 | device_id | 目标/响应设备 1 或 2 |
 | 5 | 1 | status | 请求为 0；响应中 0=成功，其他值为具体失败原因 |
 | 6–9 | 4 | request_id | 本次控制事务 ID；文件传输时同一文件所有块沿用同一 transfer ID |
 | 10–13 | 4 | offset | 文件字节偏移/进度；COMMAND 与 SET_RATE 必须为 0 |
-| 14 起 | 可变 | payload | 例如完整 32 字节 W7、两字节速率、文件内容块 |
+| 14 起 | 可变 | payload | 例如完整 32 字节 LC、两字节速率、文件内容块 |
 
 | 请求 opcode | 成功响应 opcode | 名称 | payload/用途 |
 |---|---|---|---|
-| `0x01`（1） | `0x81`（129） | COMMAND | 请求和成功响应都带一个完整 32 字节 W7 v2；ESP 修改八值并返回 |
+| `0x01`（1） | `0x81`（129） | COMMAND | 请求和成功响应都带一个完整 32 字节 LC v2；ESP 修改八值并返回 |
 | `0x02`（2） | `0x82`（130） | SET_RATE | 两字节小端 uint16，目标 1–200 Hz；响应回确认值 |
 | `0x10`（16） | `0x90`（144） | FILE_BEGIN | 请求带 4 字节长度 + 32 字节 SHA-256；响应报告接收进度 |
 | `0x11`（17） | `0x91`（145） | FILE_CHUNK | 请求带 offset 和本块字节；响应 offset 为已接收字节数 |
@@ -447,7 +447,7 @@ B7 控制头是 **14 字节，小端**，后面跟操作对应的 payload：
 
 完整 COMMAND 帧是 **14 + 32 = 46 字节**。实际 BLE 控制数据大小还受协商 MTU 限制；代码要求控制通道 MTU 至少 64，文件 chunk 最大为 `min(180, MTU - 3 - 14)` 字节。
 
-W7S1 统计 24 字节布局：0–3 为 `W7S1`，4 为 device ID，5–7 为保留零，8–11 为 boot ID，12–15 为 next sequence，16–19 为提交成功累计，20–23 为提交失败累计。读取开始与结束快照后才能计算本轮差值；“提交成功”只是交给 BLE 栈，不等于电脑或 Ultra96 已收到。
+LCS1 统计 24 字节布局：0–3 为 `LCS1`，4 为 device ID，5–7 为保留零，8–11 为 boot ID，12–15 为 next sequence，16–19 为提交成功累计，20–23 为提交失败累计。读取开始与结束快照后才能计算本轮差值；“提交成功”只是交给 BLE 栈，不等于电脑或 Ultra96 已收到。
 
 代码跳转：[B7 定义和校验](../common/control.py#L8)、[ESP opcode 分派](../firmware/esp32/include/comms_control.h#L59)、[源统计布局](../firmware/esp32/include/comms_source_stats.h#L33)。
 
@@ -464,9 +464,9 @@ sequenceDiagram
     participant P as iPhone
     K->>L: 选择 ID1 或 ID2
     L->>L: 随机选八值，生成 request_id
-    L->>E: B7 COMMAND 0x01 + W7 v2
+    L->>E: B7 COMMAND 0x01 + LC v2
     E->>E: 八通道各加一（16位回绕），更新 uptime
-    E-->>L: B7 response 0x81 + 修改后的 W7
+    E-->>L: B7 response 0x81 + 修改后的 LC
     L->>L: 验证八值与身份
     L->>U: SENSOR_BATCH，request_id 非空
     U->>U: 接受新输入；有订阅者时先排入结果队列
@@ -482,7 +482,7 @@ ACK 和手机结果经过两条独立连接，实际到达先后不保证；结�
 用教学例讲：电脑生成 request ID 1001，选出 `[32767,-32768,-1,0,1,123,-456,789]`。目标为 device 1、boot 42；命令内 `seq=1001`、输入 uptime=0。ESP 返回 `[-32768,-32767,0,1,2,124,-455,790]`，更新 uptime，保留 device/boot/seq。Laptop 验证通过后再上传：
 
 ```json
-{"v":2,"type":"SENSOR_BATCH","session_id":"week7-demo","device_id":1,"boot_id":42,"seq":1001,"uptime_ms":2345,"values":[-32768,-32767,0,1,2,124,-455,790],"request_id":1001}
+{"v":2,"type":"SENSOR_BATCH","session_id":"ltc-comms","device_id":1,"boot_id":42,"seq":1001,"uptime_ms":2345,"values":[-32768,-32767,0,1,2,124,-455,790],"request_id":1001}
 ```
 
 对应手机结果 ID 是 `cmd:1:42:1001`。普通自动 sensor 即使恰巧也有 seq 1001，它的结果 ID 是 `1:42:1001`，没有 `cmd:`；服务器也区分自动流与命令去重记录。
@@ -503,15 +503,15 @@ ACK 和手机结果经过两条独立连接，实际到达先后不保证；结�
 
 ### 3.7 现场可直接讲的短稿
 
-**中文：**“LEFT 和 RIGHT 在固件里分别配置为设备 1 和 2。自动 sensor 采用固定 32 字节的 W7 二进制包：两字节标记、一字节版本、一字节设备 ID、三个 uint32 字段 boot ID、序号和 uptime，最后是八个 int16 数据值；多字节字段使用小端。设备 ID 区分左右板，boot ID 区分重启，seq 用于逐条跟踪。另外，控制协议使用 14 字节 B7 头，opcode 区分命令、速率和文件操作。按键命令带完整 W7 包，小板将八个值分别做 16 位回绕加一，再带原 request ID 返回，让电脑能核对具体哪次操作成功。”
+**中文：**“LEFT 和 RIGHT 在固件里分别配置为设备 1 和 2。自动 sensor 采用固定 32 字节的 LC 二进制包：两字节标记、一字节版本、一字节设备 ID、三个 uint32 字段 boot ID、序号和 uptime，最后是八个 int16 数据值；多字节字段使用小端。设备 ID 区分左右板，boot ID 区分重启，seq 用于逐条跟踪。另外，控制协议使用 14 字节 B7 头，opcode 区分命令、速率和文件操作。按键命令带完整 LC 包，小板将八个值分别做 16 位回绕加一，再带原 request ID 返回，让电脑能核对具体哪次操作成功。”
 
-**English:** “The LEFT and RIGHT firmware builds use device IDs 1 and 2. Automatic telemetry uses a fixed 32-byte W7 packet: two magic bytes, one version byte, one device byte, three uint32 fields for boot ID, sequence and uptime, and eight signed int16 values. Multi-byte binary fields are little-endian. The device ID separates the two boards, the boot ID distinguishes restarts, and the sequence tracks samples. A separate B7 control protocol has a 14-byte header and opcodes for commands, rate changes and file transfers. A keyboard command carries a complete W7 packet. The ESP increments all eight values with explicit 16-bit wraparound and returns the correlated response.”
+**English:** “The LEFT and RIGHT firmware builds use device IDs 1 and 2. Automatic telemetry uses a fixed 32-byte LC packet: two magic bytes, one version byte, one device byte, three uint32 fields for boot ID, sequence and uptime, and eight signed int16 values. Multi-byte binary fields are little-endian. The device ID separates the two boards, the boot ID distinguishes restarts, and the sequence tracks samples. A separate B7 control protocol has a 14-byte header and opcodes for commands, rate changes and file transfers. A keyboard command carries a complete LC packet. The ESP increments all eight values with explicit 16-bit wraparound and returns the correlated response.”
 
 ## 4. 老师可能追问：回答时的边界
 
 | 追问 | 可以准确回答的内容 | 关键代码 |
 |---|---|---|
-| 你到底用了什么协议？ | ESP 到电脑是 BLE GATT 上的 W7/B7；电脑到板、板到手机是长度前缀 JSON over TLS，经各自 SSH 路由。 | [W7](../common/sensor.py#L11)、[B7](../common/control.py#L16)、[网络分帧](../common/wire.py#L35) |
+| 你到底用了什么协议？ | ESP 到电脑是 BLE GATT 上的 LC/B7；电脑到板、板到手机是长度前缀 JSON over TLS，经各自 SSH 路由。 | [LC](../common/sensor.py#L11)、[B7](../common/control.py#L16)、[网络分帧](../common/wire.py#L35) |
 | TCP 可靠为什么还要 ACK？ | TCP 不报告“Ultra96 应用是否接受了正确的这条消息”。应用 ACK 可匹配 session/device/boot/seq/request，并表明 accepted 或 duplicate。 | [ACK 核对](../laptop/bridge.py#L375) |
 | 为什么 SSH 里面又用 TLS？ | SSH 提供到私有端口的访问路线；应用层另外用 CA 和服务名检查目标服务，保持相同验证规则。 | [TLS](../common/tls.py#L7) |
 | 每条 sensor 真的是传感器测量吗？ | 此次是实体板发出的格式完整 dummy 数据，来自预置八通道表；不能称为实际动作测量。 | [数据表](../common/dummy_fixtures.json)、[固件选表](../firmware/esp32/include/comms_packet.h#L54) |
@@ -527,7 +527,7 @@ ACK 和手机结果经过两条独立连接，实际到达先后不保证；结�
 
 1. **小板通过 BLE 发完整二进制包，电脑负责解码和转成网络 JSON。**
 2. **Laptop → Ultra96 8888 是输入路径；iPhone → Ultra96 9999 是独立的订阅结果路径。**
-3. **网络帧是四字节大端长度加 JSON；小板 W7/B7 的多字节二进制字段是小端。**
+3. **网络帧是四字节大端长度加 JSON；小板 LC/B7 的多字节二进制字段是小端。**
 4. **device/boot/seq/request 身份让我们能把输入、ACK 和结果对起来。**
 5. **Ultra96 的 INGEST_ACK 和 iPhone 的 Received 是不同阶段的证据，必须分别看。**
 6. **自动八值由 ESP 选，按键八值由电脑选，dummy gesture 由 Ultra96 选。当前不是实际 AI 推理。**
