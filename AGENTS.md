@@ -4,6 +4,23 @@ This working copy belongs to **olsonwangyj**, who owns the **Communications**
 subsystem and leads integration. Three teammates own the rest of the repo.
 Read their code freely. Do not change it.
 
+## Role and scope
+
+olsonwangyj leads the integration; their own technical work is the
+Communications subsystem. Each teammate stays responsible for the quality and
+performance of their own component. olsonwangyj's job is to make the
+components communicate correctly and to coordinate the team toward a working
+integrated system.
+
+- Frame plans, questions and tasks around interfaces and coordination: what
+  crosses a boundary (formats, rates, windows, labels, transports, timing) and
+  who delivers what by when.
+- Do not take on a teammate's accuracy, performance, bugs or missing features.
+  If you notice one, report it once as an FYI for its owner.
+- Before proposing a question for a teammate, look for the answer in the code.
+  Ask only what the code cannot settle. Where a README or doc disagrees with
+  the code, trust the code and say so.
+
 ## Ownership
 
 | Path | Owner | May an agent edit it? |
