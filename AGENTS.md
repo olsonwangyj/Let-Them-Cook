@@ -4,6 +4,15 @@ This working copy belongs to **olsonwangyj**, who owns the **Communications**
 subsystem and leads integration. Three teammates own the rest of the repo.
 Read their code freely. Do not change it.
 
+**Start here:** `docs/communications-handoff.zh-CN.md` is the hand-off
+document. It explains the project, the Communications subsystem and why it is
+designed this way, what each folder and file does, the current progress, what
+must not be done, and what comes next. Read it before touching anything, and
+keep it up to date: after any change to Communications code, to what is
+deployed on the boards, the Ultra96 or the phone, to an interface agreed with
+a teammate, or after olsonwangyj corrects an understanding, update its
+progress section (6) and its change log (14) in the same piece of work.
+
 ## Role and scope
 
 olsonwangyj leads the integration; their own technical work is the

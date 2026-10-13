@@ -7,7 +7,9 @@ the fork only, not in the team repo.
 
 | File | What it is |
 |---|---|
-| [communications-quickstart.md](communications-quickstart.md) | How to flash, pair and run the two-board demo with `flash.py` and `demo.py`. Start here. |
+| [communications-handoff.zh-CN.md](communications-handoff.zh-CN.md) | The hand-off document (Chinese): the project, the Communications design and its reasons, a map of every folder and file, current progress, rules and next steps. Every new agent reads this first. Kept up to date. |
+| [handoff-details/](handoff-details/) | Six detail chapters of the hand-off: architecture and security, firmware, laptop, Ultra96, phone and the Week 7 receiver, tests and operations. |
+| [communications-quickstart.md](communications-quickstart.md) | How to flash, pair and run the two-board demo with `flash.py` and `demo.py`. |
 | [co-protocol-v2.md](co-protocol-v2.md) | The protocol specification: packet layout, control channel, limits. |
 | [B07-CO-protocol-explained.zh-CN.md](B07-CO-protocol-explained.zh-CN.md) | Chinese walkthrough of the protocol, with byte tables and sequence diagrams. |
 | [integration-handoff.md](integration-handoff.md) | What Communications needs from each teammate to carry real data. |
