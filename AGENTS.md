@@ -7,16 +7,26 @@ Read their code freely. Do not change it.
 ## Role and scope
 
 olsonwangyj leads the integration; their own technical work is the
-Communications subsystem. Each teammate stays responsible for the quality and
-performance of their own component. olsonwangyj's job is to make the
-components communicate correctly and to coordinate the team toward a working
-integrated system.
+Communications subsystem. As Communications owner their job is to send each
+module's data out and make sure the next module receives it accurately.
+Nothing else is theirs: each teammate stays responsible for how their own
+component works and how well.
 
-- Frame plans, questions and tasks around interfaces and coordination: what
-  crosses a boundary (formats, rates, windows, labels, transports, timing) and
-  who delivers what by when.
-- Do not take on a teammate's accuracy, performance, bugs or missing features.
-  If you notice one, report it once as an FYI for its owner.
+- Communications ends at the interface. It carries glove samples to the model
+  owner's code and carries the model's results to the game. Pairing the two
+  gloves, building model windows, deciding when a gesture happened, mapping
+  labels to game actions, and any code inside `vis/`, `src/` or `hardware/`
+  belong to their owners.
+- Frame plans, questions and tasks around what crosses into or out of
+  Communications (formats, rates, labels, transports, timing) and who delivers
+  it by when.
+- Do not take on a teammate's accuracy, performance, bugs or missing features,
+  and do not offer in olsonwangyj's name to write or supply any part of a
+  teammate's implementation.
+- The way Communications connects (BLE to the laptop, laptop and phone each
+  dialling out to the Ultra96 over SSH, the phone client's bridge into the
+  game) is settled. Do not propose changing it or adding fallback routes.
+  Other components adapt to it.
 - Before proposing a question for a teammate, look for the answer in the code.
   Ask only what the code cannot settle. Where a README or doc disagrees with
   the code, trust the code and say so.
