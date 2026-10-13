@@ -1,6 +1,6 @@
 # Week 7 communications runbook
 
-Current design authority: [selected decisions](week7-selected-design-2026-09-06.md). This guide includes the verified 2026-09-07 VPN/password access and deployment procedure. Historical approval blockers no longer apply. Preserve separate evidence for local, real BLE, Ultra96/SSH, and real Phone tests.
+Current design authority: [selected decisions](archive/design/week7-selected-design-2026-09-06.md). This guide includes the verified 2026-09-07 VPN/password access and deployment procedure. Historical approval blockers no longer apply. Preserve separate evidence for local, real BLE, Ultra96/SSH, and real Phone tests.
 
 ## Setup and local checks
 
@@ -69,7 +69,7 @@ The counter target and duration modes are separate runs. The existing four-byte 
 4. Run `python -m laptop.windows_pairing` in a **fresh process**, allowing fresh advertised discovery. Enter the new local serial passkey without recording it. Require Windows authenticated protection and firmware `success=1 auth_mode=13 approved=1 current_peer=1`.
 5. Repeat the 100-packet protected BLE/local TLS test above. Normal recovery requires a clean positive result, not merely a successful pairing dialog.
 
-Physical testing found that immediate repeated pairing in the same process after Windows unpair could return FAILED without a passkey event. Fresh-process pairing succeeded after deliberate bond cleanup. The cause inside Windows is unproven; do not respond by weakening security or adding automatic bond deletion. When testing one-sided loss, collect the zero-data/authentication-failure evidence first, then use this explicit recovery procedure. True USB power loss requires physically disconnecting the only power source. The [evening 2026-09-07 evidence](week7-continuation-report-2026-09-07.md#live-usb-only-power-loss-test-evening-2026-09-07) separately captures that USB-only interruption and physical RESET, with stored-bond recovery after each.
+Physical testing found that immediate repeated pairing in the same process after Windows unpair could return FAILED without a passkey event. Fresh-process pairing succeeded after deliberate bond cleanup. The cause inside Windows is unproven; do not respond by weakening security or adding automatic bond deletion. When testing one-sided loss, collect the zero-data/authentication-failure evidence first, then use this explicit recovery procedure. True USB power loss requires physically disconnecting the only power source. The [evening 2026-09-07 evidence](archive/reports/week7-continuation-report-2026-09-07.md#live-usb-only-power-loss-test-evening-2026-09-07) separately captures that USB-only interruption and physical RESET, with stored-bond recovery after each.
 
 ## Verified SSH access and deployment
 
@@ -190,7 +190,7 @@ disk error, or close timeout explicitly makes the record incomplete. Starting a
 new capture requires a new directory. An operating-system file operation already
 in progress can finish after a close timeout; a later complete file alone does
 not establish successful bounded cleanup. The default server command does not log
-these events. See the [iPhone recovery report](phone-recovery-test-2026-09-21.md)
+these events. See the [iPhone recovery report](archive/test-evidence/phone-recovery-test-2026-09-21.md)
 for scope and actual test outcomes.
 
 On the Laptop, print the ingestion command and execute it in its own terminal:
@@ -224,7 +224,7 @@ python -m tools.rehearse_remote_week7 --ca 'C:\Users\Yanjie Wang\.codex\private\
 
 Require exit zero and summary passed=true. For 600 seconds at 10 Hz, the clean soak requires at least 5400 ACKs and unique results, exact correlation with no missing/extra/repeated IDs, one BLE/ingestion/viewer connection, no new boot and zero checked error/drop/gap/duplicate/order counters. Each ACK/result stream must have no gap between successive messages or trailing silence greater than five seconds; initial startup latency is reported separately. The separately reported callback_generation_dropped metric can include late callbacks rejected during shutdown and does not by itself fail this runner; inspect its context. A few successful packets over a long elapsed duration cannot satisfy the count/activity gate. The runner is a desktop subscriber and does not establish actual Phone Gate M.
 
-An ACK confirms input acceptance; it does not prove viewer delivery. Stop other viewers before running the runner because a new same-session subscription replaces the previous owner. For an actual Phone, use its own 19999 -> 9999 forward and the [Phone guide](week7-phone-runbook.md); never route Phone results through the Laptop.
+An ACK confirms input acceptance; it does not prove viewer delivery. Stop other viewers before running the runner because a new same-session subscription replaces the previous owner. For an actual Phone, use its own 19999 -> 9999 forward and the [Phone guide](archive/runbooks/week7-phone-runbook.md); never route Phone results through the Laptop.
 
 ## Deliberate remote fault experiments
 
@@ -302,4 +302,4 @@ For physical USB and RESET interruption evidence, start a duration-based remote 
 - Recent dedup is volatile and bounded; after cache eviction or process restart the same trace may be accepted again. Unique IDs help clients correlate; this is not durable exactly-once delivery.
 - Diagnostic BLE cleanup uses supervised retained tasks. The supervisor is bounded, but a non-cooperative native operation may outlive it or delay interpreter shutdown; record cleanup errors and terminate only the owned test process if necessary.
 
-See [Phone setup and Unity adapter](week7-phone-runbook.md), [2026-09-07 continuation evidence](week7-continuation-report-2026-09-07.md) and [historical 2026-09-06 evidence](week7-continuation-report-2026-09-06.md).
+See [Phone setup and Unity adapter](archive/runbooks/week7-phone-runbook.md), [2026-09-07 continuation evidence](archive/reports/week7-continuation-report-2026-09-07.md) and [historical 2026-09-06 evidence](archive/reports/week7-continuation-report-2026-09-06.md).
