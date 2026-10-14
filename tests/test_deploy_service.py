@@ -128,7 +128,10 @@ def test_remote_program_on_linux(tmp_path):
     with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as bundle:
         options = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
         bundle.extractall(material / "old", **options)
-    script = ROOT / "tests" / "linux" / "deploy_remote_test.sh"
+    # A Windows checkout may have given the script CRLF endings, which bash rejects.
+    script = material / "deploy_remote_test.sh"
+    script.write_bytes((ROOT / "tests" / "linux" / "deploy_remote_test.sh").read_bytes()
+                       .replace(bytes([13, 10]), bytes([10])))
     environment = dict(os.environ, MSYS_NO_PATHCONV="1")
     result = subprocess.run(runner + [convert(script), convert(material)], capture_output=True,
                             timeout=600, env=environment)
