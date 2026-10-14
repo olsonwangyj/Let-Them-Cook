@@ -572,7 +572,7 @@ Planned phone-side steps up to the in-person integration session on Tue 2026-10-
 
 | Date | Phone-side step |
 |---|---|
-| Thu 10-15 | Board service redeployed from current source (session `ltc-comms`) with a renewed server certificate; Jie Ling answers whether Saturday works for the export (the phone itself is logged in only by the owner, whose personal NUS account it uses) |
+| Thu 10-15 | Board service redeployed from current source (session `ltc-comms`) with a renewed server certificate; Jie Ling answers which iPhone is used on Tuesday (whoever holds it logs in with their own NUS VPN, jump-host and board accounts; a phone that is not the owner's must be connected to the owner's Mac once to install the build) and whether Saturday works for the export |
 | Fri 10-16 | The three Python and C# label and confidence checks accept model labels and real confidence (`Protocol.swift` follows on Sat 10-17) |
 | Sat 10-17 | On the Mac: `Protocol.swift` accepts model labels and real confidence; `CommsNextResult` and the `confidence` field added to the Swift client; the existing Week 7 export rebuilt from current source and installed, so the phone can subscribe to `ltc-comms`; Jie Ling pushes the Unity project changes to the team repo (`vis/`): the C# that calls the Communications functions, with the 5005 listener removed; and pushes the iOS Xcode export to a separate branch with Git LFS; the owner pulls the export |
 | Sun 10-18 | The owner links `CommsNative` into Jie Ling's Xcode export and installs it on the phone; Jie Ling told that `CommsNextResult` is ready |
