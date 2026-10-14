@@ -1,5 +1,7 @@
 # Communications integration handoff
 
+**Superseded on 2026-10-14** by section 7 of [the hand-off document](../../communications-handoff.md), which holds the agreed interfaces with each teammate. Kept as history; links below are relative to its old location in `docs/` and may not resolve.
+
 **Status:** proposed sequence and interface requests, 8 October 2026. These are tasks for the communications portion, not agreed dates or commitments from other teammates. Keep the working dummy transport available until the real-data path passes its own tests.
 
 **Update, 13 October 2026:** three things changed after this was written. (1) The `siqiang_29_sept` branch is merged (team pull request 16), so `hardware/gloves/29_sept/` is on main, together with an idle/moving detector in `hardware/gloves/model_threshold_variant_1/`. (2) The Unity project is in the team repo under `vis/` (pull request 17). Its README has the phone listening as a TLS server on port 5005 for newline-separated lines, which is the opposite direction from the result path described below. (3) Version 1 of the integrated system is due on 20 October. The requests for each teammate, with the reason for each one, are in the [integration brief](https://claude.ai/code/artifact/b77bebd7-09f4-4c3e-9466-d4e19318359c).

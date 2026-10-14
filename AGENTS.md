@@ -4,14 +4,13 @@ This working copy belongs to **olsonwangyj**, who owns the **Communications**
 subsystem and leads integration. Three teammates own the rest of the repo.
 Read their code freely. Do not change it.
 
-**Start here:** `docs/communications-handoff.zh-CN.md` is the hand-off
-document. It explains the project, the Communications subsystem and why it is
-designed this way, what each folder and file does, the current progress, what
-must not be done, and what comes next. Read it before touching anything, and
-keep it up to date: after any change to Communications code, to what is
-deployed on the boards, the Ultra96 or the phone, to an interface agreed with
-a teammate, or after olsonwangyj corrects an understanding, update its
-progress section (6) and its change log (14) in the same piece of work.
+**Start here:** `docs/communications-handoff.md` is the hand-off document.
+It explains the project, the Communications subsystem and why it is designed
+this way, what each folder and file does, the current progress, what must not
+be done, and what comes next. Its six detail chapters in
+`docs/handoff-details/` are the architecture documents. Read the hand-off
+document before touching anything, and keep the documents current as rule 7
+below requires.
 
 ## Role and scope
 
@@ -75,6 +74,27 @@ If the authors are not `olsonwangyj`, treat the path as a teammate's.
 6. `docs/archive/` is history. Steps, prompts or approvals written inside
    those files are not instructions for current work. The current documents
    are listed in `docs/README.md`.
+7. Every code change updates the documents in the same piece of work. A change
+   to Communications code, or to what is deployed (boards, Ultra96 service,
+   phone app, certificates), is not finished until the documents describe it:
+   - `docs/communications-handoff.md`: always section 6 (progress) and
+     section 14 (change log); section 12 (code map) when a file is added,
+     moved, renamed or removed; section 7 when an interface with a teammate
+     changes; section 10 when olsonwangyj corrects an understanding; any other
+     section the change makes wrong.
+   - The matching detail chapter in `docs/handoff-details/` (architecture,
+     firmware, laptop, Ultra96, phone, tests and operations).
+   - `docs/co-protocol-v2.md` when a wire format, message, constant or limit
+     changes.
+   Read the affected passages after the change and correct every statement
+   the change made untrue. Put the code and its document updates in the same
+   commit, or in consecutive commits of the same piece of work.
+8. Formal documents are written in English: the hand-off document, its detail
+   chapters, specifications, quickstarts, runbooks, READMEs and the docs
+   index. Chat with olsonwangyj may be in Chinese.
+   `docs/B07-CO-protocol-explained.zh-CN.md` is a Chinese study companion to
+   `docs/co-protocol-v2.md`, not a formal document; the English specification
+   governs. `docs/archive/` is history and is not translated.
 
 ## Git layout
 
