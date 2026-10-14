@@ -1,6 +1,20 @@
 # B07 Communications：三个 Live 协议项目的零基础讲解
 
-**标识更新（2026-10-14）：** 本稿的示例已改为现行标识：传感器包 `LC`、源统计 `LCS1`、会话 `ltc-comms`；包长度和字段布局不变。Week 7 的旧标识（`W7`、`W7S1`、`week7-demo`）已不再被接受，两块板、Ultra96 服务和手机 App 都必须是现行源码的版本。参见[快速上手](communications-quickstart.md#source-and-deployment-identifiers)。
+> **版本说明（2026-10-14）：本稿讲解的是协议版本 2，正文未改写。** 当前代码只支持协议版本 3（分支 `comms/protocol-v3`），以英文规范 [co-protocol-v3.md](co-protocol-v3.md) 为准；本稿与规范或代码不一致时，以规范和代码为准。版本 3 与本稿的主要区别：
+>
+> - **传感器包 38 字节**（版本 2 为 32 字节）：16 字节头 + 11 个 int16，小端，Python 格式 `<2sBBIII11h`；标记仍为 `LC`，版本字节为 3，只接受 3。
+> - **11 个值和比例**（版本 2 为八个值）：`ax ay az`（g，去除重力，×10000）、`gx gy gz`（°/s，去除偏置，×100）、`yaw pitch roll`（度，×100）、`flex1 flex2`（0–1，×10000）；物理值 = int16 ÷ 比例。目前仍发送 `common/dummy_fixtures.json` 中的 11 值 dummy 行。布局和比例是暂定的，要等 IDLE/MOVING 的答复和真实样本核对后才固定。
+> - **源统计标记 `LCS3`**（版本 2 为 `LCS1`），24 字节格式不变；仍运行版本 2 固件的板在订阅前就被拒绝。
+> - **传感器通知需要 ATT MTU ≥ 41**（版本 2 为 35）。
+> - **命令帧 52 字节**（版本 2 为 46 字节）：一条命令携带一整个版本 3 包（14 字节头 + 38 字节），板子把 11 个值各加 1（32767 回绕到 -32768），并把 `uptime_ms` 换成自己的时钟。
+> - **版本 3 消息**：`SENSOR_BATCH`、`INGEST_ACK`、`GESTURE_RESULT` 的 `v` 为 3（不再接受 1 或 2），`values` 恰好 11 个；`SUBSCRIBE`/`SUBSCRIBED` 仍为 `v` 1。三条版本 3 消息都必须带 `request_id`（普通样本和模型结果为 `null`）；`GESTURE_RESULT` 共 10 个键。
+> - **标签和置信度规则**：`gesture` 是 1–32 个 `A–Z a–z 0–9 _ -` 字符（不再限于四个 dummy 标签）；`confidence` 是 0–1 之间的有限 JSON 数（不能是布尔值，整数 0 和 1 可以）。板子发送前检查，Python、C# 和 Swift 接收方用同一规则。
+> - **模型接口**：Ultra96 服务用 `--model MODULE`（`--model-path DIR`）加载模型的 `start(emit)` 和 `on_sample(device_id, boot_id, seq, uptime_ms, values)`（`values` 为 11 个物理浮点数）；`emit(gesture, confidence, device_id, boot_id, seq)` 可在任意线程调用。不指定 `--model` 时使用内置 dummy 模型：每个被接受的样本得到一个随机的 `REST`/`FIST`/`OPEN`/`POINT`，置信度 1.0。命令不进入模型，由服务回一个 `cmd:` 结果。函数名是提案，等 Wen Ree 确认。旧的公式 dummy（版本 1、`COMMS_LEGACY_DUMMY`、`seq % 4` 循环标签）已删除。
+> - **`CommsNextResult`**：Swift 包新增 C 函数 `int32_t CommsNextResult(char* buffer, int32_t capacity)`，每次取出一条最早的结果，为紧凑 JSON（`result_id`、`gesture`、`confidence`、`device_id`）加结尾的 0，返回写入的字节数；没有结果时返回 0；缓冲区为空指针或不够大时不写入、保留该结果并返回 −(字节数 + 1)。最多排队 32 条、每条 2 秒（暂定）。手机显示第一行改为 `Communications`，第三行显示收到的置信度。这些 Swift 改动已编写，未编译（2026-10-14）。
+>
+> 状态：版本 3 已在笔记本电脑上构建并通过测试；右板已刷入版本 3，并用 `python -m tools.check_board right` 对笔记本电脑上的服务实测通过（50 Hz、65 秒，板上生成 = 笔记本接收 = 服务确认 = 2934）。版本 3 尚未在 Ultra96 或手机上运行，也未两块板一起运行；左板仍是版本 2 固件。文中带行号的代码链接是按版本 2 的代码写的，当前文件中的行号可能已经变化。
+
+**标识更新（2026-10-14，版本 2）：** 本稿的示例使用版本 2 的标识：传感器包 `LC`、源统计 `LCS1`（版本 3 改为 `LCS3`，见上方说明）、会话 `ltc-comms`；相对 Week 7，包长度和字段布局不变。Week 7 的旧标识（`W7`、`W7S1`、`week7-demo`）已不再被接受，两块板、Ultra96 服务和手机 App 都必须是现行源码的版本。参见[快速上手](communications-quickstart.md#source-and-deployment-identifiers)。
 
 **环境说明：** 下文使用 `D:\LetThemCook` 的命令是原演示电脑示例；其他电脑请先按[通信快速上手](communications-quickstart.md)切换到实际仓库根目录，并设置自己的 SSH 身份和公有 CA 路径。
 

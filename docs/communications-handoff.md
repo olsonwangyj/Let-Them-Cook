@@ -2,7 +2,7 @@
 
 **Readers:** olsonwangyj (called Yoz in the team), the Communications owner, and every agent that takes over this repository later.
 **Purpose:** after reading it you know what the project is, how the Communications subsystem works, why it is designed this way, where it stands now, what must not be done, and what comes next.
-**Last updated:** 2026-10-14 (change log in section 14).
+**Last updated:** 2026-10-15 (change log in section 14).
 
 ---
 
@@ -13,10 +13,10 @@
 3. **Keeping the documents current is a rule. The owner set it on 2026-10-14 (`AGENTS.md` rules 7 and 8).** Every change to Communications code, and every change to what is deployed (boards, Ultra96 service, phone app, certificates), is not finished until the documents describe it, in the same piece of work. The documents are:
    - this hand-off document: always section 6 (progress) and section 14 (change log); section 12 (code map) when a file is added, moved, renamed or removed; section 7 when an interface changes; section 10 when the owner corrects an understanding;
    - the matching detail chapter in `docs/handoff-details/`;
-   - `docs/co-protocol-v2.md` when a wire format, message, constant or limit changes.
+   - `docs/co-protocol-v3.md` (the protocol specification; it was `co-protocol-v2.md` until 2026-10-14) when a wire format, message, constant or limit changes.
 
    Sections 6 and 14 are also updated when an interface is agreed with a teammate or the owner corrects an understanding, even when no code changes. After a change, read the affected passages and correct every statement the change made untrue. Formal documents (this document, its detail chapters, specifications, quickstarts, runbooks) are written in English. Chat with the owner may be in Chinese.
-4. Finer detail, down to each constant, each status string and the source of each design decision, is in the six chapters under `docs/handoff-details/` (index in 12.5). This document on its own contains every point needed to take over.
+4. Finer detail, down to each constant, each status string and the source of each design decision, is in the six chapters under `docs/handoff-details/` (index in 12.5). This document on its own contains every point needed to take over. Where a chapter disagrees with this document, this document governs, and the code governs both (point 2).
 5. Historical material is in `docs/archive/`. Those files keep the names of their time (`week7`, `W7`) and are not updated. Use them only to find where a design decision came from.
 
 ---
@@ -27,8 +27,8 @@
 - **olsonwangyj's two roles:** owner of the Communications subsystem (the main technical work), and since 2026-10-13 also integration lead. Integration V1 must run by **2026-10-20 (Tuesday)**, when the team meets in person to integrate it together (the schedule up to that day is in 6.4). The final version is due around Week 13.
 - **What Communications does:** it sends each module's data out and makes sure the next module receives it accurately. The chain glove → laptop → Ultra96 → iPhone has run end to end on real hardware with dummy data, and the evidence is kept.
 - **Three interfaces not yet connected:** the real glove sensor module (Siqiang), the model's entry and exit on the board (Wen Ree), and the game script that calls the Communications bridge (Jie Ling).
-- **Documents done is not integration done.** The documents are complete, but real integration has not started. Every measured result so far used the 32-byte dummy packet and dummy labels. None of the interfaces planned in section 7 exists in code yet: the call into the glove sensor module, the 38-byte real-data packet, the model entry and exit on the board, the thread-safe result hand-back, the per-result bridge function for the game, and passing real labels and confidence through (today every receiver accepts only the four dummy labels with confidence 1.0).
-- **The two most urgent things:** first, the server certificate deployed to the board in September expired on 2026-10-06 15:11:29 UTC. That date was read from the laptop's copy of the same certificate. Whether the board's certificate was replaced later has not been checked. Renew the certificate before redeploying (section 6.3). Second, the three teammates' interfaces must be settled soon (section 7).
+- **The Communications side of those interfaces now exists in code (2026-10-14 evening, branch `comms/protocol-v3`); the teammates' sides do not.** Protocol version 3 replaced versions 1 and 2 everywhere: a 38-byte packet with 11 values, the model entry and exit on the board (`start(emit)`, `on_sample`, a thread-safe `emit`), model labels and real confidence on every receiver, and the per-result function `CommsNextResult` in the Swift client. Python, firmware and tool code is built and tested on the laptop (778 tests pass, 779 with the opt-in WSL deploy test) and went through an adversarial review whose nine confirmed findings are fixed. Version 3 has run on real hardware only on the right board against a service on the laptop (section 6.1). The Swift code could not be compiled here (no Swift toolchain). Of the C# reference, only the changed part of `phone/unity/CommsPhoneCore.cs` was compiled, with the available C# 5 compiler, and passed 88 contract checks; the rest of that file needs C# 6, and the updated self-test `phone/tests/CoreSelfTest.cs` was not compiled. Not done: the call into Siqiang's sensor module (it does not exist yet), the Ultra96 redeploy, the phone rebuild, and any run of both gloves, the Ultra96 and the phone together on version 3. Section 6.5 lists every decision with its status.
+- **The two most urgent things:** first, the server certificate deployed to the board in September expired on 2026-10-06 15:11:29 UTC (read from the laptop's copy; the board's copy has not been checked). A renewed certificate from the same CA was made on 2026-10-14 and is valid until 2026-11-13 14:27:35 UTC, but it is **not on the board yet**: the owner deploys it together with the version-3 service with `python -m tools.deploy_service` (section 6.3). Second, the three teammates' interfaces must be settled soon (section 7).
 
 ---
 
@@ -85,11 +85,12 @@ Teammates' paths are **read-only**. The full rules are in `AGENTS.md` at the rep
 - An iOS AR project in Unity 6000.5.10f1. The action entry points are `OnSelectPressed`, `OnGrabPressed`, `OnDropPressed`, `OnChopPressed` and `OnWashPressed`.
 - `vis/Assets/Scripts/Network/TlsDataReceiver.cs` is a TLS server that listens on port 5005 on the phone and only displays the text it receives. `vis/README.md` describes it the same way. **This direction is the opposite of the NUS network model** (nothing can connect in to the phone). No Communications code connects to 5005.
 - `vis/Assets/Scripts` has no code yet that calls the Communications bridge (`CommsStart` and the others). The game logic has no network input.
+- The camera hand tracking in the game (MediaPipe `HandLandmarker` in `HandTrackingManager.cs`), and the MediaPipe web hand-landmarker sample and the "Visualiser demo" screen recording that Wen Ree shared in the team chat on 2026-10-14, are Jie Ling's part (the owner's clarification, 2026-10-14). None of them crosses a Communications interface.
 
 **Communications (the owner)**
 
-- The whole chain runs on real hardware with dummy data: two ESP32 boards → laptop → Ultra96 → iPhone. Details are in section 4; measured data in 6.1.
-- The firmware sends dummy data and does not read sensors. The board service does not call the model; it picks a random dummy label itself. The iPhone only displays results as text and triggers no game action. These three places are the three interfaces to connect with teammates.
+- The whole chain has run on real hardware with dummy data: two ESP32 boards → laptop → Ultra96 → iPhone (version 2, 32-byte packets; last full run 2026-10-01). Details are in section 4; measured data in 6.1.
+- Since 2026-10-14 the code is protocol version 3 (section 4.2). The firmware sends dummy 11-value packets and does not read sensors (no sensor module exists yet). The board service hands each sample to a model through the model interface; without `--model` it uses a built-in dummy model that answers every sample with a random `REST`/`FIST`/`OPEN`/`POINT` at confidence 1.0. The iPhone only displays results as text and triggers no game action; `CommsNextResult` exists in the Swift source but has not been compiled or installed. These three places are the three interfaces to connect with teammates.
 
 ### 2.4 Timeline
 
@@ -102,6 +103,7 @@ Teammates' paths are **read-only**. The full rules are in `AGENTS.md` at the rep
 | 2026-10-08 | Marker changed from `W7` to `LC` and session from `week7-demo` to `ltc-comms` (compatibility kept at the time) |
 | 2026-10-13 | olsonwangyj becomes integration lead; PR #15 merged into the team main branch |
 | 2026-10-14 | Week 7 compatibility code removed; documents reorganised; this hand-off document written |
+| 2026-10-14 (evening) | Right board flashed and checked; server certificate renewed locally; protocol version 3, the board model interface, model labels and `CommsNextResult` implemented on branch `comms/protocol-v3`; right board reflashed with version 3 and checked; deploy and board-check tools added (section 6.5) |
 | **2026-10-20** | **Integration V1 deadline: the team meets in person and integrates together** |
 | Around Week 13 | Final version |
 
@@ -122,7 +124,8 @@ Further clarification the same day: as Communications owner, the owner is respon
 - In the firmware: packing, BLE sending, pairing security and connection management. After the real sensor module is merged in, the owner still writes this firmware.
 - On the laptop: BLE reception, queueing, conversion to network messages, delivery to the board through the SSH tunnel, and ACK checking.
 - On the board: receiving samples, de-duplication, replying with ACKs, and pushing results to the subscribed phone.
-- On the iPhone: the SSH/TLS client, result validation, and the three C functions that hand results to Unity. Planned (3.1, 7.3): the per-result function `CommsNextResult`, pushed to the team repo with short steps for adding `CommsNative` to the Xcode project.
+- On the board, also: calling the model through the model interface (`start(emit)`, `on_sample`) and carrying what it emits to the phone. What the model does is Wen Ree's.
+- On the iPhone: the SSH/TLS client, result validation, and the C functions that hand results to Unity: the three existing ones plus the per-result function `CommsNextResult` (written 2026-10-14, not yet compiled; 7.3). Still to do: push `CommsNative` to the team repo with short steps for adding it to the Xcode project.
 - Identity, counters and evidence for every segment.
 
 **Not Communications (do not list these as the owner's tasks, and do not ask about them on the owner's behalf):**
@@ -152,7 +155,7 @@ The owner wants the division as simple and clear as possible: Communications mov
 ### 4.1 The full chain
 
 ```text
-Left  FireBeetle ESP32 (device_id=1) ─┐ BLE GATT notifications, one 32-byte packet per sample
+Left  FireBeetle ESP32 (device_id=1) ─┐ BLE GATT notifications, one 38-byte packet per sample
 Right FireBeetle ESP32 (device_id=2) ─┴──────────► Windows laptop (BLE central)
 
 Laptop ─TCP→ local 127.0.0.1:18889 ─SSH -L→ stujump:22 → Ultra96:22 → on-board 127.0.0.1:8888 (ingest service)
@@ -161,7 +164,8 @@ Laptop ─TCP→ local 127.0.0.1:18889 ─SSH -L→ stujump:22 → Ultra96:22 �
 iPhone ─in-app SSH→ stujump:22 → Ultra96:22 → on-board 127.0.0.1:9999 (result gateway)
         inside TLS: SUBSCRIBE →   ← SUBSCRIBED   ← GESTURE_RESULT
 
-Inside the iPhone: Swift client ─three C functions, polled every frame by the Unity main thread→ Unity
+Inside the board service: each new sample → model (start/on_sample; emit hands results back)
+Inside the iPhone: Swift client ─C functions, polled every frame by the Unity main thread→ Unity
 ```
 
 | Hop | Who initiates, who listens | Transport | Protection |
@@ -179,48 +183,50 @@ Key points:
 
 ### 4.2 Data formats
 
-**BLE sensor packet: 32 bytes, little-endian, Python format `<2sBBIII8h`**
+**Protocol version 3 is the only version (since 2026-10-14, branch `comms/protocol-v3`).** It replaced versions 1 and 2 everywhere, by the owner's rule that only the newest version is supported (section 8, step 1). Nothing on the wire accepts version 1 or 2 any more; every component is upgraded together. The full specification is `docs/co-protocol-v3.md`. **The layout is provisional:** it is frozen only after Siqiang and Wen Ree say whether the glove's IDLE/MOVING state travels with each sample, and the scales are checked against Siqiang's real sample log (section 13).
+
+**BLE sensor packet: 38 bytes, little-endian, Python format `<2sBBIII11h`**
 
 | Offset | Length | Field | Value |
 |---|---|---|---|
-| 0 | 2 | Marker | ASCII `LC` (`4C 43`). Since 2026-10-14 this is the only marker accepted |
-| 2 | 1 | Version | 2 = any valid int16 (default; values taken from the dummy-data table); 1 = deterministic formula dummy data (build switch `COMMS_LEGACY_DUMMY=1`) |
+| 0 | 2 | Marker | ASCII `LC` (`4C 43`), the only marker accepted |
+| 2 | 1 | Version | 3, the only value accepted |
 | 3 | 1 | `device_id` | 1 = left, 2 = right (compile-time constant) |
 | 4 | 4 | `boot_id` | A random number drawn once per power-up |
 | 8 | 4 | `seq` | Starts at 0 on each power-up and adds 1 per sample. A number is not reused after a failed submission |
 | 12 | 4 | `uptime_ms` | This board's own `millis()`. The two boards are not synchronised |
-| 16 | 16 | 8 × int16 | Currently dummy data |
+| 16 | 22 | 11 × int16 | `ax ay az gx gy gz yaw pitch roll flex1 flex2`; today dummy rows from `common/dummy_fixtures.json` |
 
-A 32-byte notification needs ATT MTU ≥ 35. The measured negotiated MTU is 517.
-
-**Source statistics: 24 bytes, `<4sB3xIIII`**: marker `LCS1`, `device_id`, `boot_id`, `next_seq`, `submitted` (successful submissions), `failures` (failed submissions). The laptop reads them once before subscribing and once after stopping. They are used for the reconciliation "generated on the board = received by the laptop = acknowledged by the Ultra96".
-
-**BLE control frame: 14-byte header, marker `B7`** (the team number B07, not Week 7): version 1, opcode, `device_id`, status, `id`, `offset`, followed by at most 180 bytes of payload. Opcodes: command (1), rate (2, 1 to 200 Hz), file begin/chunk/end/abort (`0x10` to `0x13`, at most 65536 bytes, checked with SHA-256). The control channel needs MTU ≥ 64.
-
-**Network frame:** 4-byte big-endian length + a strict UTF-8 JSON object, with a body of 1 to 16384 bytes. The field set must match exactly. **There is no error message; on an error the connection is closed.**
-
-| `type` | On-board port | Direction | Fields besides `v`, `type`, `session_id` |
-|---|---|---|---|
-| `SENSOR_BATCH` | 8888 | laptop → board | `device_id`, `boot_id`, `seq`, `uptime_ms`, `values` (8 int16); v2 adds `request_id` |
-| `INGEST_ACK` | 8888 | board → laptop | `device_id`, `boot_id`, `seq`, `status` (`accepted` or `duplicate`); v2 adds `request_id` |
-| `SUBSCRIBE` | 9999 | phone → board | None (only `v=1` allowed) |
-| `SUBSCRIBED` | 9999 | board → phone | None |
-| `GESTURE_RESULT` | 9999 | board → phone | `device_id`, `boot_id`, `seq`, `result_id`, `gesture`, `confidence`; v2 adds `request_id` |
-
-- `session_id` defaults to `ltc-comms` everywhere. Laptop, board service and phone must agree. On a mismatch the board closes the connection. It is configuration, not a password.
-- `request_id`: in v2 the key must be present. It is `null` for ordinary samples. For keyboard commands it is 1 to 4294967295 and equals `seq`.
-- `result_id` is `device_id:boot_id:seq`. Results of commands get the prefix `cmd:`. The phone uses it to de-duplicate.
-
-**Real glove data packet, protocol version 3 (not yet implemented): 38 bytes with the 11 values only = the existing 16-byte header + 11 × int16.** The owner's direction of 2026-10-14 (final when the teammates confirm): 11 × int16 with the scales below. The final layout is frozen after the IDLE/MOVING answer (section 8, step 1), and the scales are checked against Siqiang's real sample log first.
-
-| Index | Field | Unit delivered by the sensor module | Scale | int16 range |
+| Index | Field | Unit delivered by the sensor module | Scale (physical = int16 / scale) | int16 range |
 |---|---|---|---|---|
-| 0–2 | `ax` `ay` `az` | g | ×10000 | ±3.2767 g |
-| 3–5 | `gx` `gy` `gz` | °/s | ×100 | ±327.67 °/s |
+| 0–2 | `ax` `ay` `az` | g, gravity removed | ×10000 | ±3.2767 g |
+| 3–5 | `gx` `gy` `gz` | °/s, bias removed | ×100 | ±327.67 °/s |
 | 6–8 | `yaw` `pitch` `roll` | degrees | ×100 | ±327.67° |
 | 9–10 | `flex1` `flex2` | 0.0–1.0 | ×10000 | maximum 3.2767 |
 
-Only the newest version is supported: version 3 replaces the 32-byte versions 1 and 2 everywhere, and every component is upgraded together (section 8, step 1). A 38-byte notification needs ATT MTU ≥ 41. The application-layer byte rate is 38 × 50 Hz × 2 boards = 30.4 kbps. 32-byte packets were measured clean at 33.8 kbps. 38-byte packets have not been measured at all.
+A 38-byte notification needs ATT MTU ≥ 41 (firmware `sensorFitsMtu`, laptop `SENSOR_MTU_FLOOR`). The measured negotiated MTU is 517. The application-layer byte rate is 38 × 50 Hz × 2 boards = 30.4 kbps. One board at 50 Hz with 38-byte packets was measured clean for 65 s on 2026-10-14 (6.1); two boards together with 38-byte packets have not been measured. The deterministic-formula dummy mode (old version 1, `COMMS_LEGACY_DUMMY`) no longer exists; `-DCOMMS_FIXTURE_SEED=<n>` still makes the fixture choice reproducible.
+
+**Source statistics: 24 bytes, `<4sB3xIIII`**: marker `LCS3` (it was `LCS1` in version 2; the format is otherwise unchanged), `device_id`, `boot_id`, `next_seq`, `submitted` (successful submissions), `failures` (failed submissions). The laptop reads them once before subscribing and twice at shutdown (after turning notifications off, and again to confirm nothing changed; 4.4). They are used for the reconciliation "generated on the board = received by the laptop = acknowledged by the Ultra96". A board still running version-2 firmware answers `LCS1` and is refused before subscribing with `invalid source statistics magic; flash this board with the current firmware`.
+
+**BLE control frame: 14-byte header, marker `B7`** (the team number B07, not Week 7): control version 1, opcode, `device_id`, status, `id`, `offset`, followed by at most 180 bytes of payload. Opcodes: command (1), rate (2, 1 to 200 Hz), file begin/chunk/end/abort (`0x10` to `0x13`, at most 65536 bytes, checked with SHA-256). The control channel needs MTU ≥ 64. A command carries one whole version-3 packet, so a command frame and its answer are 52 bytes; the board adds 1 to each of the 11 values (32767 wraps to -32768) and puts its own clock in `uptime_ms`.
+
+**Network frame:** 4-byte big-endian length + a strict UTF-8 JSON object, with a body of 1 to 16384 bytes. The field set must match exactly. **There is no error message; on an error the connection is closed.**
+
+| `type` | `v` | On-board port | Direction | Fields besides `v`, `type`, `session_id` |
+|---|---|---|---|---|
+| `SENSOR_BATCH` | 3 | 8888 | laptop → board | `device_id`, `boot_id`, `seq`, `uptime_ms`, `values` (11 int16), `request_id` |
+| `INGEST_ACK` | 3 | 8888 | board → laptop | `device_id`, `boot_id`, `seq`, `status` (`accepted` or `duplicate`), `request_id` |
+| `SUBSCRIBE` | 1 | 9999 | phone → board | None |
+| `SUBSCRIBED` | 1 | 9999 | board → phone | None |
+| `GESTURE_RESULT` | 3 | 9999 | board → phone | `device_id`, `boot_id`, `seq`, `request_id`, `result_id`, `gesture`, `confidence` (10 keys in all) |
+
+- `session_id` defaults to `ltc-comms` everywhere. Laptop, board service and phone must agree. On a mismatch the board closes the connection. It is configuration, not a password.
+- The subscription envelopes stay at `v` 1: they never carried the packet version and did not change.
+- `request_id` is always present in the three version-3 messages. It is `null` for ordinary samples and for model results. For keyboard commands it is 1 to 4294967295 and equals `seq`.
+- `result_id` is `device_id:boot_id:seq`. Results of commands get the prefix `cmd:`. The phone uses it to de-duplicate, so a model result must name one sample, and a second result for the same sample is refused on the board.
+- `gesture`: any label of 1 to 32 characters from `A–Z a–z 0–9 _ -` (the six model classes `PICKUPHOLD`, `PLACEDOWN`, `CHOP`, `WASH`, `THROW`, `FIREEXT` fit). Communications does not know the label set; Wen Ree and Jie Ling agree it.
+- `confidence`: a JSON number (not a boolean), finite, from 0 to 1; integers 0 and 1 are allowed.
+- The same rules are checked by the board before sending and by every receiver (`ultra96/protocol.py`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs`, `CommsCore/Protocol.swift`). A result the phone rejects ends the phone session, so the board refuses an invalid model result before it is sent.
 
 ### 4.3 Firmware (`firmware/esp32/`)
 
@@ -234,17 +240,21 @@ Only the newest version is supported: version 3 replaces the 32-byte versions 1 
 - Advertised name `LTC-COMMS`, the same on both boards. They are told apart by Bluetooth address and by the `device_id` in the packet. Service UUID `6e1c0001-7a45-4dc4-b678-3f2d5a9c1001`, with 7 characteristics.
 - Security: LE Secure Connections + MITM + bond. The board can only display (DisplayOnly). The 6-digit passkey is printed only on the local serial port, and the operator types it on Windows. The application adds one more gate: notifications are sent only when all three authentication-mode bits (SC, MITM, bond) are set.
 - Each pass of the main loop: read serial commands → check the send tick for the current rate → only when authenticated, subscribed and the MTU is large enough: allocate `seq`, pack, submit the notification, record success or failure → handle at most one control request per pass → print `alive` and `comms_stats` once a second.
-- **Samples are produced in the block of `firmware/esp32/src/main.cpp` that calls `serializeFixturePacket` (about lines 503 to 510).** The real sensor module's "read one sample" connects here.
+- **Samples are produced in the block of `firmware/esp32/src/main.cpp` that calls `serializeFixturePacket` (about lines 500 to 510).** The real sensor module's "read one sample" connects here. Today the block sends one of the 11-value dummy rows; there is no other data source.
+- **Ready for the sensor module (built and host-tested, not yet called):** `include/comms_sample.h` scales one sample of 11 physical floats to int16 with the scales in 4.2, rounding half away from zero. NaN or infinity always refuses the sample. A value outside int16 is clamped and counted by default; building with `-DCOMMS_OUT_OF_RANGE_DROP=1` refuses the whole sample instead. The policy is provisional until Wen Ree answers (section 13). A refused sample takes no `seq`, so it never shows as a gap, only as a longer `uptime_ms` step. On Friday the block above becomes "read sample, then `scaleSample`, then `serializePacket`".
+- On boot the board prints `comms_ready device_id=<1|2> packet_bytes=38 packet_version=3 rate_hz=10 protected=1 control_version=1 file_max_bytes=65536` on its serial port.
 - While disconnected, no samples are produced, `seq` does not advance, and there is no offline buffer. The rate is kept across a disconnect; only a reboot restores the default 10 Hz.
 - There is only one serial command: `erase-bonds` (clear bonds, used to recover pairing).
-- The policy logic is all in portable C++11 headers (`include/comms_*.h`). They compile and run as host tests without flashing a board (`test/host_*.cpp`). pytest compiles them with `g++` or `clang++`, whichever is on PATH, and skips them when neither is found.
+- The policy logic is all in portable C++11 headers (`include/comms_*.h`). They compile and run as host tests without flashing a board (five programs, `test/host_*.cpp`). pytest compiles them with `g++` or `clang++`, whichever is on PATH, and skips them when neither is found.
 
 **`flash.py`:** it first generates the dummy-data header and builds the left and right firmware, then prompts you to plug in the boards. **The first board plugged in is flashed as LEFT (ID 1); the second as RIGHT (ID 2).** It reads the factory MAC, adds 2 to get the Bluetooth address, and writes that into `.comms-local/boards.json`. Other uses: `--ports`, `--boards`, `--pair [left|right|both]`, `--monitor COMx`. It works only on Windows.
+
+**One board only** (the laptop has one programming cable, so the COM number says nothing about which board is attached): read the factory MAC first (`esptool.py --chip esp32 --port COMx read_mac`; Bluetooth address = MAC + 2; left `38:18:2B:19:82:AE`, right `38:18:2B:18:9D:6A`), then `platformio run -d firmware/esp32 -e firebeetle32-right -t upload --upload-port COMx` (or `-left`). This leaves `.comms-local/boards.json` unchanged. Then check that board alone with **`python -m tools.check_board right`** (or `left`): real BLE, the laptop relay, a service started on the laptop with throwaway certificates and the dummy model, and a local subscriber. By default it runs 65 s at 50 Hz, sends 3 commands, stops the stream normally so the source statistics reconcile, and prints `CHECK PASSED` only when generated = received = acknowledged with no error, the rate and MTU are confirmed and every command and sample got its result. No SSH, Ultra96 or phone is involved. Reflashing the application does not erase the bonds: on 2026-10-14 Windows kept its authenticated bond with the right board through two reflashes, and no new pairing was needed.
 
 ### 4.4 Laptop (`laptop/`, `demo.py`, `tools/`)
 
 - `laptop/bridge.py` is the full path for one glove. `laptop/dual_bridge.py` runs two uncoupled `Bridge` instances at the same time, and `demo.py` calls it. **Each board has its own BLE connection, queue and TLS connection.** One board stalling does not affect the other.
-- Per board: scan (by service UUID and address, 8 s limit) → connect (without the cached GATT table, 20 s limit) → confirm MTU ≥ 35 → confirm that the Windows bond is "encrypted and authenticated" → read the starting source statistics → subscribe to notifications. Both boards must be ready within 30 s.
+- Per board: scan (by service UUID and address, 8 s limit) → connect (without the cached GATT table, 20 s limit) → confirm MTU ≥ 41 → confirm that the Windows bond is "encrypted and authenticated" → read the starting source statistics → subscribe to notifications. Both boards must be ready within 30 s.
 - The BLE callback records the arrival time and copies the bytes into the board's bounded queue (64 entries; when full, the oldest is dropped). It also decodes the packet once to count goodput, hands a `sensor` or `sensor_invalid` record to the evidence thread, and updates the callback and silence counters. It does no network operations.
 - Writer task: decode → check `device_id`, sequence number and connection generation → **drop samples that waited on the laptop for more than 2 s** → write `SENSOR_BATCH` → check each `INGEST_ACK` in send order. At most 32 frames are in flight at once (ACK window).
 - **No retransmission.** When TLS drops, a write times out, or an ACK times out or does not match, that TLS connection is discarded. Frames already attempted are counted as ambiguous (`ambiguous_dropped`) and are not resent. The bridge reconnects after back-off (from 0.5 s, doubling, up to 5 s).
@@ -258,23 +268,29 @@ The five `demo.py` subcommands:
 | Command | What it does |
 |---|---|
 | `python demo.py tunnel` | Opens the two-hop SSH local forward: local `127.0.0.1:18889` → on-board `127.0.0.1:8888`. Keep this terminal open |
-| `python demo.py run` | Captures both boards for 60 s (default 10 Hz) and writes the report and evidence to `.comms-local/` |
+| `python demo.py run` | Captures both boards for 60 s (default 10 Hz) and writes the report and evidence to `.comms-local/`. Its `Phone expected increase` assumes one result per accepted input, which holds only for the built-in dummy model (the line printed under it says so) |
 | `python demo.py live` | Like `run`, but captures for 120 s by default and enables keyboard commands. Needs an interactive terminal |
 | `python demo.py report [path]` | Re-checks the latest capture or the one given |
-| `python demo.py service [--start]` | Inspects the board service over SSH. `--start` starts it when both ports are free |
+| `python demo.py service [--start]` | Inspects the board service over SSH. `--start` starts it in the foreground when both ports are free, from the folder and with the `--model`/`--model-path` of the service the newest local deployment record left running (`.comms-local/deployments/`), otherwise from the 28 September folder with the dummy model |
+
+Other operator tools added on 2026-10-14: `python -m tools.check_board left|right` (one board, see 4.3) and `python -m tools.deploy_service` (upload, certificate and swap on the Ultra96, see 4.5 and 6.3).
 
 ### 4.5 Ultra96 service (`ultra96/`)
 
-- A standard-library-only asyncio process: `/usr/bin/python3 -u -m ultra96.server --cert … --key … [--session-id ltc-comms] [--ingest-port 8888] [--gateway-port 9999] [--event-log-dir <new directory>]`. It runs as an ordinary user. It is not a system service, has no automatic restart, and does not use sudo (the board is shared).
+- A standard-library-only asyncio process: `/usr/bin/python3 -u -m ultra96.server --cert … --key … [--session-id ltc-comms] [--ingest-port 8888] [--gateway-port 9999] [--event-log-dir <new directory>] [--model MODULE] [--model-path DIR]`. It runs as an ordinary user. It is not a system service, has no automatic restart, and does not use sudo (the board is shared). On start it prints `{"event": "model_ready", "model": …, "seconds": …}` and then the `listening` line; a model that cannot be imported or whose `start(emit)` raises prints `{"event": "model_failed", …}` and the service exits without opening its ports.
 - How it was started decides what keeps it alive:
   - Started with `demo.py service --start`, it is the foreground process of that SSH session (`ssh -tt`) and exits when that terminal goes away.
   - The process recorded on the board (2026-09-28) was not started that way. The untracked script `.week7-local/co_deploy.py` launched it in the background with `subprocess.Popen(..., start_new_session=True)`. Its output goes to `BOARD_ROOT/evidence/`, and its PID is in `BOARD_ROOT/evidence/server.pid`. It does not depend on any SSH session and may still be running. Look for it when redeploying (6.3, step 2).
+  - `python -m tools.deploy_service` (added 2026-10-14, the tracked successor of `co_deploy.py`) starts the service the same way, in the background in its own session, and replaces a running one of this user only after checking it (6.3).
 - Both TLS listeners bind only to `127.0.0.1`. The service never dials out. The two ports together accept at most 8 concurrent connections.
-- **Ingest port 8888:** read the frame → check fields and session → de-duplicate → for a new sample, generate one result and, if there is a subscriber, put it in the result queue → reply `INGEST_ACK`. A duplicate sample gets only `duplicate` and produces no result. An idle ingest connection is closed after 5 s.
+- **Ingest port 8888:** read the frame → check fields and session → de-duplicate → for a new stream sample, call the model's `on_sample` (see below); for a new command, answer with one `cmd:` echo result itself → reply `INGEST_ACK`. A duplicate gets only `duplicate` and reaches neither the model nor the phone. An idle ingest connection is closed after 5 s.
 - **Gateway port 9999:** a valid `SUBSCRIBE` registers that connection as the current subscriber and gets `SUBSCRIBED` back. **There is one subscriber at a time; a newcomer replaces the existing one.** The result queue holds 32 entries; when full, the oldest is dropped. A result that has been in the queue for 2 s is dropped. With no subscriber, results are dropped at once and never sent later.
-- **Results are currently fake.** They are generated at `ultra96/server.py:264-267`: v2 picks one of `REST`, `FIST`, `OPEN`, `POINT` at random, with confidence fixed at 1.0. **This is where the model interface will connect.**
-- De-duplication and replay protection live only in memory. For each `(device_id, boot_id)`, v2 keeps a sequence high-water mark that only rises, plus the latest 4096 fingerprints. One process lifetime allows at most 128 `(device_id, boot_id)` pairs and 4096 commands. After that the service must be restarted.
-- The optional event log (`--event-log-dir`) is written on a background thread, capped at 50 MiB. Its `result_write_complete` only says that the board wrote the result into the connection. **It does not say that the phone received it.**
+- **The model interface (`ultra96/model.py`, built 2026-10-14; the names are the proposal to Wen Ree, 7.2).** The service loads a model: `--model MODULE` imports a module (from `--model-path DIR` first, if given) that has plain functions `start(emit)` and `on_sample(device_id, boot_id, seq, uptime_ms, values)`; without `--model` it uses the built-in dummy model. `start(emit)` runs once before the ports open. `on_sample` runs on the event-loop thread for each new stream sample, before that sample's ACK is written, with `values` as 11 floats in physical units (int16 / scale). Its exceptions, including `SystemExit`, are counted (`model_errors`) and never close the connection; calls longer than 5 ms are counted (`model_slow_calls`). A `SystemExit` while importing the model or in `start(emit)` ends in `model_failed` and a nonzero exit. `emit(gesture, confidence, device_id, boot_id, seq)` may be called from any thread; it returns `True` when the arguments are valid and the service is running (numpy-style numbers are converted), `False` otherwise. On the event loop the service then refuses a result whose glove power-up `(device_id, boot_id)` it has not seen or whose `seq` is above the highest accepted `seq` of that power-up (`model_results_rejected`; `ultra96/server.py:300-305`), or a result for a sample that already had one (`model_results_duplicate`, last 4096 kept), and otherwise sends a `GESTURE_RESULT` with `request_id: null` like any other result. A `seq` inside a gap (a sample lost before the board, so never accepted) is not detected: a result naming it is sent with a `result_id` for a sample the board never saw. Commands never reach the model.
+- **The built-in dummy model** answers every accepted sample with one random `REST`, `FIST`, `OPEN` or `POINT` at confidence 1.0, so one accepted input still gives one result and every existing acceptance check still holds.
+- De-duplication and replay protection live only in memory. For each `(device_id, boot_id)` the service keeps a sequence high-water mark that only rises, plus the latest 4096 fingerprints; a sample at or below the mark that is not among them is refused and the connection closed. One process lifetime allows at most 128 `(device_id, boot_id)` pairs and 4096 commands. After that the service must be restarted.
+- If the model left non-daemon threads running, the stopped service prints `{"event": "exit_with_model_threads", …}` and exits anyway, so it cannot linger without ports.
+- The `stopped` line printed at shutdown includes the model counters: `model_samples`, `model_results`, `model_errors`, `model_slow_calls`, `model_max_call_ms`, `model_results_rejected`, `model_results_duplicate`, `model_results_late` (emitted after the service stopped).
+- The optional event log (`--event-log-dir`) is written on a background thread, capped at 50 MiB. Its `result_write_complete` only says that the board wrote the result into the connection. **It does not say that the phone received it.** `result_accepted` means an input was accepted, not that a result exists; model results add `model_result` and `model_result_refused` (with `reason` `unknown_identity` or `duplicate`).
 - Certificates are generated by `tools/generate_comms_pki.py`: a CA (365 days) and a server certificate (**30 days**; CN and SAN are both `ultra96.week7.internal`). The server loads only the server certificate and key. Clients hold only the CA certificate. The CA private key never leaves the machine that generated it. Only the server is authenticated; there are no client certificates (SSH handles access control).
 
 ### 4.6 Phone client and the Week 7 receiver (`ios-visualizer/`, `phone/`)
@@ -282,25 +298,26 @@ The five `demo.py` subcommands:
 **The current phone client is the Swift package `ios-visualizer/CommsNative`.**
 
 - The user taps `Communications Connect` and enters the board's and the jump host's user names and passwords in a form. The first time, the CA certificate must also be imported. The app then builds: TCP to `stujump:22` → SSH (compare against the pinned host public key; password authentication) → `direct-tcpip` to the board's port 22 → a second SSH layer → `direct-tcpip` to `127.0.0.1:9999` → TLS (check CA, host name, validity) → send `SUBSCRIBE` → receive `SUBSCRIBED`. The whole process is limited to 10 s.
-- After that it only receives results: unframe, validate, de-duplicate by `result_id` (latest 4096), add 1 to `Received`, and **keep only the latest result**. After 2 s without a new result the displayed label is cleared; the count stays. After subscribing there is no idle limit. Only a frame that has started but not finished is given 5 s.
+- After that it only receives results: unframe, validate (version 3, the 10 keys, the label and confidence rules of 4.2), de-duplicate by `result_id` (latest 4096), add 1 to `Received`, keep the latest result for the display, and (since 2026-10-14, not yet compiled) put the result in the per-result queue that `CommsNextResult` empties. After 2 s without a new result the displayed label is cleared; the count stays. After subscribing there is no idle limit. Only a frame that has started but not finished is given 5 s.
 - Errors fall into two classes. Network errors (connection dropped, timeout) trigger automatic back-off, reconnect and resubscribe. Authentication, trust and protocol errors (wrong password, host key mismatch, expired certificate, a result that fails validation) **end the session at once: no retry, and the passwords are cleared**. The user must enter the passwords again to reconnect.
 - Passwords are kept only in memory. **As soon as the app stops being active (screen lock, going to the background, pulling down Control Center or Notification Center, an incoming call), it disconnects at once and clears the passwords.** Back in the foreground the user must connect again by hand, and the count starts from 0.
 - Host names, both SSH host public keys, the CA fingerprint and the session ID are compiled into the app. Changing the board, the CA or the session ID means changing the source, rebuilding and reinstalling.
 
-**The three C functions for Unity (`Sources/CommsBridge/DisplayMailbox.swift`):**
+**The C functions for Unity (`Sources/CommsBridge/DisplayMailbox.swift`).** The installed Week 7 build (the same package under its earlier name `Week7Native`, built on 2026-09-28) has the first three only under their Week 7 names, `Week7Start`, `Week7CopyDisplay` and `Week7Stop`, which the patched export calls. The `Comms*` names (added 2026-10-08), `CommsNextResult` and the display-text and validation changes of 2026-10-14 are in the source only and have never been installed. The changes of 2026-10-14 were **written without a Swift toolchain, not compiled or run** (`swift test` on a Mac is the first step, section 6.3).
 
 | Function | Semantics |
 |---|---|
 | `void CommsStart(void)` | Installs the button and the foreground/background notifications. **Does not start a connection**; only the user tapping the button and entering passwords starts one. Call it once |
 | `int32_t CommsCopyDisplay(char* buffer, int32_t capacity)` | Takes one snapshot and builds four lines of UTF-8 text. If the text differs from what was last delivered and fits, it writes the text into the buffer (with a terminating 0) and returns the byte count. Otherwise it returns 0 and writes nothing. It never returns a negative number |
 | `void CommsStop(void)` | The status changes to `Stopped` at once; everything is removed and the passwords are cleared. Call it only when the app truly stops using Communications |
+| `int32_t CommsNextResult(char* buffer, int32_t capacity)` | Takes out the oldest waiting result as one compact JSON object, `{"result_id":"…","gesture":"…","confidence":…,"device_id":…}`, with a terminating 0, and returns its byte count. Returns 0 when nothing waits. When the buffer is null or smaller than the bytes plus the 0, it writes nothing, keeps the result and returns minus (bytes + 1). Details in 7.3 |
 
-The four lines of text:
+The four lines of text (the source since 2026-10-14; the installed Week 7 build still shows `Week 7 • DUMMY inference` on line 1 and `confidence 1.0` on line 3):
 
 ```text
-Communications • DUMMY inference
+Communications
 <status>
-<gesture>  |  <result_id>  |  confidence 1.0        (when there is no new result, this line is No live result)
+<gesture>  |  <result_id>  |  confidence <the received confidence>        (when there is no new result, this line is No live result)
 Received: <N>
 ```
 
@@ -310,9 +327,9 @@ What the text can and cannot tell the game:
 
 - The status `Subscribed` means only that the subscription handshake with the Ultra96 succeeded. It does not prove that results are flowing.
 - Line 3 holds only the latest result, and the next result overwrites it. Results that arrive between two polls can be lost: if `CHOP` and then `PLACEDOWN` arrive between two frames, the game sees only `PLACEDOWN`. Comparing `result_id` stops the game acting twice on one result, but it cannot recover an overwritten one. `Received` still counts every result.
-- So the text is a status display, not a game input. The game's actions are one-shot events, so the game needs results one at a time, not a display that the next result overwrites. That is the planned `CommsNextResult` function (7.3): each result that reaches the phone and is not dropped can be taken out at most once; it does not promise that every result is delivered. It does not exist yet.
+- So the text is a status display, not a game input. The game's actions are one-shot events, so the game needs results one at a time, not a display that the next result overwrites. That is `CommsNextResult` (7.3): each result that reaches the phone and is not dropped can be taken out at most once; it does not promise that every result is delivered. It exists in the source but has not been compiled or installed.
 
-**What "Week 7 receiver" means exactly (confirmed by the owner):** the `CommsNative` Swift client on the iPhone, plus the bridge in the Unity export that calls `Week7Start` / `Week7CopyDisplay` / `Week7Stop`. It is the receiver made temporarily for the Week 7 demo:
+**What "Week 7 receiver" means exactly (confirmed by the owner):** the `CommsNative` Swift client on the iPhone (the copy installed on 2026-09-28 was built from this package under its earlier name, `Week7Native`), plus the bridge in the Unity export that calls `Week7Start` / `Week7CopyDisplay` / `Week7Stop`. It is the receiver made temporarily for the Week 7 demo:
 
 - The Unity source project was not available at the time, so it patches the generated code of one specific Unity export (`ios-visualizer/xcode-export/`, fork only). `ios-visualizer/tools/patch_export.py` rewrites four methods of Jie Ling's `TlsDataReceiver`: `Start` calls `Week7Start()`; `ListenLoop` is emptied, so the 5005 listener no longer runs; `Update` calls `Week7CopyDisplay(buffer, 2048)` every frame and writes the text into the label; `OnDestroy` calls `Week7Stop()`. `configure_xcode.py` links `CommsNative` into `UnityFramework`.
 - The patch is locked to file hashes and accepts only that one export. It refuses an export made again from `vis/`.
@@ -327,11 +344,12 @@ What the text can and cannot tell the game:
 |---|---|---|---|
 | 1 | Source statistics on the board: `submitted` | The Bluetooth stack accepted the notification submission | That the laptop received it |
 | 2 | Laptop counts. `callback_received` is the BLE callback count; the progress line prints it as `received=`. The report's per-board `received` counts packets the writer task dequeued and processed. The two differ when the queue drops packets | `callback_received`: the BLE callback got the bytes. `received`: the writer task took them from the queue | That the board received it |
-| 3 | `INGEST_ACK` | The board service validated and accepted this input | That the phone received it; that the model ran inference |
+| 3 | `INGEST_ACK` | The board service validated and accepted this input, and (for a stream sample) that the model's `on_sample` returned | That the phone received it; that the model produced a result |
+| 3a | Board counters `model_samples` / `model_results` (the `stopped` line) and the events `model_result` / `model_result_refused` | How many samples went to the model and how many of its results the board accepted for sending | That a result reached the phone |
 | 4 | Board event `result_write_complete` | The board wrote the result into the connection | That the phone validated or displayed it |
 | 5 | `Received: N` on the phone screen (read by a person) | Within this connection the phone accepted N distinct results | Individual IDs; that a game action was triggered |
 
-The `CAPTURE PASSED` printed by `demo.py` is level 3. The phone sends no application-level acknowledgement and keeps no per-result record. For the phone level, a person compares the increase in `Received` with `Phone expected increase`.
+The `CAPTURE PASSED` printed by `demo.py` is level 3. The phone sends no application-level acknowledgement and keeps no per-result record. For the phone level, a person compares the increase in `Received` with `Phone expected increase`; that comparison is valid only while the board runs the built-in dummy model (one result per accepted input). `tools.check_board` reaches level 3 plus the results on a local subscriber, all on the laptop.
 
 ### 4.8 Trust material
 
@@ -339,7 +357,7 @@ The `CAPTURE PASSED` printed by `demo.py` is level 3. The phone sends no applica
 |---|---|---|
 | CA private key `ca-key.pem` | Only the owner's laptop (outside the repository) | Never on the board, never on the phone |
 | CA certificate `ca-cert.pem` | Laptop (`--ca`); iPhone (imported) | The current CA's SHA-256 is `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`, valid until 2027-09-06. This fingerprint is pinned in `Configuration.swift` |
-| Server certificate and key | `tls/` in the Ultra96 deployment directory | **The certificate deployed in September expired on 2026-10-06.** The date was read from the laptop's copy; whether the board's certificate was replaced later has not been checked. See 6.3 |
+| Server certificate and key | `tls/` in the Ultra96 deployment directory | **The certificate deployed in September expired on 2026-10-06.** The date was read from the laptop's copy; whether the board's certificate was replaced later has not been checked. **A renewed pair** (same CA, CN/SAN `ultra96.week7.internal`, valid 2026-10-14 14:22:35 to 2026-11-13 14:27:35 UTC) is in `~/.codex/private/cg4002-comms-server-20261014/` on the owner's laptop, outside the repository. It is not on the board yet: `tools.deploy_service --server-cert-dir` installs it (6.3) |
 | Both SSH host public keys | The laptop's `known_hosts`; the iPhone source | No trust on first use |
 | SSH passwords | Only the operator | The laptop enters them at the OpenSSH prompt. The phone keeps them only in memory |
 | BLE bond keys | One copy each on the ESP32 and on Windows | The passkey is shown only on the board's serial port |
@@ -350,6 +368,7 @@ The `CAPTURE PASSED` printed by `demo.py` is level 3. The phone sends no applica
 - The archived architecture draft says `stfjump`; the code and the site use `stujump`. Its example port is 8888; the code uses 18888 and 18889.
 - In `docs/week7-runbook.md`, `tools.generate_week7_pki`, `tools.rehearse_week7` and `Week7Server` have since been renamed `tools.generate_comms_pki`, `tools.rehearse_comms` and `CommsServer`.
 - The archived iOS design specification says "wait 30 s for the first result". The current code has no idle limit after subscribing.
+- `docs/B07-CO-protocol-explained.zh-CN.md` explains protocol version 2 (32 bytes, 8 values, `LCS1`). The code is version 3; `docs/co-protocol-v3.md` governs.
 
 ---
 
@@ -369,7 +388,11 @@ The `CAPTURE PASSED` printed by `demo.py` is level 3. The phone sends no applica
 12. **Passwords only in memory; leaving the foreground disconnects.** The route on site uses password authentication. Nothing is written to disk, so there is no credential file to manage. It also does not rely on unverified iOS background survival.
 13. **One process on the board, standard library only, no sudo, no system service.** The board is shared; do not disturb other people's environment. The start script starts the service only when the ports are free and never stops or kills an existing process.
 14. **Graded evidence.** ACKs and phone results use two independent connections, and there has been a case where all ACKs arrived while the phone received fewer results. So each evidence level speaks only for its own segment.
-15. **BLE rather than Bluetooth Classic.** This choice was made and tested long ago: the 50 Hz and 70 Hz settings were both measured clean on 2026-09-28, with the 32-byte dummy packet (the 70 Hz setting actually delivered about 66 packets/s). Real 38-byte data has not been measured.
+15. **BLE rather than Bluetooth Classic.** This choice was made and tested long ago: the 50 Hz and 70 Hz settings were both measured clean on 2026-09-28, with the 32-byte dummy packet (the 70 Hz setting actually delivered about 66 packets/s). With 38-byte packets, one board at 50 Hz was measured clean on 2026-10-14; two boards together and real sensor data have not been measured.
+16. **Only one protocol version at a time (the owner's rule, 2026-10-14).** Each component accepts only version 3, so there is no mixed state to reason about; an upgrade means reflashing both boards, redeploying the board service and reinstalling the phone app together. The source-statistics marker moved to `LCS3` so that a board with old firmware is refused at start-up with a clear message instead of failing packet by packet. The subscription envelopes stay at version 1 because they did not change.
+17. **Communications checks the shape of a result, not its meaning.** Any label of 1 to 32 safe characters and any confidence from 0 to 1 passes; the label set is for Wen Ree and Jie Ling. The board refuses a result the phone would reject, because a rejected result ends the phone session and clears its passwords.
+18. **The model runs behind a narrow, counted interface.** `on_sample` runs on the service's single event loop before the ACK, so it must return at once; slow calls and exceptions are counted rather than allowed to close connections. `emit` may be called from any thread and moves the result onto the event loop, because the result queue has no lock. Commands never reach the model: their values are transformed dummy rows and their sequence numbers come from the command space, so they would corrupt the model's windows. The built-in dummy model keeps one result per input, so every acceptance check stays valid until the real result rate is known.
+19. **Deploying is one checked step with rollback.** The board is shared and has no service manager. `tools.deploy_service` checks the new code, the certificate and key, and the running process (this user's, under the deployment folder, owning exactly the two ports) before stopping anything, and restarts the previous code and certificate if the new service does not come up.
 
 The source of each decision (the entry numbers in the archived design record) is in the design-reason part of each chapter in `docs/handoff-details/`.
 
@@ -377,7 +400,7 @@ The source of each decision (the entry numbers in the archived design record) is
 
 ## 6. Where things stand (2026-10-14)
 
-### 6.1 Done and verified on hardware (all with 32-byte dummy data)
+### 6.1 Done and verified on hardware (dummy data; 32-byte version 2 unless the row says version 3)
 
 | Item | Result | Date |
 |---|---|---|
@@ -387,17 +410,22 @@ The source of each decision (the entry numbers in the archived design record) is
 | Single-board power-loss recovery | Reconnected in 11 s; the other board was unaffected; the first packet after recovery got no ACK (1 ambiguous) | 09-28 |
 | iPhone count | 1202 in 60 s, 12003 in 600 s, and others, all as expected | 09-21 |
 | File transfer | 4096 bytes, once per board, digests match | 09-28 |
-| Firmware after the compatibility removal | Left board flashed with the current firmware; local loopback 100/100 packets; another run of 349 packets with source reconciliation passed, a rate change to 20 Hz confirmed, and all 3 commands round-tripped | 10-14 |
+| Firmware after the compatibility removal | Left board flashed with the then-current version-2 firmware (superseded by version 3; 6.3); local loopback 100/100 packets; another run of 349 packets with source reconciliation passed, a rate change to 20 Hz confirmed, and all 3 commands round-tripped | 10-14 |
+| Right board, same version-2 firmware | Identified by factory MAC `38:18:2b:18:9d:68` (Bluetooth `…:9D:6A` = RIGHT) on COM3, flashed with `firebeetle32-right`. Checked against a service on the laptop (no SSH, Ultra96 or phone): 20 Hz / 30 s: 495 generated = received = ACKed, 3/3 commands; 50 Hz / 65 s: 3019 = 3019 = 3019, ATT MTU 517, connection interval 15 ms, longest silence 63 ms, 3/3 commands. Windows kept its authenticated bond; no new pairing | 10-14 |
+| **Right board, version 3** | Flashed once from branch `comms/protocol-v3` (the review fixes changed no firmware); boot line `comms_ready device_id=2 packet_bytes=38 packet_version=3`. `python -m tools.check_board right` (50 Hz, 65 s, against a service on the laptop with the dummy model): `LCS3` statistics clean, 2934 generated = 2934 received = 2934 ACKed (seq 0 to 2933), 3/3 commands (52-byte frames) with their `cmd:` results, 2934 samples to the model and 2934 results back, slowest model call 0.39 ms, no error of any kind. Evidence for this run: `.comms-local/checks/2026-10-14-right-board-v3/`. After the review fix to `check_board`, a 10 s run with 8 commands also passed (320 = 320 = 320, 8/8); its JSON report went only to the console, and its numbers are written in the README of the same folder | 10-14 |
+
+Verified on the laptop but not on hardware (2026-10-14): `tools/deploy_service.py`'s board-side program on Linux (WSL Ubuntu, Python 3.10, the same Python version as the Ultra96): 27 of 27 checks, covering a deploy over a running version-2 service (the code of `5a004c6`, the team main, whose service code equals `c42b386`), a version-3 end-to-end exchange with the deployed service, rollback with certificate restore, a mismatched key refused, busy ports refused, a first start, and an old service that closes its ports but does not exit (stopped with SIGKILL). Its SSH half needs the owner's login and has not run. The renewed server certificate passed a local TLS 1.3 handshake. The full test suite passed (6.2).
 
 Unexplained history: on 2026-09-21, in one 60 s run, the phone received only 1094/1203 results (109 missing). The cause is unknown. Range testing has never been done.
 
 ### 6.2 Code and branch state
 
+- **Protocol version 3 (2026-10-14 evening): local branch `comms/protocol-v3`, made from local `main` at `c42b386`.** It holds the code commits `a34c467` (core), `57a3fbd` (all components, tools and tests), `a4b907b` (the review fixes) `3b94990` (the Linux deploy test now hands bash a copy of `tests/linux/deploy_remote_test.sh` with LF endings, so it also runs from a checkout with CRLF endings; the same commit renames the specification to `co-protocol-v3.md`) and `15de82e` (paramiko errors end in a `FAILED:` line; `paramiko>=2.8,<4` in `requirements-dev.txt`; the Linux deploy test takes its old service from `5a004c6`, so it also runs in a clone of the team repository), followed by the document commit. **Final totals at `15de82e`: 780 passed, 3 skipped with `B07_LINUX_DEPLOY_TEST=1`; 779 passed, 4 skipped without.** Tests at `3b94990`: `python -m pytest tests laptop/tests phone/tests`: 778 passed, 4 skipped; with `B07_LINUX_DEPLOY_TEST=1`, which adds the WSL deploy test, 779 passed, 3 skipped, with 27 of 27 deploy checks (as at `a4b907b`). An adversarial review (seven reviewers: cross-peer consistency, firmware, the model interface, Swift, C#, tools, tests; each finding verified independently) found no defect in the firmware, Swift, C# or cross-peer rules (11,421 result bodies validated identically by the board, the Python receiver and a compiled C# harness) and nine real defects in the tools, the model interface and the tests; all nine are fixed in `a4b907b`. **Not merged into `main`, not pushed, no team pull request.** The branch for a team pull request exists locally: `comms/protocol-v3-team`, made from `upstream/main` (`5a004c6`) in the worktree `D:\LetThemCook-worktrees\protocol-v3-team`. It holds three commits: `348fc10` (the code of `comms/protocol-v3` at `3b94990`), `ed2aa1f` (the code of `15de82e`, plus the Communications lines of the shared `README.md`) and `ab3c7f6` (`ios-visualizer/README.md` and `NATIVE-INTEGRATION.md`), with none of the fork-only files (`docs/` and the others in 12.4), as for PR #18. Tests there (run by the lead): 761 passed, 4 skipped at `ab3c7f6` (the fork-only tests are absent); the opt-in Linux deploy test also passed there, from a checkout whose script had CRLF endings. It is not pushed and no pull request is open; pushing it and opening the pull request need the owner's go-ahead, and the owner may prefer to wait for the IDLE/MOVING answer, which can still change the packet.
 - Team repository `upstream` = <https://github.com/B07-CG4002/Let-Them-Cook>. Its main branch is at `5a004c6`: PR #18 (the cleanup below) was merged on 2026-10-14, on top of `880abba` (PR #15).
 - **History rewritten on 2026-10-14, outside the agent sessions:** the PR #15 merge commit on the team main branch (`ec398b6` became `880abba`) and the fork's `main` (for example `780db40` became `971fc52`) were rewritten to remove the `Co-Authored-By` lines from the commit messages. The file contents are identical. Local `main` was aligned with the fork's `main`. From now on, commit messages and pull request descriptions carry no attribution lines.
 - **Pushing needs the owner's go-ahead.** On the evening of 2026-10-14 the owner asked that GitHub not be touched; later that evening the owner gave the go-ahead to push to the fork, and then asked for the team pull request to be opened and merged if it had no problems. Ask before any further push, and never push or merge into the team repo unasked. `gh` is now installed and logged in as `olsonwangyj`.
 - olsonwangyj's fork `origin` = <https://github.com/olsonwangyj/Let-Them-Cook>. Local `main` has content beyond the team main branch that exists only on the fork: `docs/`, `ios-visualizer/xcode-export/`, `AGENTS.md`, `CLAUDE.md`, and several tools.
-- **The 2026-10-14 cleanup (merged into the team main by PR #18, and into local `main`):** it removed compatibility with the old Week 7 version. Now only `LC` packets and `LCS1` statistics are accepted. The `.week7-local` directory is no longer read. The session for `demo.py service --start` defaults to `ltc-comms`, like `run`/`live`, and `--session-id` was added.
+- **The 2026-10-14 cleanup (merged into the team main by PR #18, and into local `main`):** it removed compatibility with the old Week 7 version. The cleanup left only `LC` packets and `LCS1` statistics; since version 3 (first bullet of this section) only version-3 `LC` packets and `LCS3` statistics are accepted. The `.week7-local` directory is no longer read. The session for `demo.py service --start` defaults to `ltc-comms`, like `run`/`live`, and `--session-id` was added.
   - The team-facing branch `comms/remove-week7-legacy` also carries the certificate-renewal commit. Its tests: 551 passed, 3 skipped. It was rebased onto the rewritten team main `880abba` and its messages cleaned (same file contents), then `0b9ed2e` updated the old-evidence commit in `README.md`. It was pushed to the fork with the owner's go-ahead on 2026-10-14 (`0b9ed2e`, a lease-protected force push replacing the old `30e85a6`, which was based on the replaced `ec398b6`). Its tests at `30e85a6`: 551 passed, 3 skipped; the rebase changed no code.
   - Local `main` (which also has the fork-only tests): 569 passed, 3 skipped.
   - Pull request: <https://github.com/B07-CG4002/Let-Them-Cook/pull/18>, opened and merged on 2026-10-14 at the owner's request (mergeable and clean; the team repo has no CI checks; local tests passed). Merge commit `5a004c6`. The branch was then deleted locally and on the fork, and the team main was merged into local `main` with no change to any file, so the fork's `main` contains the team main.
@@ -411,35 +439,36 @@ Unexplained history: on 2026-09-21, in one 60 s run, the phone received only 109
 | Board deployment directory `/var/tmp/cg4002-week7-…-20260907` | `tools/demo_service.py` | A directory that really exists on the board |
 | Default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` | `demo.py` | A directory that really exists on the laptop |
 | iSH config file name `week7-ish-password.conf` and host alias `week7-ultra96` | `phone/ish_control.py` | A file and an alias that already exist in iSH on the phone. Nothing in the repository would create new names |
-| Protocol v1 and `COMMS_LEGACY_DUMMY` | Several places | The deterministic dummy-data mode, not compatibility with an old version |
+| ~~Protocol v1 and `COMMS_LEGACY_DUMMY`~~ | Removed with version 3 (2026-10-14 evening) | Kept by the cleanup as the deterministic dummy-data mode; version 3 replaces versions 1 and 2, so it went |
 
-- Side effect of the cleanup: old captures recorded with Week 7 firmware (all in `.week7-local/`) contain `W7` packets, and the current `demo.py report` no longer passes them. To re-check old evidence, use commit `880abba` (the team main after the history rewrite; it was `ec398b6`, with the same files).
+- Side effect of the cleanup: old captures recorded with Week 7 firmware (all in `.week7-local/`) contain `W7` packets, and the current `demo.py report` no longer passes them. To re-check old evidence, use commit `880abba` (the team main after the history rewrite; it was `ec398b6`, with the same files). Likewise, captures made with version-2 firmware are refused by the version-3 tools (`tools/video_evidence.py` says so by name); check them with `c42b386` or the team main `5a004c6`.
 
 ### 6.3 Actual deployment state, and one redeploy round
 
-After the compatibility removal, all three ends must move to builds of the current source. **Any step below that logs in to the jump host or the Ultra96 can be done only by the owner, in their own terminal** (see section 9).
+Version 3 is a new protocol, so all ends must move to it together (only the newest version is supported). **Any step below that logs in to the jump host or the Ultra96 can be done only by the owner, in their own terminal** (see section 9).
 
-| Device | Current state | What to do | Who |
+| Device | Current state (2026-10-14, late evening) | What to do | Who |
 |---|---|---|---|
-| Left board | **Flashed with the current firmware** (10-14, COM3) | Nothing | — |
-| Right board | Still Week 7 firmware (sends `W7`). The current laptop program rejects it with `invalid source statistics magic; flash this board with the current firmware` | Flash the right board | The owner, or an agent once USB is connected |
-| Server certificate | **The laptop's copy, which is the same certificate deployed to the board in September, expired on 2026-10-06 15:11:29 UTC.** The repository has no record of a later replacement. The board's actual state has not been checked | Renew with the original CA and upload to the board | The owner |
-| Ultra96 service | Should still be the 28 September code snapshot with session `week7-demo`. It was started in the background by `.week7-local/co_deploy.py` (PID in `BOARD_ROOT/evidence/server.pid`) and may still be running | Upload a new snapshot of `common/` and `ultra96/`; verify, then stop the old process; start the new one; change `BOARD_SOURCE` in `tools/demo_service.py` to the new directory | The owner |
-| iPhone app | The Week 7 build, session `week7-demo` | Rebuild from the current source on a Mac and install | The owner |
+| Left board | Version-2 firmware (flashed 10-14, earlier in the day). The version-3 laptop refuses it at start-up with `invalid source statistics magic; flash this board with the current firmware` | Flash version 3 (`-e firebeetle32-left`), then `python -m tools.check_board left` | The owner, or an agent once its USB is connected |
+| Right board | **Version 3, checked** (6.1) | Nothing | — |
+| Server certificate | The September certificate expired on 2026-10-06 (laptop copy; the board's copy unchecked). **Renewed pair ready** in `~/.codex/private/cg4002-comms-server-20261014/` (valid to 2026-11-13 14:27:35 UTC); not on the board | Installed by step 1 | The owner |
+| Ultra96 service | Should still be the 28 September code snapshot (version 2, session `week7-demo`), started in the background by `.week7-local/co_deploy.py` (PID in `BOARD_ROOT/evidence/server.pid`); may still be running | Step 1 | The owner |
+| iPhone app | The Week 7 build (version 2 results, dummy labels only, session `week7-demo`); it cannot read version-3 results | Steps 3 and 4 | The owner (Mac) |
 
 Steps:
 
-1. **Renew the server certificate.** The CA stays the same, so neither the CA fingerprint in the phone source nor the laptop's `--ca` changes.
+1. **Board service and certificate in one step** (from the repository root on the laptop, VPN on, with `comms/protocol-v3` checked out; the tool needs `paramiko` for both SSH hops and the upload; `requirements-dev.txt` lists it (`paramiko>=2.8,<4`, added with the documents after `3b94990`), and on this laptop it comes with Anaconda, version 2.8.1):
 
    ```powershell
-   python -m tools.generate_comms_pki --renew-server-from "$HOME\.codex\private\cg4002-week7-20260906" --output-dir <a new empty directory outside the repository>
+   python -m tools.deploy_service --dry-run
+   python -m tools.deploy_service --server-cert-dir "$HOME\.codex\private\cg4002-comms-server-20261014"
    ```
 
-   Put `server-cert.pem` and `server-key.pem` from the new directory into the board's TLS directory (key permissions 600). The new certificate is again valid for only 30 days.
-2. **Board service.** Only the `common/` and `ultra96/` directories are needed. Put them in a new directory; do not overwrite the directory the running service uses. The old process was started in the background and does not depend on an SSH session, so expect it to be running: its PID is in `BOARD_ROOT/evidence/server.pid`, and `python demo.py service` lists the `ultra96.server` processes with their working directories. Before stopping it, check with `ps -p <PID> -o pid=,uid=,args=` and `readlink -f /proc/<PID>/cwd` that it is your own `ultra96.server`, then run `kill -TERM <PID>`. Do not use `pkill` and do not kill by port. After starting the new service you should see `{"event": "listening", "host": "127.0.0.1", "tls": true, "ingest_port": 8888, "gateway_port": 9999}`.
-3. **Right board firmware.** Flash only the right board: `platformio run -d firmware/esp32 -e firebeetle32-right -t upload --upload-port COMx`. Without `-e`, PlatformIO builds the default `firebeetle32` environment, which is ID 1. Or run the full `python flash.py` (plug in the left board first, then the right). If Windows asks for an authenticated bond after the firmware change: type `erase-bonds` on the board's serial port, remove the board in Windows Bluetooth settings, then run `python flash.py --pair right`.
-4. **Phone app.** Needs a Mac and Xcode: `swift test --package-path ios-visualizer/CommsNative`, then run `python ios-visualizer/tools/patch_export.py` and `python ios-visualizer/tools/configure_xcode.py` on the Unity export (both scripts are fork only and can be rerun; the existing `ios-visualizer/xcode-export/` is already patched), then build and install with Xcode.
-5. **Acceptance.** `python demo.py tunnel` (terminal A); on the phone, tap Connect and wait for `Subscribed`; `python demo.py run` (terminal B). The run must print `CAPTURE PASSED`, and the increase in the phone's `Received` must equal the `Phone expected increase` in the output.
+   The first command only prints the plan. The second asks for the jump-host and board passwords (typed by the owner; nothing is stored), uploads `common/` and `ultra96/` into a new folder `BOARD_ROOT/source-co-v3-<UTC stamp>`, and then, on the board: compiles it; checks that the new certificate and key match and do not expire within an hour; checks that the running `ultra96.server` is this user's, under `BOARD_ROOT`, and owns exactly `127.0.0.1:8888` and `:9999` (or that both ports are free); copies its code aside; nothing has changed on the board up to here. It then stops the old process with SIGTERM and waits until it has exited (after 10 s, SIGKILL once it has checked the PID is still the same process); backs up the old certificate pair to `BOARD_ROOT/tls/backup-<stamp>/` and installs the new one (key mode 600); starts the new service in the background with `--session-id ltc-comms` and an event log; waits until it listens on both ports. Any failure from the stop onwards stops the new service, restores the old certificate pair and restarts the previous code from the rollback copy. From the last check of the running process just before the stop (`tools/deploy_service.py:244` onwards), the final record (`deployed`, `rolled_back`, `failed_old_still_running`, `failed_nothing_running` or `rollback_failed_nothing_running`) is always printed and saved on the board in `BOARD_ROOT/evidence/active-deployment.json`. A refusal in the checks before it (more than one service of this user, a service outside `BOARD_ROOT`, ports not owned exactly or busy, a compile failure, a certificate and key that do not match or expire within an hour) leaves the running service and the certificate untouched (only the uploaded folder stays), prints the error and exits nonzero, and leaves no record on the board or under `.comms-local/deployments/`. If the laptop hears nothing for 2 × start timeout + 120 s, it says so and asks you to read that file (`python demo.py service`) before trying again. The board's record is printed and saved under `.comms-local/deployments/`, which `demo.py service --start` then follows. Without `--server-cert-dir`, the certificate on the board is kept, and the run refuses to deploy if that certificate is expired. Later, `--model MODULE --model-path DIR` starts Wen Ree's model instead of the dummy one. Then `python demo.py service` shows the new process, its folder and the two loopback listeners. The board-side half was tested on Linux (6.1); this will be its first run against the real board.
+2. **Left board firmware.** Plug in the left board alone, confirm its factory MAC (`38:18:2b:19:82:ac`, Bluetooth `38:18:2B:19:82:AE`), then `platformio run -d firmware/esp32 -e firebeetle32-left -t upload --upload-port COMx` and `python -m tools.check_board left`. Or run the full `python flash.py` with both boards (left first). If Windows asks for an authenticated bond after the firmware change: type `erase-bonds` on the board's serial port, remove the board in Windows Bluetooth settings, then run `python flash.py --pair left`.
+3. **Swift package on a Mac first.** `swift test --package-path ios-visualizer/CommsNative`. The Swift changes of 2026-10-14 (version-3 results, labels, confidence, `CommsNextResult`) were written without a compiler; fix any build error here before anything is installed.
+4. **Phone app.** Needs a Mac and Xcode: run `python ios-visualizer/tools/patch_export.py` and `python ios-visualizer/tools/configure_xcode.py` on the Unity export (both scripts are fork only and can be rerun; the existing `ios-visualizer/xcode-export/` is already patched), then build and install with Xcode. This is the owner's test app; Jie Ling's game build follows 7.3.
+5. **Acceptance.** `python demo.py tunnel` (terminal A); on the phone, tap Connect and wait for `Subscribed`; `python demo.py run` (terminal B). The run must print `CAPTURE PASSED`, and the increase in the phone's `Received` must equal the `Phone expected increase` in the output (valid while the board runs the dummy model).
 
 To check whether the board's certificate has expired (with the tunnel open):
 
@@ -475,9 +504,45 @@ The owner's own plan (proposed, Communications work only):
 | Mon 10-19 | Full dry run: gloves → laptop → Ultra96 → model → phone. The phone side uses the owner's test app (the rebuilt Week 7 export) unless Jie Ling's game build is already installed; the game itself is first tested together with Jie Ling (Monday if Jie Ling is available, otherwise Tuesday). Keep the evidence and list the problems for Tuesday |
 | Tue 10-20 | In-person integration session |
 
-Order of priority if time runs short: (1) certificate and redeploy, because nothing works without them; (2) the 38-byte packet and Siqiang's module; (3) Wen Ree's interface; (4) `CommsNextResult` and the iOS link. A hop whose teammate part is late can still be tested with Communications' own dummy data (in the 11-value version-3 format once version 3 lands) and dummy labels, so the rest of the chain is ready on Tuesday. Between the Thursday redeploy and the Saturday phone build, the installed Week 7 app cannot subscribe (it uses session `week7-demo`).
+**Progress against this plan (2026-10-14, late evening; work that needs no teammate reply, done ahead of time at the owner's request):**
+
+- Thursday items done: right board flashed (twice: version 2, then version 3) and checked; server certificate renewed (locally; the upload is the owner's step 1 in 6.3, now one command); version-3 packet in firmware, laptop and Ultra96 with golden vectors and tests.
+- Friday items done on the Communications side: the model interface in the board-service code (`ultra96/model.py`: `start`, `on_sample`, thread-safe `emit`, `--model`; built and tested on the laptop, not yet deployed to the Ultra96), model labels and real confidence in `ultra96/protocol.py`, `phone/receiver.py` and `phone/unity/CommsPhoneCore.cs` (`CommsPhoneCore.cs`: only the changed part compiled, at C# 5); the firmware scaling helper for Siqiang's module (`comms_sample.h`; the call itself waits for the module).
+- Saturday items written early but **not compiled**: `Protocol.swift`, the `confidence` field and `CommsNextResult` (needs the Mac: 6.3 step 3).
+- Still the owner's, in order: send the teammate messages (if not yet sent); run `tools.deploy_service` (6.3 step 1); flash and check the left board (step 2); `swift test` and the phone build on the Mac (steps 3 and 4); acceptance (step 5); decide whether to merge `comms/protocol-v3` into `main` and open the team pull request.
+- Waiting for teammates (unchanged): the IDLE/MOVING answer and the scale check (they may change the packet), the out-of-range policy, Wen Ree's module and result rate, Jie Ling's timing.
+
+Order of priority if time runs short: (1) certificate and redeploy, because nothing works without them; (2) the 38-byte packet and Siqiang's module; (3) Wen Ree's interface; (4) `CommsNextResult` and the iOS link. A hop whose teammate part is late can still be tested with Communications' own dummy data (in the 11-value version-3 format, which has landed on `comms/protocol-v3`) and dummy labels, so the rest of the chain is ready on Tuesday. Between the Thursday redeploy and the Saturday phone build, the installed Week 7 app cannot subscribe (it uses session `week7-demo`).
 
 - The team-facing explainer: <https://claude.ai/code/artifact/b77bebd7-09f4-4c3e-9466-d4e19318359c> ("B07 integration: what to ask, what to tell, and why").
+
+### 6.5 Decisions taken on 2026-10-14 (evening), with reasons and status
+
+The owner asked for all work that does not depend on teammates' replies, with technical decisions made within Communications and integration, recorded with reasons. Status words: **verified** = run or measured; **built** = compiled and tested on the laptop, not on the Ultra96 or the phone; **written** = not compiled (no toolchain); **provisional** = waits for a teammate's answer.
+
+| # | Decision | Reason | Status |
+|---|---|---|---|
+| D1 | Flash the right board after confirming by factory MAC that COM3 holds it | One programming cable reuses COM3; identity comes from the MAC, never the COM number | Verified (6.1) |
+| D2 | Renew the server certificate now from the existing CA | Priority 1; needs no login; keeping the CA keeps the phone's pinned fingerprint and the laptop's `--ca` | Verified locally; not uploaded |
+| D3 | Implement protocol version 3 now: 38 bytes, 11 int16, scales ×10000 / ×100 / ×100 / ×10000 | The owner's plan for Thursday; the pending answers (IDLE/MOVING, scales, out-of-range) would be small follow-ups | Built; right board verified; layout provisional |
+| D4 | Version 3 replaces versions 1 and 2 everywhere, including the formula dummy (`COMMS_LEGACY_DUMMY`, `dummy_values`) | The owner's rule: only the newest version; the formula mode was identified only by the version byte | Built |
+| D5 | `SUBSCRIBE`/`SUBSCRIBED` stay at `v` 1 | They never carried the packet version and did not change | Built |
+| D6 | `request_id` always present (null for samples and model results) | Keeps exact field sets; commands still need it | Built |
+| D7 | Source-statistics marker `LCS1` → `LCS3` (format unchanged) | A board with old firmware is refused at start-up with a clear message, instead of failing packet by packet | Built; right board verified |
+| D8 | Labels: 1–32 characters of `A–Z a–z 0–9 _ -`; confidence: finite number 0–1; the board checks before sending | Communications carries labels without knowing the set; one rule on every peer; a rejected result ends the phone session | Built (Python); C# partly compiled; Swift written |
+| D9 | Board model interface on the Communications side (`ultra96/model.py`, `--model`, `--model-path`) as proposed in 7.2 | Wen Ree's first version can plug in with no further Communications change | Built; names provisional |
+| D10 | `emit` converts numpy-style numbers; `async def` model functions are refused at load | Models commonly produce numpy floats; an async `on_sample` would silently never run | Built |
+| D11 | Commands never reach the model; the service answers each with one `cmd:` echo | Command values are transformed dummy rows with sequence numbers from the command space | Built |
+| D12 | Built-in dummy model: one random dummy label per accepted sample, confidence 1.0 | Keeps every one-input-one-result acceptance check valid until the real rate is known; dummy labels cannot be mistaken for game actions | Built; verified on the right board via `check_board` |
+| D13 | Firmware scaling helper with clamp (default) or drop (`-DCOMMS_OUT_OF_RANGE_DROP=1`); NaN/infinity always refused; no `seq` for a refused sample | Either answer from Wen Ree becomes a build flag; no false gaps | Built (host tests, both policies); policy provisional |
+| D14 | `CommsNextResult` in the Swift package: 32 waiting, 2 s, oldest dropped and counted, emptied on Connect/Disconnect/inactive/`CommsStop`, kept on automatic reconnect, minus (bytes + 1) when the buffer is too small, counters reset on Connect | As proposed in 7.3 | Written; limits provisional |
+| D15 | `tools/deploy_service.py`, the tracked successor of `co_deploy.py`, with certificate install, checks, SIGKILL escalation and rollback | The redeploy is priority 1 and must replace code and certificate in one careful step on a shared board | Board-side half verified on Linux (27/27); SSH half not run |
+| D16 | `tools/check_board.py` for one board; `demo.py service --start` follows the newest deployment record | Checks each board after flashing without the Ultra96; removes the stale `BOARD_SOURCE` pitfall | `check_board` verified on the right board (6.1); the `--start` part built (unit tests only; no deployment record exists yet) |
+| D17 | Pass confidence through unrounded (a numpy float32 0.93 arrives as 0.9300000071525574) | Communications forwards results as they are; rounding would be a change of the model's output | Built |
+| D18 | A model's `SystemExit` is treated like any other model error; leftover non-daemon model threads cannot keep a stopped service alive (`exit_with_model_threads`) | Wen Ree's existing scripts report missing files with `raise SystemExit(...)`; one such call must not take both gloves and the phone down, and a stopped service must really stop | Built (review fix) |
+| D19 | `demo.py service --start` restarts the deployed model too (`--model`/`--model-path` read from the running process recorded at deploy time, validated) | Otherwise a restart after a reboot would silently run the dummy model | Built (review fix) |
+
+What these decisions do **not** settle (section 13): the IDLE/MOVING field, the scales, the out-of-range policy, the model's function names and in-process use, the label set and result rate, and the `CommsNextResult` limits.
 
 ---
 
@@ -485,7 +550,7 @@ Order of priority if time runs short: (1) certificate and redeploy, because noth
 
 Communications specifies only which functions and fields are needed at each hand-over point. Function names and internal implementation are the other side's decision. Who does what is summarised in the table in 3.1.
 
-**Everything in this section is planned, not built.** Only the three existing C functions (`CommsStart`, `CommsCopyDisplay`, `CommsStop`) can be called today. The firmware still sends dummy data, the board still makes up dummy labels, and every receiver still accepts only `REST`, `FIST`, `OPEN`, `POINT` with confidence 1.0. The messages to the teammates say this, so nobody expects to call something that does not exist yet.
+**What exists (2026-10-14, late evening, branch `comms/protocol-v3`, not yet deployed):** the Communications side of 7.1 and 7.2 is built and tested on the laptop: the scaling helper that will take Siqiang's 11 floats, and the model interface on the board (`start(emit)`, `on_sample`, the thread-safe `emit`, `--model`). Every receiver accepts model labels and real confidence. The Communications side of 7.3, `CommsNextResult`, is written in the Swift package but not compiled. **Nothing on the teammates' side exists**: no sensor module, no model module, no game script calling the bridge. Until the owner deploys and installs (6.3), the Ultra96 and the phone still run the version-2 builds: there only the three C functions exist, under their Week 7 names (`Week7Start`, `Week7CopyDisplay`, `Week7Stop`), and only `REST`, `FIST`, `OPEN`, `POINT` with confidence 1.0 are accepted. The messages to the teammates were written before this work and describe these parts as planned; that is still safe, because none of them is deployed.
 
 The interface shapes and dates below are the owner's proposals of 2026-10-14. They become commitments when the teammates confirm them in their replies. Teammates deliver code by pushing it to the team repo on GitHub, not by sending files over Telegram.
 
@@ -503,6 +568,8 @@ Apart from the calibration phase of `gloveBegin()`, none of the three functions 
 
 Order and units of the 11 values: `ax, ay, az` (g, gravity removed), `gx, gy, gz` (°/s, bias removed), `yaw, pitch, roll` (degrees), `flex1, flex2` (0.0 to 1.0). With the scale factors in 4.2, each value must stay within: acceleration ±3.2767 g, angular rate ±327.67 °/s, angles ±327.67°, flex at most 3.2767. With the current settings in `imu_v7.ino` (±2 g, so about ±3 g after gravity removal, a margin of only about 0.28 g; ±250 °/s; yaw and roll ±180°, pitch ±90°; flex 0 to 1), normal values are expected to fit, but that is not guaranteed: the final value depends on the module's processing (for example the gyro bias subtraction). How an out-of-range value is handled is to be agreed with Wen Ree (8, step 1).
 
+**What Communications already has for this (built 2026-10-14):** `firmware/esp32/include/comms_sample.h` turns the 11 floats into the 11 int16 of the version-3 packet (4.3). When the module arrives, `main.cpp` calls `gloveBegin()` in `setup()`, `gloveUpdate()` once per pass, and at each send tick `gloveRead()`, then `scaleSample`, then `serializePacket`; a `false` from `gloveRead` or a refused sample sends nothing and takes no `seq`. The function names follow whatever Siqiang delivers.
+
 Constraints the Communications firmware places on the module (from the existing code):
 
 - PlatformIO, Arduino framework, board `firebeetle32`, Arduino-ESP32 core 2.0.17 (PlatformIO espressif32 7.1.0).
@@ -513,13 +580,13 @@ Asked of Siqiang in the message (once the owner sends it; the code cannot answer
 
 ### 7.2 From Wen Ree: the model's entry and exit on the board (called by the Communications service on the board)
 
-The connection point is `ultra96/server.py:264-267`. **Planned; none of these functions exists yet.** Suggested shape (names are theirs to choose):
+The connection point is `ultra96/model.py` and the call in `ultra96/server.py` (line 277). **The Communications side is built (2026-10-14); Wen Ree's module does not exist yet.** The service loads it with `--model MODULE` (and `--model-path DIR` for where it lives on the board), checks that `start` and `on_sample` are plain callables (not `async def`), and without `--model` uses its built-in dummy model. Suggested shape (names are theirs to choose; if Wen Ree picks other names, only `ultra96/model.py` changes):
 
 | Function | Provided by | Called by whom, when | Contract |
 |---|---|---|---|
 | `start(emit)` | Wen Ree | Called once by the Communications service at start-up, before the first sample | Load the model here, and tell Communications how long that takes. `emit` is the result exit that Communications hands to the model |
 | `on_sample(device_id, boot_id, seq, uptime_ms, values)` | Wen Ree | Called by Communications once for each newly accepted sample, on the service's single thread. The return value is unused | **Must return immediately.** The service is a single asyncio event loop, and the ACK is written only after this returns. If it is slow, the ACKs of both gloves are held up (the laptop waits at most 5 s for an ACK; sample freshness is 2 s). Inference must run on another thread or in another process |
-| `emit(gesture, confidence, device_id, boot_id, seq)` | **Communications** | Called by the model once per result. It may be called from any thread | Communications moves the call safely back onto the event loop (the result queue has no lock). This is code the owner will write |
+| `emit(gesture, confidence, device_id, boot_id, seq)` | **Communications** (built) | Called by the model once per result. It may be called from any thread | Communications moves the call safely back onto the event loop (the result queue has no lock). Returns `True` when the arguments are valid and the service is running, `False` otherwise; numpy-style numbers are accepted. Refused results are counted on the board (`model_results_rejected`, `model_results_duplicate`, `model_results_late`). Invalid, unknown-identity and duplicate results also log a warning, at most one per kind per second; results emitted after the service stopped are only counted |
 
 `on_sample` fields:
 
@@ -537,8 +604,8 @@ What Communications guarantees: within one power-up (same `device_id` + `boot_id
 
 | Field | Type | Meaning |
 |---|---|---|
-| `gesture` | string | The label text as it is (the field name on the wire is `gesture`) |
-| `confidence` | number from 0 to 1 | Confidence |
+| `gesture` | string | The label text as it is (the field name on the wire is `gesture`): 1 to 32 characters from `A–Z a–z 0–9 _ -` |
+| `confidence` | number from 0 to 1 | Confidence, passed on unrounded |
 | `device_id`, `boot_id`, `seq` | as above | The identity of **one** sample this result used (usually the newest one in the window; either glove is fine). Communications uses it to build `result_id` (`device_id:boot_id:seq`). **Each result must point to a different sample**: the phone de-duplicates by `result_id`, and a second result with the same identity is dropped |
 
 The result message cannot gain fields freely. The field set of `GESTURE_RESULT` is matched exactly in four places (the board, the iPhone and the two reference receivers), so the only correlation information is one sample's identity. Communications forwards the label and the confidence as they are, without filtering or renaming. Results, like samples, are not resent. The board drops a result when no phone is subscribed at the moment it is produced. When 32 results are already waiting, the oldest is dropped (`ResultQueue.put`). It also drops a queued result that has waited 2 s or more on the board (`get_timed`). The write to the phone's connection gets only what is left of those 2 s (`_send_results`). If the write does not finish in what is left of those 2 s, the board does more than drop that result: it ends that phone's subscription (`result_send_failed`, `reason=error`), abandons what is still queued, and the phone reconnects and subscribes again. This limits waiting on the board only. It is **not** a promise about when, or whether, the phone receives the result: bytes already handed to TCP/TLS cannot be recalled, and the phone keeps its own 2 s display window counted from when it received the result. There is no end-to-end latency bound (9.2).
@@ -549,7 +616,7 @@ Asked of Wen Ree in the message (once the owner sends it): whether it can run in
 
 ### 7.3 For Jie Ling: the interface Communications provides (called by the game)
 
-Proposed (the owner's direction, 2026-10-14; final when Jie Ling confirms): **Jie Ling does everything in Unity and the iOS build, on their own Mac and iPhone: the C# that calls the Communications functions, the game logic, exporting the project, adding `CommsNative` to the Xcode project, building, and installing the app. olsonwangyj provides `CommsNative` in the team repo (`ios-visualizer/CommsNative`), pushes the new parts there, and sends short steps for adding it to the Xcode project.** Patching an export is no longer used, and no export is passed between people. Communications **needs no API from the game**. The game calls the three existing Communications C functions (section 4.6), plus the planned fourth one, `CommsNextResult`, once it exists, and can use the Week 7 receiver as an example. On the phone, Jie Ling uses the NUS VPN, logs in in the app with their own jump-host and board accounts, and imports the CA file the owner shares (9.2). The message asks Jie Ling to have it installed before the integration session on Tue 10-20 and to tell the owner about any problem at any time; the only question in it is whether the timing works.
+Proposed (the owner's direction, 2026-10-14; final when Jie Ling confirms): **Jie Ling does everything in Unity and the iOS build, on their own Mac and iPhone: the C# that calls the Communications functions, the game logic, exporting the project, adding `CommsNative` to the Xcode project, building, and installing the app. olsonwangyj provides `CommsNative` in the team repo (`ios-visualizer/CommsNative`), pushes the new parts there, and sends short steps for adding it to the Xcode project.** Patching an export is no longer used, and no export is passed between people. Communications **needs no API from the game**. The game calls the three existing Communications C functions (section 4.6), plus the fourth one, `CommsNextResult` (in the source since 2026-10-14; not yet compiled or installed), and can use the Week 7 receiver as an example. On the phone, Jie Ling uses the NUS VPN, logs in in the app with their own jump-host and board accounts, and imports the CA file the owner shares (9.2). The message asks Jie Ling to have it installed before the integration session on Tue 10-20 and to tell the owner about any problem at any time; the only question in it is whether the timing works.
 
 C# declarations of the three functions (derived from the C signatures; not yet compiled in Unity). These symbols exist only in the iOS build. Calling them in the Unity Editor or on other platforms throws an exception, so calls go inside `#if UNITY_IOS && !UNITY_EDITOR`:
 
@@ -563,38 +630,38 @@ C# declarations of the three functions (derived from the C signatures; not yet c
 - `CommsCopyDisplay`: call once per frame on the main thread with a 2048-byte buffer. It returns the number of UTF-8 bytes written (not counting the terminating 0). When nothing changed, or the buffer is null or too small, it returns 0 and writes nothing, and the game should keep the text it already has.
 - `CommsStop`: call only when the app closes. It ends the session, clears the passwords and removes the button. Do not call it on a scene change or when going to the background.
 - Line 2 of the text is the status. `Subscribed` means only that the subscription handshake with the Ultra96 succeeded; it does not prove that results are flowing.
-- Line 3 holds only the latest result and is overwritten by the next one, so results that arrive between two polls can be lost (4.6). Use it to watch results while testing, not as game input. Do not rely on line 1 (`DUMMY inference` will change) or on `confidence 1.0` (a placeholder). Ids starting with `cmd:` come only from the owner's command tests on the laptop.
-- **Per-result delivery is Communications' job and is planned, not built.** The game's action entry points are one-shot: in `vis/Assets/Scripts/Core/GestureButtonController.cs` the `On...Pressed` methods are wired to the on-screen buttons' `OnClick()`, and its comment says Ultra96 gestures will call them later. So the game needs results one at a time, not a display that the next result overwrites. The owner's direction (2026-10-14): add a fourth bridge function that hands out structured results one at a time. Proposed shape:
+- Line 3 holds only the latest result and is overwritten by the next one, so results that arrive between two polls can be lost (4.6). Use it to watch results while testing, not as game input. Line 1 is `Communications` in the current source (the installed Week 7 build still shows `Week 7 • DUMMY inference` and `confidence 1.0`); line 3 shows the received confidence (`DisplayMailbox.swift:16-18`). Do not parse the display text. Ids starting with `cmd:` come only from the owner's command tests on the laptop.
+- **Per-result delivery is Communications' job; `CommsNextResult` is written in the source (2026-10-14) but not yet compiled or installed.** The game's action entry points are one-shot: in `vis/Assets/Scripts/Core/GestureButtonController.cs` the `On...Pressed` methods are wired to the on-screen buttons' `OnClick()`, and its comment says Ultra96 gestures will call them later. So the game needs results one at a time, not a display that the next result overwrites. The owner's direction (2026-10-14): add a fourth bridge function that hands out structured results one at a time. Proposed shape:
 
   ```c
   int32_t CommsNextResult(char* buffer, int32_t capacity);
   ```
 
-  It removes the oldest result still waiting and writes it as one compact UTF-8 JSON object with a terminating 0, for example `{"result_id":"1:305419896:42","gesture":"CHOP","confidence":0.93,"device_id":1}`, and returns the number of bytes written (not counting the 0). It returns 0 when no result is waiting. If the buffer is too small for the next result, it writes nothing, leaves the result in the queue and returns the negative of the bytes needed; with a 512-byte buffer this does not happen with the expected labels. The game calls it in a loop each frame while it returns a positive number. In C#: `[DllImport("__Internal")] static extern int CommsNextResult(byte[] buffer, int capacity);`. The owner plans to have it ready by Sun 10-18 (6.4); Jie Ling can write the C# against the declaration before then.
+  It removes the oldest result still waiting and writes it as one compact UTF-8 JSON object with a terminating 0, for example `{"result_id":"1:305419896:42","gesture":"CHOP","confidence":0.93,"device_id":1}`, and returns the number of bytes written (not counting the 0). It returns 0 when no result is waiting. If the buffer is null or too small for the next result (it needs the bytes plus the terminating 0), it writes nothing, leaves the result in the queue and returns minus (bytes + 1), the capacity needed; with a 512-byte buffer this does not happen with the expected labels. The game calls it in a loop each frame while it returns a positive number. In C#: `[DllImport("__Internal")] static extern int CommsNextResult(byte[] buffer, int capacity);`. It exists in `DisplayMailbox.swift` since 2026-10-14 (not compiled); the owner compiles and tests it on the Mac (6.3 step 3) and pushes `CommsNative` to the team repo by Sun 10-18 (6.4). Jie Ling can write the C# against the declaration now.
 
-  What it promises, and what it does not: results wait in a queue in arrival order, de-duplicated by `result_id`, and each result that is not dropped can be taken out at most once. It does not promise that every result is delivered: results lost before the phone (board drops, reconnects, no subscriber) never arrive, and the queue itself drops results, counting each drop. Provisional V1 limits, the same rules the board uses: at most 32 results wait; when full, the oldest is dropped; a result still waiting 2 s after it reached the phone is dropped. At 50 results a second, 32 places last only about 0.64 s if the game stops reading, so the limits are revisited once Wen Ree says how often results come. The queue is emptied when the session stops (Disconnect, the app becoming inactive, `CommsStop`) and when a new Connect starts; an automatic reconnect keeps it, and its entries still expire after 2 s. Whether several identical labels in a row mean one action or several is for Wen Ree and Jie Ling to agree; Communications hands out every result as it is.
+  What it promises, and what it does not: results wait in a queue in arrival order, de-duplicated by `result_id`, and each result that is not dropped can be taken out at most once. It does not promise that every result is delivered: results lost before the phone (board drops, reconnects, no subscriber) never arrive, and the queue itself drops results, counting each drop. Provisional V1 limits, the same rules the board uses: at most 32 results wait; when full, the oldest is dropped; a result still waiting 2 s after it reached the phone is dropped. At 50 results a second, 32 places last only about 0.64 s if the game stops reading, so the limits are revisited once Wen Ree says how often results come. The queue is emptied when the session stops (Disconnect, the app becoming inactive, `CommsStop`) and when a new Connect starts; an automatic reconnect keeps it, and its entries still expire after 2 s (also after a terminal error, which goes through the same path as a reconnect status). A null buffer counts as too small. Expired and dropped results are counted (`pendingExpired`, `pendingDropped` in the display snapshot; both reset on a new Connect, like `Received`). Expiry also happens while only `CommsCopyDisplay` is polled, so results that nobody takes out are dropped after 2 s rather than kept. Whether several identical labels in a row mean one action or several is for Wen Ree and Jie Ling to agree; Communications hands out every result as it is.
 - Only one object may call `CommsCopyDisplay` (each call reports only the change since the previous call), and that object must survive scene changes. The same object would call `CommsNextResult`.
 - What to do with a result (which action it maps to, cooldowns, repeats) is the game's business.
 - The phone can no longer rely on the 5005 listener. Results come in only through the Communications bridge functions: the three that exist today and, once built, `CommsNextResult`, which is the game input.
 - Passwords are not saved. As soon as the app stops being active (going to the background, screen lock, pulling down Control Center or Notification Center, an incoming call), it disconnects and clears the passwords, and they must be entered again.
 - Reference: in Week 7 the owner had no Unity project and patched the generated C++ (`TlsDataReceiver`) of one Xcode export. Jie Ling's own C# was never changed. The patched export is only on the fork. The patch script <https://github.com/olsonwangyj/Let-Them-Cook/blob/main/ios-visualizer/tools/patch_export.py> is for reference only and cannot be run against a new project.
 
-Until `CommsNextResult` exists, the game can show the text and test the connection, but it cannot drive actions reliably from it.
+Until `CommsNextResult` is compiled and installed, the game can show the text and test the connection, but it cannot drive actions reliably from it.
 
 ---
 
-## 8. Communications' own extension points (the owner's work; none done yet)
+## 8. Communications' own extension points (the owner's work)
 
-These are olsonwangyj's tasks. Do them in order. For each step, write the tests and golden vectors first.
+These are olsonwangyj's tasks, in order. Status on 2026-10-14, late evening (branch `comms/protocol-v3`; details in 6.5):
 
-1. **Real data packet, version 3.** Version 3 is a new format. With the 11 values only it is 38 bytes (16-byte header plus 11 × int16). The final layout is frozen only after Siqiang and Wen Ree answer whether the glove's IDLE/MOVING state travels: an extra field changes the length, the MTU floor and `on_sample`. Before fixing the scales, check them against the real sample log Siqiang sends. In normal use every value is expected to fit, but that is not guaranteed: the final value depends on the module's processing (for example the gyro calibration bias is subtracted), not only on the raw sensor range. **Out-of-range values are to be agreed with Wen Ree** (asked in the message): clamp to the int16 limit, or drop that one sample. Either way Communications counts it and never drops a connection or a whole gesture. A clamped value cannot be told apart from a real value at the limit (for example 3.2767 g can be either); if the model needs to know which samples were clamped, a per-sample flag is needed, which again changes the packet and `on_sample`. Neither option guarantees that a gesture is still recognised. **Only the newest version is supported (the owner's rule, 2026-10-14).** There is no interoperability between versions: each component accepts only the current version, and an upgrade means reflashing both boards, redeploying the Ultra96 service and reinstalling the phone app together. Version 3 therefore replaces versions 1 and 2 everywhere, including the dummy test data, which moves to the 11-value format; there is no transition period such as keeping results at `v: 2`. That would not help anyway: an old phone build also rejects labels other than the four dummy ones, confidence other than 1.0, another session and another field set. Change these together: `firmware/esp32/include/comms_packet.h` (8 channels → 11), `comms_security.h:19` (MTU 35 → 41 for 38 bytes), `comms_control.h` (the command payload embeds a whole packet), `common/sensor.py` (it copies the packet version into `SENSOR_BATCH.v`), `common/control.py`, `common/dummy_fixtures.json`, `laptop/bridge.py` (MTU check), `ultra96/protocol.py:42,67` (versions accepted; 8 values) and the version branches for de-duplication and `request_id` (`ultra96/server.py:250-259`, `ultra96/protocol.py:46,89-90`), and on the result path, which copies the sample's version into `GESTURE_RESULT.v` (`ultra96/server.py:264`): `Protocol.swift:40`, `phone/receiver.py:115`, `CommsPhoneCore.cs:70`. `laptop/goodput.py` counts bytes with `PACKET_SIZE` from `common.sensor`, so it follows the packet size automatically.
-2. **Connect the sensor module in the firmware.** In `main.cpp`: call the initialisation in `setup()`, and replace the block that calls `serializeFixturePacket` with "read sample → scale → pack". This block runs while holding the connection-state mutex, which the BLE callbacks also take, so nothing slow may happen here. For 50 Hz use `-DCOMMS_INITIAL_RATE_HZ=50` or `--rate 50`.
-3. **Measure.** Two real gloves, 38 bytes, 50 Hz, at least 65 s, with clean source reconciliation on both boards.
-4. **Connect the model interface on the board.** Replace `ultra96/server.py:264-267`.
-5. **Accept model labels and real confidence.** Four checks currently accept only `REST`/`FIST`/`OPEN`/`POINT`, with confidence exactly 1.0: `ultra96/protocol.py:4,78-83`, `ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:54-62`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs`. **Without this change, the model's first real label makes the phone disconnect with a terminal error.** This step also covers the display text `DUMMY inference` and the hard-coded `confidence 1.0` (`DisplayMailbox.swift`, lines 16 and 18), and the setup-form text `DUMMY gestures · session ltc-comms` (`SetupViewController.swift:51`). The owner has said explicitly that Communications must support this itself and that the owner will make the change. In the same step, add the per-result bridge function `CommsNextResult` (7.3) and a `confidence` field in the Swift `GestureResult`, so the game can take out, in arrival order, each result that reaches the phone and is not dropped, at most once and with its real confidence (no promise that every result is delivered; 7.3).
-6. **The "one input, one result" criterion.** Once the model produces results per window, the reconciliation rules behind `Phone expected increase` in `demo.py` and in the two rehearsal tools (`tools/rehearse_comms.py`, `tools/rehearse_remote_comms.py`) must be redefined.
-7. **Steps for adding `CommsNative` to the Xcode project.** Push `CommsNative` with `CommsNextResult` to the team repo and write short steps for Jie Ling: add the local Swift package `ios-visualizer/CommsNative` to the exported Xcode project and link it into `UnityFramework`. Jie Ling builds and installs; the owner helps if the build fails. `patch_export.py` is no longer needed. `configure_xcode.py` depends on fixed Xcode object IDs; whether it works on a new export is unverified.
-8. Do one redeploy round as in section 6.3 and run the acceptance check.
+1. **Real data packet, version 3. Done in code (built; the right board verified).** 38 bytes (16-byte header plus 11 × int16), the scales in 4.2, version 3 only everywhere, the formula dummy removed, `LCS3` statistics, MTU floor 41, 52-byte command frames; golden vectors `tests/fixtures/comms-golden.json`, `comms-dummy.bin`, `comms-boundaries.bin` (hand-specified, printed identically by `firmware/esp32/test/host_packet.cpp`). **Still open:** the layout is frozen only after Siqiang and Wen Ree answer whether the glove's IDLE/MOVING state travels (an extra field changes the length, the MTU floor and `on_sample`), and the scales are checked against Siqiang's real sample log. In normal use every value is expected to fit, but that is not guaranteed: the final value depends on the module's processing (for example the gyro calibration bias is subtracted), not only on the raw sensor range. **Out-of-range values are to be agreed with Wen Ree**: the firmware supports both answers (clamp, the default, or drop with `-DCOMMS_OUT_OF_RANGE_DROP=1`), counts what it clamps or refuses, and never drops a connection or a whole gesture. A clamped value cannot be told apart from a real value at the limit (for example 3.2767 g can be either); if the model needs to know which samples were clamped, a per-sample flag is needed, which again changes the packet and `on_sample`. Neither option guarantees that a gesture is still recognised. **Only the newest version is supported (the owner's rule, 2026-10-14):** an upgrade means reflashing both boards, redeploying the Ultra96 service and reinstalling the phone app together; an old phone build rejects version-3 results.
+2. **Connect the sensor module in the firmware. Prepared, waits for Siqiang's module.** `comms_sample.h` is ready (7.1). In `main.cpp`: call the initialisation in `setup()`, and replace the block that calls `serializeFixturePacket` with "read sample → `scaleSample` → `serializePacket`". This block runs while holding the connection-state mutex, which the BLE callbacks also take, so nothing slow may happen here. For 50 Hz use `-DCOMMS_INITIAL_RATE_HZ=50` or `--rate 50`. On the owner's boards (no IMU), check only that it compiles, that `gloveBegin()` returns false without blocking and that the board still advertises.
+3. **Measure. One board done; two gloves not.** One board, 38 bytes, 50 Hz, 65 s, clean (6.1). Still needed: two real gloves together, 50 Hz, at least 65 s, with clean source reconciliation on both boards.
+4. **Connect the model interface on the board. Done on the Communications side (built).** `ultra96/model.py` and `--model`; waits for Wen Ree's module (7.2).
+5. **Accept model labels and real confidence. Done:** `ultra96/protocol.py` and `phone/receiver.py` (built and tested), `phone/unity/CommsPhoneCore.cs` (the changed part compiled with the C# 5 compiler and its 88 contract checks passed; the whole file needs C# 6/7 and was not compiled), `CommsCore/Protocol.swift`, the `confidence` field, `CommsNextResult` and the display texts (written, not compiled). **Until the phone app is rebuilt, it cannot use the version-3 service:** it cannot subscribe (it uses session `week7-demo`), and any version-3 result, dummy or real, would end its session with a terminal error, because its result check does not accept version 3 (6.3 steps 3 and 4).
+6. **The "one input, one result" criterion.** Once the model produces results per window, the reconciliation rules behind `Phone expected increase` in `demo.py` and in the two rehearsal tools (`tools/rehearse_comms.py`, `tools/rehearse_remote_comms.py`) must be redefined. **Not done:** it waits for Wen Ree's answer on the result rate. The built-in dummy model keeps one result per input, so these criteria stay valid while it is used (`demo.py run` prints a line saying so).
+7. **Steps for adding `CommsNative` to the Xcode project.** Push `CommsNative` with `CommsNextResult` to the team repo and write short steps for Jie Ling: add the local Swift package `ios-visualizer/CommsNative` to the exported Xcode project and link it into `UnityFramework`. Jie Ling builds and installs; the owner helps if the build fails. `patch_export.py` is no longer needed. `configure_xcode.py` depends on fixed Xcode object IDs; whether it works on a new export is unverified. **Not done:** `CommsNative` (with `CommsNextResult`) is on the local branch only; the push to the team repo and the steps wait for the Mac build (6.3 step 3).
+8. **Do one redeploy round as in section 6.3 and run the acceptance check. Not done (the owner's login).** It is now one command for the board side (`tools/deploy_service.py`).
 
 ---
 
@@ -615,11 +682,11 @@ These are olsonwangyj's tasks. Do them in order. For each step, write the tests 
 
 ### 9.2 Pitfalls
 
-- **The certificate lasts only 30 days.** After it expires the service still starts, but the laptop gets no ACK at all and the phone stops at `SSH, TLS or protocol verification failed`. Running the certificate tool without `--renew-server-from` replaces the CA too, and then the fingerprint in the phone source and the laptop's `--ca` must both change.
+- **The certificate lasts only 30 days.** The renewed one expires on **2026-11-13 14:27:35 UTC**, before the final demo around Week 13, so renew again in early November (`--renew-server-from`, then `tools.deploy_service --server-cert-dir`). After it expires the service still starts, but the laptop gets no ACK at all and the phone stops at `SSH, TLS or protocol verification failed`. `tools.deploy_service` refuses to deploy with a certificate that expires within an hour. Running the certificate tool without `--renew-server-from` replaces the CA too, and then the fingerprint in the phone source and the laptop's `--ca` must both change.
 - **The session ID must match on all three ends.** On a mismatch the board closes the connection. The symptom is `received` rising while `acked` stays at 0, or the phone bouncing between `Connecting` and `Disconnected`.
 - **Port defaults differ.** `demo.py` uses 18889. Running modules such as `laptop.dual_bridge` or `tools.ssh_tunnel` directly defaults to 18888. The tunnel and the capture must use the same port.
-- **Personal defaults are written in the code.** The default account in `demo.py tunnel`, the default path of `demo.py --ca`, the account and board paths in `tools/demo_service.py` (these cannot be changed with arguments), and the two boards' Bluetooth addresses in `tools/demo_boards.py`. Watch these when the person, the machine or the boards change.
-- **`BOARD_SOURCE` in `tools/demo_service.py` points to the 28 September snapshot.** If it is not changed after redeploying, `demo.py service --start` still starts the old code.
+- **Personal defaults are written in the code.** The default account in `demo.py tunnel`, the default path of `demo.py --ca`, the account and board paths in `tools/demo_service.py` (these cannot be changed with arguments), the jump-host account `yanjie` and `BOARD_ROOT` used by `tools/deploy_service.py` (`--jump-user`, `--board-user` change the accounts), and the two boards' Bluetooth addresses in `tools/demo_boards.py`. Watch these when the person, the machine or the boards change.
+- **`demo.py service --start` follows the newest local deployment record** (`.comms-local/deployments/`, written by `tools.deploy_service`) and falls back to `BOARD_SOURCE`, the 28 September snapshot. A deployment made by hand, or from another laptop, leaves no record here, so `--start` would then start the old code.
 - **The service process does not reclaim identity capacity.** Each glove power-up takes one `(device_id, boot_id)`. A process allows at most 128; when they run out, the service must be restarted. A restart clears the de-duplication state.
 - **With no subscriber, results are dropped at once.** So get the phone to `Subscribed` first, then start the capture.
 - **The board closes an ingest connection after 5 s idle.** The first sample after a glove drops and reconnects may get no ACK, and is counted as one ambiguous drop.
@@ -628,15 +695,19 @@ These are olsonwangyj's tasks. Do them in order. For each step, write the tests 
 - **Whoever holds the phone logs in with their own account.** Any teammate can log the phone in with their own NUS VPN, jump-host and board accounts; it does not have to be olsonwangyj's phone or account (the owner's correction, 2026-10-14). Each person types only their own passwords; nobody shares a password. Because the passwords are not saved, the person holding the phone must be able to log in again whenever the app stops being active. Whoever builds the app installs it from their own Mac with their own Apple ID; with a free Apple ID the installed app expires after 7 days and is installed again.
 - **The phone works only in the foreground.** Locking the screen or switching away disconnects it and clears the passwords.
 - **There is no end-to-end timestamp.** The 2 s freshness is each segment's own waiting time, not end-to-end latency.
-- **The board service writes one INFO log line for each accepted input.** With both gloves at 50 Hz that is about 100 lines per second. They go to the service's output: the foreground SSH terminal when it was started with `demo.py service --start`, or the log file under `BOARD_ROOT/evidence/` when it was started by `co_deploy.py`.
+- **The model's `on_sample` runs on the service's only event loop, before the ACK.** A model that does its inference inside `on_sample` holds up the ACKs of both gloves (the laptop waits at most 5 s; sample freshness is 2 s). The counters `model_slow_calls` and `model_max_call_ms` in the `stopped` line show it; inference belongs on another thread or in another process. An `async def on_sample` is refused when the model loads. A model whose threads are not daemon threads no longer keeps a stopped service alive (`exit_with_model_threads`), but its threads end abruptly then.
+- **The board service writes one INFO log line for each accepted input.** With both gloves at 50 Hz that is about 100 lines per second. They go to the service's output: the foreground SSH terminal when it was started with `demo.py service --start`, or the log file under `BOARD_ROOT/evidence/` when it was started in the background by `co_deploy.py` or `tools.deploy_service` (`server-co-<stamp>.log`, or `rollback-server-<stamp>.log` after a rollback). A service started by `tools.deploy_service` also writes an event log (`observer-co-live-<stamp>`) unless `--no-event-log` is given.
 - **`flash.py` rewrites the Git-tracked `comms_fixtures.h` every time.** After changing `common/dummy_fixtures.json` you must reflash before the data on the board changes.
 - **A leftover `LTC_COMMS_SESSION` in the terminal.** Documents from the transition period taught setting `LTC_COMMS_SESSION=week7-demo`. This variable affects `demo.py run`, `live` and `service --start` together, but not the phone. If it is still set, the laptop and a newly started service both use `week7-demo`. `CAPTURE PASSED` still appears, but the phone stays at `Disconnected: connection closed; retrying`. When troubleshooting, first make sure this variable is not set.
 - **Neither end records why something was rejected.** For a bad frame, a session mismatch, an identity conflict or exhausted capacity, the board only closes the connection and adds 1 to `rejected`; it writes no log entry, and it prints its metrics only once, when the service stops. On the laptop, an ACK timeout or a mismatched ACK increments both `ack_errors` and `transport_errors`; a TLS connect or handshake failure increments only `transport_errors`. Neither counter records a reason. So an expired certificate and an unreachable port look the same (only `transport_errors`), and a session mismatch and a protocol version mismatch between the two ends look the same (the board closes the connection after the frame, which counts as both). For the 38-byte migration, both ends must be upgraded together.
 - **The phone's "automatic retry" logs in to both SSH hops again and again.** When the board service is not running, the session does not match, or another subscriber has pushed the phone off, the phone treats it as a closed connection. It then logs in to the jump host and the board again with the passwords, after a delay that starts at 0.5 s and doubles up to 5 s (reset after a result arrives), with no limit on attempts. When the service is not ready, tap Disconnect first; do not leave the app on retrying.
 - **A service started with `demo.py service --start` is the foreground process of that SSH session.** Closing that terminal, the laptop going to sleep or the VPN dropping all make the service exit. Keep the terminal that started the service open, like the tunnel terminal. This applies only to the `--start` path. The process recorded on the board on 2026-09-28 was started in the background by `.week7-local/co_deploy.py`, does not depend on any SSH session, and may still be running (4.5).
 - **A different laptop needs `known_hosts` first.** Both SSH hops use strict host-key checking, and nothing in the repository writes `known_hosts`. The two public keys in the phone source `Configuration.swift` can be used to check them.
-- **The single-board diagnostic tools cannot choose a board.** `laptop.ble_counter_receiver`, `laptop.mtu_probe` and `tools.rehearse_comms --ble` scan by service UUID and connect to whichever board they find first. The two boards advertise the same name, so power only one board when using these tools. They also do not set the rate, so the board keeps its last rate.
-- **Symptoms when a board still has old firmware.** The two-board capture reads the source statistics first. If the marker is not `LCS1`, it reports `invalid source statistics magic; flash this board with the current firmware`, that board is not subscribed, and start-up times out after 30 s.
+- **The single-board diagnostic tools cannot choose a board.** `laptop.ble_counter_receiver`, `laptop.mtu_probe` and `tools.rehearse_comms --ble` scan by service UUID and connect to whichever board they find first. The two boards advertise the same name, so power only one board when using these tools. They also do not set the rate, so the board keeps its last rate. `tools.check_board left|right` (2026-10-14) connects by the board's address and sets the rate, so the other board may stay powered.
+- **Symptoms when a board still has old firmware.** The two-board capture reads the source statistics first. If the marker is not `LCS3` (version-2 firmware answers `LCS1`, Week 7 firmware `W7S1`), it reports `invalid source statistics magic; flash this board with the current firmware`, that board is not subscribed, and start-up times out after 30 s. On 2026-10-14 night the left board is in exactly this state (6.3).
+- **Captures made before version 3 cannot be re-checked with the current code** (`demo.py report`, `tools/video_evidence.py`); use `c42b386` or the team main `5a004c6` for them.
+- **The opt-in Linux deploy test (`B07_LINUX_DEPLOY_TEST=1`) starts and stops `ultra96.server` processes inside the local WSL Ubuntu.** Never run `tests/linux/deploy_remote_test.sh` on the Ultra96 itself.
+- **For agents: escapes can be rewritten on the way into a file.** On 2026-10-14 the tool layer turned `\u` escapes and `\n` inside strings passed through shell here-documents into literal characters in three cases. After writing test vectors or strings with backslash escapes, compare the file's bytes with what was meant (`git diff`, `py_compile`).
 - **`verify-import.py` only works on a freshly imported, unpatched Unity export.** Running it on the already-patched `xcode-export/` reports `IMPORT_CHECK_FAILED`; this is expected.
 
 ---
@@ -674,7 +745,15 @@ python -m tools.generate_comms_pki --output-dir <an empty directory outside the 
 python -m tools.rehearse_comms --pki-dir <the same directory> --duration 30 --target 100
 ```
 
-The rehearsal starts a board service, a bridge and a subscriber on the local machine and prints one JSON line. `passed` should be `true`. The Swift tests run on a Mac: `swift test --package-path ios-visualizer/CommsNative`.
+The rehearsal starts a board service, a bridge and a subscriber on the local machine and prints one JSON line. `passed` should be `true`. The Swift tests run on a Mac: `swift test --package-path ios-visualizer/CommsNative`. With `B07_LINUX_DEPLOY_TEST=1` set, the pytest run also exercises the deploy tool's board-side program in WSL Ubuntu (it starts and stops `ultra96.server` processes there). On 2026-10-14, at `3b94990`, the suite gave 778 passed, 4 skipped, and 779 passed, 3 skipped with `B07_LINUX_DEPLOY_TEST=1`.
+
+**One board, no Ultra96 (after flashing):**
+
+```powershell
+python -m tools.check_board right          # or left; 65 s at 50 Hz, 3 commands; prints CHECK PASSED
+```
+
+**Deploying the board service (the owner's login):** `python -m tools.deploy_service --dry-run`, then `python -m tools.deploy_service [--server-cert-dir <folder>] [--model MODULE --model-path DIR]` (6.3 step 1). It needs `paramiko` (in `requirements-dev.txt`; on this laptop it comes with Anaconda, version 2.8.1); the dry run does not import it.
 
 **Full chain on hardware (connect the VPN first; olsonwangyj does the logins):**
 
@@ -716,7 +795,7 @@ This section lets a new agent know where things are without re-reading the code.
 | `tests/` | Communications | Communications Python tests (they also compile and run the firmware host tests) |
 | `demo.py` | Communications | Day-to-day entry point: `tunnel`, `run`, `live`, `report`, `service` |
 | `flash.py` | Communications | Builds and flashes the two boards, records Bluetooth addresses, pairs, serial monitor |
-| `requirements-dev.txt` | Communications | Dependencies for the tests and the certificate tool (pytest, cryptography; the pyserial listed there is not used by Communications code) |
+| `requirements-dev.txt` | Communications | Dependencies for the tests, the certificate tool and the deploy tool (pytest, cryptography, `paramiko>=2.8,<4` for `tools/deploy_service.py`, added with the documents after `3b94990`; the pyserial listed there is not used by Communications code). On this laptop paramiko 2.8.1 comes with Anaconda |
 | `docs/` | Communications | olsonwangyj's documents (fork only) |
 | `AGENTS.md`, `CLAUDE.md` | Communications | Rules for agents: ownership table, role boundaries, test command, document rules (fork only) |
 | `hardware/` | Siqiang | Glove firmware sketches, recording scripts, schematic. **Read-only** |
@@ -730,11 +809,11 @@ This section lets a new agent know where things are without re-reading the code.
 
 | File | What it does |
 |---|---|
-| `sensor.py` | Encoding and decoding of the 32-byte sensor packet (`SensorPacket`, `encode_packet`, `decode_packet`, `PACKET_MAGIC = b"LC"`); converting a packet into a `SENSOR_BATCH` message; loading and choosing dummy data |
-| `control.py` | Encoding, decoding and validation of BLE control frames (14-byte `B7` header); the rules for how commands transform the 8 values. Unrelated to network JSON |
+| `sensor.py` | Encoding and decoding of the 38-byte version-3 sensor packet (`SensorPacket`, `encode_packet`, `decode_packet`, `PACKET_MAGIC = b"LC"`, `VERSION = 3`, `CHANNELS`, `SCALES`, `PACKET_SIZE`, `SENSOR_MTU_FLOOR`); `physical_values` (int16 / scale); converting a packet into a `SENSOR_BATCH` message; loading and choosing dummy data |
+| `control.py` | Encoding, decoding and validation of BLE control frames (14-byte `B7` header); the rule for how commands transform the 11 values. Unrelated to network JSON |
 | `wire.py` | Network frames: 4-byte big-endian length + strict UTF-8 JSON; limit 16384 bytes; a 5 s deadline for each read and write; `ProtocolError` |
 | `tls.py` | TLS client and server contexts; TLS 1.2 minimum; the host-name constant `TLS_SERVER_NAME`; no "do not verify" branch |
-| `dummy_fixtures.json` | The editable 8-channel dummy-data table (4 rows now). The firmware header is generated from it |
+| `dummy_fixtures.json` | The editable 11-channel dummy-data table (4 rows: at rest, a chop-like row, a fast-rotation row and an int16-boundary row). The firmware header is generated from it |
 
 **`firmware/esp32/`**
 
@@ -742,13 +821,14 @@ This section lets a new agent know where things are without re-reading the code.
 |---|---|
 | `platformio.ini` | Four build environments: the default `firebeetle32` (protected, ID 1), `firebeetle32-left` (ID 1), `firebeetle32-right` (ID 2), and the unprotected diagnostic `firebeetle32-unprotected-diagnostic` |
 | `src/main.cpp` | All the BLE peripheral run-time logic: the GATT service and its 7 characteristics, pairing security, sending samples at the set rate, the control queue, source statistics, the `erase-bonds` serial command |
-| `include/comms_packet.h` | Byte-by-byte serialisation of the 32-byte packet; values taken from the dummy-data table |
+| `include/comms_packet.h` | Version-3 constants (`kPacketVersion`, `kChannelCount`, `kPacketSize` = 38) and byte-by-byte serialisation of the packet; `serializePacket` takes exactly 11 values (a shorter array does not compile); `serializeFixturePacket` sends a dummy-table row |
+| `include/comms_sample.h` | `scaleSample`: 11 physical floats to 11 int16 (rounding half away from zero; NaN/infinity refused; clamp by default or drop with `-DCOMMS_OUT_OF_RANGE_DROP=1`), for the coming sensor module; not yet called |
 | `include/comms_fixtures.h` | The dummy-data table generated from `common/dummy_fixtures.json` (`flash.py` rewrites it every time) |
-| `include/comms_security.h` | Pure functions: authentication-bit checks, the notification gate, the sensor MTU floor of 35 (`sensorFitsMtu`) and the control-write gate (`canAcceptControl`) |
-| `include/comms_source_stats.h` | Sequence allocation, submission counters, serialisation of the 24-byte source statistics |
-| `include/comms_control.h` | The control state machine `ControlEngine`: commands, rate, file transfer, response cache. Also the control MTU floor of 64 (`controlFitsMtu`) and `controlChunkCapacity` |
+| `include/comms_security.h` | Pure functions: authentication-bit checks, the notification gate, the sensor MTU floor of 41 (`sensorFitsMtu`, packet size + 3) and the control-write gate (`canAcceptControl`) |
+| `include/comms_source_stats.h` | Sequence allocation, submission counters, serialisation of the 24-byte source statistics (marker `LCS3`) |
+| `include/comms_control.h` | The control state machine `ControlEngine`: commands (one version-3 packet in, 52-byte answer out), rate, file transfer, response cache. Also the control MTU floor of 64 (`controlFitsMtu`), `controlChunkCapacity` and the output floor `kControlMinOutput` = 52 |
 | `include/comms_gatts_control.h` | Parses writes only on real WRITE events |
-| `test/host_*.cpp` | Four host tests (packet, events, source statistics, control), compiled and run with `g++` or `clang++`, whichever is on PATH; skipped when neither is found |
+| `test/host_*.cpp` | Five host tests (packet, events, source statistics, control, sample scaling; the last is built once per out-of-range policy), compiled and run with `g++` or `clang++`, whichever is on PATH; skipped when neither is found |
 
 **`laptop/`**
 
@@ -756,7 +836,7 @@ This section lets a new agent know where things are without re-reading the code.
 |---|---|
 | `bridge.py` | The full path for one glove: scan, connect, MTU and bond checks, bounded queue, TLS writes, ACK checks, metrics, tail handling at shutdown |
 | `dual_bridge.py` | Runs two uncoupled `Bridge` instances at once, with one shared observation window, and produces the combined report. This is what `demo.py` calls |
-| `source_audit.py` | Parses source statistics (`SOURCE_STATS_MAGIC = b"LCS1"`); reconciles "generated = received = ACKed" |
+| `source_audit.py` | Parses source statistics (`SOURCE_STATS_MAGIC = b"LCS3"`); reconciles "generated = received = ACKed" |
 | `controls.py` | The BLE control channel: keyboard commands, rate, file transfer |
 | `windows_pairing.py` | Pairs on Windows with "passkey entry + encrypted and authenticated", and checks the bond level |
 | `ble_connection.py` | Turns off the Windows GATT cache when creating the Bleak client |
@@ -774,17 +854,18 @@ This section lets a new agent know where things are without re-reading the code.
 
 | File | What it does |
 |---|---|
-| `server.py` | The board service `CommsServer`: two loopback TLS listeners, ingest de-duplication and ACK, the single-subscriber result queue, the command-line entry. **Fake results are generated at lines 264 to 267; the model interface connects here** |
-| `protocol.py` | Exact fields and value ranges of the five messages, `session_id` rules, `result_id` generation. **The label allow-list `GESTURES` and the "confidence must be 1.0" check are here** |
-| `diagnostics.py` | Optional bounded event log (`--event-log-dir`) |
+| `server.py` | The board service `CommsServer`: two loopback TLS listeners, ingest de-duplication and ACK, the call into the model (`on_sample`, line 277) and the command echo, `_model_result` (identity and duplicate checks for model results), the single-subscriber result queue, the command-line entry (`--model`, `--model-path`, the `model_ready`/`model_failed` lines) |
+| `model.py` | The model interface: `DummyModel`, `load_model`, `ModelPort` (calls `start`/`on_sample`, counts errors and slow calls, the thread-safe `emit`), `normalize_result` |
+| `protocol.py` | Exact fields and value ranges of the five messages (version 3; subscription envelopes version 1), `session_id` rules, `result_id` generation, the label rule (`GESTURE_PATTERN`, `valid_gesture`) and the confidence rule (`valid_confidence`); `DUMMY_GESTURES` for the dummy model and command echoes |
+| `diagnostics.py` | Optional bounded event log (`--event-log-dir`); accepts the events `model_result` and `model_result_refused` too |
 
 **`ios-visualizer/`**
 
 | File | What it does |
 |---|---|
 | `CommsNative/Package.swift` | Swift package definition; dependencies pinned to exact versions of SwiftNIO, NIOSSH, NIOSSL and swift-crypto |
-| `CommsNative/Sources/CommsCore/Protocol.swift` | Subscribe frame encoding, result validation (**label allow-list and confidence check**), stream framing |
-| `CommsNative/Sources/CommsCore/DisplayState.swift` | Latest result, count, de-duplication (4096), 2 s expiry |
+| `CommsNative/Sources/CommsCore/Protocol.swift` | Subscribe frame encoding, result validation (version 3, 10 keys, the label and confidence rules), `GestureResult.confidence` and `nextResultJSON`, stream framing (2026-10-14 changes not compiled) |
+| `CommsNative/Sources/CommsCore/DisplayState.swift` | Latest result, count, de-duplication (4096), 2 s expiry, and the per-result queue behind `CommsNextResult` (32 waiting, 2 s, `takeNext`; not compiled) |
 | `CommsNative/Sources/CommsTransport/CommsClient.swift` | Building the two-hop SSH + TLS route, error classification (terminal or retry), back-off and reconnect |
 | `CommsNative/Sources/CommsTransport/SSHRoute.swift` | Route parameters, port and timeout constants, failure types |
 | `CommsNative/Sources/CommsTransport/Trust.swift` | Exact host-key comparison, password authentication, SSH channel byte conversion |
@@ -792,8 +873,8 @@ This section lets a new agent know where things are without re-reading the code.
 | `CommsNative/Sources/CommsTransport/Credentials.swift` | In-memory password holder that can be cleared |
 | `CommsNative/Sources/CommsBridge/Configuration.swift` | Pinned host names, both SSH host public keys, CA fingerprint; CA import check; saving the public settings |
 | `CommsNative/Sources/CommsBridge/IntegrationController.swift` | Foreground session management, the connect button, disconnect on leaving the foreground. The session ID `ltc-comms` the client uses is set here (line 74) |
-| `CommsNative/Sources/CommsBridge/SetupViewController.swift` | The setup form. Its text `DUMMY gestures · session ltc-comms` (line 51) also names the session |
-| `CommsNative/Sources/CommsBridge/DisplayMailbox.swift` | The C functions exported to Unity, `CommsStart`, `CommsCopyDisplay`, `CommsStop`, and the `Week7*` wrappers. The four lines of text are built here |
+| `CommsNative/Sources/CommsBridge/SetupViewController.swift` | The setup form. Its text `session ltc-comms` (line 51) also names the session |
+| `CommsNative/Sources/CommsBridge/DisplayMailbox.swift` | The C functions exported to Unity, `CommsStart`, `CommsCopyDisplay`, `CommsStop`, `CommsNextResult` (not compiled), and the `Week7*` wrappers. The four lines of text are built here |
 | `CommsNative/Tests/` | Swift tests (run on a Mac) |
 | `NativePreview/` | A preview app without Unity, and its UI tests |
 | `tools/patch_export.py` | Week 7 receiver: patches the generated code of that one Unity export (fork only) |
@@ -811,23 +892,25 @@ This section lets a new agent know where things are without re-reading the code.
 | `unity/CommsPhoneCore.cs` | C# protocol, TLS trust and receive loop, with no Unity dependency |
 | `unity/CommsPhoneReceiver.cs` | Android reference Unity component; the phone must open its own SSH local forward |
 | `ish_control.py` | Temporary maintenance-channel script for the iSH route (that route is abandoned) |
-| `tests/` | Tests for the Python above, and a C# self-test script (needs PowerShell 7) |
+| `tests/` | Tests for the Python above, and a C# self-test (`CoreSelfTest.cs`, run by `run_core_tests.ps1`; needs PowerShell 7; updated for version 3, not compiled or run) |
 
 **`tools/`**
 
 | File | What it does |
 |---|---|
 | `ssh_tunnel.py` | Builds the two-hop, loopback-only OpenSSH local-forward command (explicit `ProxyCommand`, strict host keys) |
-| `demo_service.py` | Inspects or starts the board service over SSH. The board deployment directory constants `BOARD_ROOT` and `BOARD_SOURCE` are here |
+| `demo_service.py` | Inspects or starts the board service over SSH. `BOARD_ROOT`, the fallback `BOARD_SOURCE` and `board_source()` (the folder the newest local deployment record names) are here |
+| `deploy_service.py` | Deploys the board service (2026-10-14): uploads `common/` and `ultra96/` into a new folder, optionally installs a renewed certificate, swaps the running service with checks, SIGKILL escalation and rollback; password prompts, strict `known_hosts`; the board's record in `BOARD_ROOT/evidence/active-deployment.json` and a local copy in `.comms-local/deployments/` |
+| `check_board.py` | Checks one flashed board over real BLE against a service on the laptop (2026-10-14): source reconciliation, rate, commands, dummy-model results |
 | `demo_boards.py` | Reads and writes the left/right Bluetooth address map (`.comms-local/boards.json`). The built-in default addresses are here |
 | `generate_comms_pki.py` | Generates the CA and the server certificate. `--renew-server-from` renews only the server certificate with the existing CA |
 | `generate_dummy_fixtures.py` | Generates the firmware header `comms_fixtures.h` from the JSON |
 | `comms_demo.py` | Packet examples, a single-board send demo, offline log audit |
 | `rehearse_comms.py` | Full rehearsal over local loopback (no SSH, no hardware) |
-| `rehearse_remote_comms.py` | Remote rehearsal through an existing tunnel. **It pushes the phone's subscription off** |
-| `video_evidence.py` | Extracts, from one capture, one example sample and its ACK per board |
+| `rehearse_remote_comms.py` | Remote rehearsal through an existing tunnel (its synthetic source sends dummy-table rows). **It pushes the phone's subscription off** |
+| `video_evidence.py` | Extracts, from one capture, one example sample and its ACK per board; reads only version-3 captures |
 
-**`tests/`**: 45 files: 42 test files, and 3 files under `fixtures/` that hold 2 golden vectors (`comms-golden.json` has two packet vectors; `comms-dummy.bin` and `comms-boundaries.bin` are their raw 32 bytes). Files are named after what they test: `test_sensor.py` (packet format), `test_source_audit.py`, `test_laptop_controls.py`, `test_bridge_*.py`, `test_dual_*.py`, `test_transport*.py` (TLS, framing, certificate tool), `test_server_*.py`, `test_ssh_trust.py`, `test_demo_*.py`, `test_firmware_*.py` (compile and run the firmware host tests), `test_rehearsal.py`, and others.
+**`tests/`**: 47 test files, 3 files under `fixtures/` that hold 2 golden vectors (`comms-golden.json` has two packet vectors; `comms-dummy.bin` and `comms-boundaries.bin` are their raw 38 bytes), and `linux/deploy_remote_test.sh` (the deploy tool's board-side checks, run in Linux or WSL only through `test_deploy_service.py` with `B07_LINUX_DEPLOY_TEST=1`). New on 2026-10-14: `test_model_interface.py` (the model interface and its server integration), `test_protocol_rules.py` (label and confidence rules, `physical_values`), `test_v3_events.py` (it replaced `test_v2_events.py`), `test_firmware_sample.py` (the scaling host test, both policies), `test_deploy_service.py`, `test_check_board.py`. Files are named after what they test: `test_sensor.py` (packet format), `test_source_audit.py`, `test_laptop_controls.py`, `test_bridge_*.py`, `test_dual_*.py`, `test_transport*.py` (TLS, framing, certificate tool), `test_server_*.py`, `test_ssh_trust.py`, `test_demo_*.py`, `test_firmware_*.py` (compile and run the firmware host tests), `test_rehearsal.py`, and others.
 
 ### 12.3 Teammates' code (read-only; know it only well enough to connect to it)
 
@@ -874,16 +957,17 @@ This section lets a new agent know where things are without re-reading the code.
 
 | Location | Contents |
 |---|---|
-| `D:\LetThemCook` | Working copy, local `main` |
-| `upstream` | Team repository <https://github.com/B07-CG4002/Let-Them-Cook>, public, main branch unprotected, currently at `880abba` (it was `ec398b6` before the 2026-10-14 history rewrite; same files). PR #15 was merged without `gh`, with `git commit-tree` and a push |
+| `D:\LetThemCook` | Working copy. Local branches: `main` (tracks the fork), `comms/protocol-v3` (the version-3 work of 2026-10-14 evening, not merged or pushed; checked out at the end of that session) and `comms/protocol-v3-team` (made from `upstream/main` `5a004c6` for the code-only team pull request; commits `348fc10`, `ed2aa1f` and `ab3c7f6`; not pushed; checked out in the worktree below, 6.2) |
+| `upstream` | Team repository <https://github.com/B07-CG4002/Let-Them-Cook>, public, main branch unprotected, currently at `5a004c6` (PR #18 merged on 2026-10-14 on top of `880abba`, which was `ec398b6` before the history rewrite; same files). PR #15 was merged without `gh`, with `git commit-tree` and a push |
 | `origin` | olsonwangyj's fork <https://github.com/olsonwangyj/Let-Them-Cook>, public |
-| Only on the fork, not in the team repository | All of `docs/`, `AGENTS.md`, `CLAUDE.md`, `.gitattributes`; under `ios-visualizer/`: `tools/`, `verify-import.py`, `import-manifest.json`, `reference/TlsDataReceiver.cs` and `xcode-export/` (`reference/teammate-localhost-cert.pem` is also in the team repository); and `tests/test_ios_export_patch.py`. So teammates who clone the team repository cannot see the design records |
-| `.comms-local/` | The local board map `boards.json` (left `38:18:2B:19:82:AE`, right `38:18:2B:18:9D:6A`) and future captures (Git-ignored). There is no capture directory yet |
+| Only on the fork, not in the team repository | All of `docs/`, `AGENTS.md`, `CLAUDE.md`, `.gitattributes`; the iOS build-artifact lines at the end of `.gitignore`; under `ios-visualizer/`: `tools/`, `verify-import.py`, `import-manifest.json`, `reference/TlsDataReceiver.cs` and `xcode-export/` (`reference/teammate-localhost-cert.pem` is also in the team repository); and `tests/test_ios_export_patch.py`. So teammates who clone the team repository cannot see the design records. Since `57a3fbd`, the fork's `.gitattributes` also has `tests/linux/*.sh text eol=lf`; a team checkout lacks that rule and can have the script with CRLF endings, which is why `3b94990` makes the deploy test hand bash an LF copy (6.2) |
+| `.comms-local/` | Git-ignored. The local board map `boards.json` (left `38:18:2B:19:82:AE`, right `38:18:2B:18:9D:6A`); `checks/` with the evidence of 2026-10-14 (`2026-10-14-right-board-v2/`, `2026-10-14-right-board-v3/`, `2026-10-14-deploy-wsl/`, each with a README); `deployments/` will hold the records `tools.deploy_service` writes. There is no capture directory yet |
 | `.week7-local/` | 17 historical capture directories (all `W7` packets), the September measurement results, an archive of the firmware flashed on 29 September, and the local scripts used in September: `co_deploy.py` (board deployment script with strict SSH trust and rollback; the 28 September deployment used it, and it started that service in the background with `start_new_session=True`, PID in `BOARD_ROOT/evidence/server.pid`), `co_acceptance.py`, `co_faults.py`, `co_final_check.py`, `co_iphone_capture.py` and others. Git-ignored and not versioned. **Keep it; do not delete it** |
 | `release-tools/`, `output/` | The frozen packaging tools and 4 ZIP files used for the 30 September submission (listed in `.git/info/exclude`; local only) |
 | `D:\LetThemCook-attic\2026-10-13\` | 2.3 GB of files moved out while tidying the workspace (not deleted; contains a README.txt) |
-| `D:\LetThemCook-worktrees\` | No active worktrees. The `comms-cleanup` worktree was removed after PR #18 was merged; the folder `local-main-merge-backup-20261008T025556Z` is an old backup left from 2026-10-08 and is not a Git worktree |
-| `~/.codex/private/cg4002-week7-20260906/` | The current CA (with its private key) and the September server certificate. Not in Git |
+| `D:\LetThemCook-worktrees\` | One active worktree, `protocol-v3-team`, with the branch `comms/protocol-v3-team` (clean at `ab3c7f6`). The `comms-cleanup` worktree was removed after PR #18 was merged; the folder `local-main-merge-backup-20261008T025556Z` is an old backup left from 2026-10-08 and is not a Git worktree |
+| `~/.codex/private/cg4002-week7-20260906/` | The current CA (with its private key) and the September server certificate (expired). Not in Git |
+| `~/.codex/private/cg4002-comms-server-20261014/` | The renewed server certificate and key (valid to 2026-11-13 14:27:35 UTC) and a copy of the CA certificate, made on 2026-10-14 with `--renew-server-from`; to be installed on the board by `tools.deploy_service --server-cert-dir`. Not in Git |
 
 ### 12.5 `docs/` index
 
@@ -897,8 +981,8 @@ This section lets a new agent know where things are without re-reading the code.
 | `handoff-details/04-ultra96-service-and-certificates.md` | Detail chapter 4: Ultra96 service and certificates |
 | `handoff-details/05-phone-and-week7-receiver.md` | Detail chapter 5: phone client and the Week 7 receiver |
 | `handoff-details/06-tests-operations-extension.md` | Detail chapter 6: tests, operations and extension points |
-| `co-protocol-v2.md` | olsonwangyj's current protocol specification (v2, control, files) |
-| `B07-CO-protocol-explained.zh-CN.md` | Chinese study companion to `co-protocol-v2.md`, explaining the protocol byte by byte. Not a formal document; the English specification governs |
+| `co-protocol-v3.md` | olsonwangyj's current protocol specification (version 3: packet, messages, model results, control, files). It replaced `co-protocol-v2.md` on 2026-10-14 |
+| `B07-CO-protocol-explained.zh-CN.md` | Chinese study companion, written for protocol version 2, explaining it byte by byte. Not a formal document; its banner lists the version-3 differences, and `co-protocol-v3.md` governs |
 | `communications-quickstart.md` | Quick start |
 | `week7-runbook.md` | The Week 7 operations manual (some command names are out of date; see 4.9) |
 | `archive/` | History: assessment material, reports, measured evidence, design records, old manuals |
@@ -908,15 +992,17 @@ This section lets a new agent know where things are without re-reading the code.
 
 | What to change | File |
 |---|---|
-| How many values a packet holds, packet length | `firmware/esp32/include/comms_packet.h`, `common/sensor.py`, `ultra96/protocol.py`, plus the MTU gates in `comms_security.h` and `laptop/bridge.py` |
+| How many values a packet holds, packet length | `firmware/esp32/include/comms_packet.h` (`kChannelCount`), `common/sensor.py` (`CHANNELS`, `SCALES`); `firmware/esp32/include/comms_sample.h` (`kChannelScale`, one scale per channel; a channel without an entry would get scale 0) and `firmware/esp32/test/host_sample.cpp` (asserts 11 channels); the `values` contract of `on_sample` (11 floats; `ultra96/model.py`, 7.2); the MTU floors, the command frame size and the golden vectors follow, and their tests must be updated; `comms_source_stats.h` and `laptop/source_audit.py` for the statistics marker; `tools/generate_dummy_fixtures.py` and `common/dummy_fixtures.json` |
+| Scales or the out-of-range policy | `firmware/esp32/include/comms_sample.h` and `common/sensor.py` `SCALES` (both together); the policy is the build flag `COMMS_OUT_OF_RANGE_DROP` |
 | Where the firmware gets samples | `firmware/esp32/src/main.cpp` (the block that calls `serializeFixturePacket`) |
 | Default send rate | `platformio.ini` (`-DCOMMS_INITIAL_RATE_HZ`) or, at run time, `demo.py run --rate` |
-| How the board produces results | `ultra96/server.py:264-267` |
-| Which labels and confidence values are allowed | `ultra96/protocol.py`, `CommsCore/Protocol.swift`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs` (all four change together) |
+| How the board produces results | The model: `--model MODULE` on the service; the interface in `ultra96/model.py`; the dummy model is `DummyModel` there |
+| Which labels and confidence values are allowed | `ultra96/protocol.py` (also used by `ultra96/model.py`), `CommsCore/Protocol.swift`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs` (all four change together, then the phone app is rebuilt) |
+| `CommsNextResult` limits (32 waiting, 2 s) | `DisplayState.swift` (`pendingCapacity`, `pendingLifetime`) |
 | Text or functions for Unity | `ios-visualizer/CommsNative/Sources/CommsBridge/DisplayMailbox.swift` |
 | Session ID | Laptop: `--session-id` or `LTC_COMMS_SESSION`. Board: the service's `--session-id`. Phone: two places that change together, `IntegrationController.swift:74` (the value used) and the form text in `SetupViewController.swift:51`; then rebuild |
 | Jump-host and board host names, SSH host public keys, CA fingerprint | Laptop: `tools/ssh_tunnel.py` and the `demo.py` arguments. Phone: `Configuration.swift` (rebuild) |
-| Board deployment directory | `BOARD_ROOT` and `BOARD_SOURCE` in `tools/demo_service.py` |
+| Board deployment directory | `BOARD_ROOT` and the fallback `BOARD_SOURCE` in `tools/demo_service.py` (also used by `tools/deploy_service.py`); after a deploy, `.comms-local/deployments/` |
 | Bluetooth addresses of the two boards | Run `python flash.py`; the result is in `.comms-local/boards.json` |
 | Queue length, freshness, timeouts, ACK window | Laptop: `BridgeConfig` in `laptop/bridge.py`, and `demo.py`. Board: `ultra96/server.py`. Phone: `SSHRoute.swift`, `DisplayState.swift` |
 | Certificates | `tools/generate_comms_pki.py` |
@@ -925,9 +1011,12 @@ This section lets a new agent know where things are without re-reading the code.
 
 ## 13. Not yet confirmed
 
-- The actual state of the server certificate, the service process and the code snapshot on the board (olsonwangyj must log in and check).
-- Whether the right and left boards need pairing again after reflashing.
-- Whether 38 bytes × 50 Hz × 2 boards is clean on hardware.
+- The actual state of the server certificate, the service process and the code snapshot on the board (olsonwangyj must log in and check; `tools.deploy_service --dry-run` then the real run show and replace them).
+- Whether the left board needs pairing again after its version-3 reflash. (The right board did not, through two reflashes on 2026-10-14.)
+- Whether 38 bytes × 50 Hz × 2 boards is clean on hardware (one board is).
+- Whether `tools/deploy_service.py` works over the real SSH route (its board-side half passed on Linux; its paramiko half has never connected).
+- Whether the Swift changes compile and pass (`swift test` on a Mac), whether the whole C# reference file compiles (only its changed part was compiled, at C# 5), and whether the updated C# self-test `phone/tests/CoreSelfTest.cs` compiles and passes (changed for version 3; not compiled or run; needs PowerShell 7).
+- Whether `demo.py`'s `Phone expected increase` and the rehearsal criteria still apply: only while the dummy model runs.
 - Whether `configure_xcode.py` works on a new Unity export.
 - Direct mode (the phone not going through the jump host) was never verified on site. V1 does not use it.
 - Why the phone missed 109 results on 2026-09-21.
@@ -941,13 +1030,18 @@ The owner's rules (2026-10-14):
 The owner's direction (2026-10-14), proposed to the teammates and final when they confirm (3.1, 7, 8):
 
 - The model gets the 11 values as physical floats. Transport stays int16.
-- The game gets results one at a time through a structured per-result function, `CommsNextResult` (one compact JSON object per call; bytes written, 0, or the negative of the bytes needed; 512-byte buffer; called in a loop each frame).
+- The game gets results one at a time through a structured per-result function, `CommsNextResult` (one compact JSON object per call; bytes written, 0, or the negative of the bytes needed including the terminating 0; 512-byte buffer; called in a loop each frame). Written on 2026-10-14, not compiled.
 - Jie Ling does everything in Unity and the iOS build (the C# calls, the game logic, the export, adding `CommsNative`, building and installing on their own iPhone with their own Mac); olsonwangyj pushes `CommsNative` to the team repo and writes the steps for adding it.
-- The real-data packet is protocol version 3; 38 bytes with the 11 values only; the scales are checked against Siqiang's real output before they are fixed.
+- The real-data packet is protocol version 3; 38 bytes with the 11 values only; the scales are checked against Siqiang's real output before they are fixed. Implemented on 2026-10-14 with this layout.
+- The model interface on the board as in 7.2 (`start(emit)`, `on_sample`, thread-safe `emit`), loaded with `--model`. Implemented on 2026-10-14; the names change if Wen Ree picks others, and a separate-process model would need a bridge between the two processes on the board.
+
+Decided by the agent within Communications on 2026-10-14 (6.5), open to the owner's review: the subscription envelopes stay at version 1; `request_id` stays; the statistics marker becomes `LCS3`; the label rule (1 to 32 of `A–Z a–z 0–9 _ -`) and the confidence rule (finite, 0 to 1); commands bypass the model; the dummy model gives one result per sample; confidence is passed on unrounded; the `CommsNextResult` counters reset on a new Connect.
 
 Still open:
 
-- Out-of-range values: clamp or drop that one sample, to be agreed with Wen Ree; and whether the model needs a per-sample flag (8, step 1).
+- Out-of-range values: clamp or drop that one sample, to be agreed with Wen Ree (the firmware does clamp by default and can be built to drop); and whether the model needs a per-sample flag (8, step 1).
+- Whether refused or clamped samples should be counted in the source statistics (that would change the 24-byte `LCS3` format) or only on the serial line; decide before the sensor module is connected.
+- The label set and the result rate (Wen Ree and Jie Ling), and with them the new acceptance criteria (8, step 6).
 - Whether the IDLE/MOVING state travels (Siqiang and Wen Ree, Thu 10-15). The version-3 layout is frozen after this answer.
 - The `CommsNextResult` queue limits: provisional 32 waiting and 2 s after reaching the phone, revisited once Wen Ree says how often results come.
 
@@ -975,3 +1069,7 @@ Still open:
 | 2026-10-14 | A check of the documents and the messages together: the schedule now secures the gloves for the Monday dry run, splits the label checks (three on Friday, the Swift one on Saturday), adds a Saturday rebuild of the Week 7 export so the phone can subscribe after the redeploy, and redefines `Phone expected increase` before the dry run; the delivery form of each teammate deliverable is stated; a failed result write ends the phone subscription (7.2); version 3 must be handled on the result path (8); the IDLE/MOVING question goes to both Siqiang and Wen Ree; phone retry timing corrected (9.2); `CommsNextResult` returns one JSON object per call (the owner's direction, final when Jie Ling confirms) with provisional queue limits (13) |
 | 2026-10-14 | Schedule set up to the in-person integration session on Tue 10-20 (6.4): teammate deliverables by date, and the owner's own plan with priorities. The messages were reordered to list what is needed by which date first |
 | 2026-10-14 | Cross-check corrections applied: how the board service was started and what keeps it alive (4.5, 6.3, 9.2, 12.4); the path of the iOS patch scripts (6.3 step 4); the server certificate expiry checked only on the laptop's copy (1, 2.4, 4.8, 6.3); only `ios-visualizer/reference/TlsDataReceiver.cs` is fork-only (12.4); where the sensor and control MTU floors live (12.2); four PlatformIO environments, including the default `firebeetle32` with ID 1 (4.3, 6.3, 12.2); host tests use `g++` or `clang++` and are skipped without either (4.3, 12.2); `demo.py live` runs 120 s and needs an interactive terminal (4.4); what the BLE callback does (4.4); `received` versus `callback_received` (4.7); which failures increment `ack_errors` and `transport_errors` (9.2); the locations of the `DUMMY` texts and the `Protocol.swift` line range (8 step 5); `laptop/goodput.py` follows `PACKET_SIZE` (8 step 1); the phone holds the session in two places (12.2, 12.6); 3 fixture files but 2 golden vectors (12.2); `src/live_inference.py` hard-codes `COM3`/`COM4` at 115200 baud, with no evidence they are Bluetooth ports (2.3) |
+| 2026-10-14 (evening) | Protocol version 3 on the local branch `comms/protocol-v3` (code commits `a34c467`, `57a3fbd`, `a4b907b`, `3b94990`): a 38-byte packet with 11 values, `LCS3` statistics, versions 1 and 2 and the formula dummy removed; the board model interface (`ultra96/model.py`, `--model`, `--model-path`) with a built-in dummy model; model labels and real confidence on every receiver; `CommsNextResult` in the Swift package (written, not compiled); `tools/deploy_service.py` and `tools/check_board.py`; `demo.py service --start` follows the newest deployment record. The right board was flashed with version 2 and then version 3 and checked against a service on the laptop; the server certificate was renewed locally (not on the board). An adversarial review found nine defects, fixed in `a4b907b`. The specification became `co-protocol-v3.md`. Decisions D1 to D19 with their status (6.5). The owner's clarification: the MediaPipe hand tracking and the visualiser demo Wen Ree shared are Jie Ling's part (2.3). Sections changed: 0, 1, 2.3, 2.4, 3, 3.1, 4.1 to 4.9, 5, 6.1 to 6.5, 7, 8, 9.2, 11, 12.1, 12.2, 12.4, 12.5, 12.6, 13 |
+| 2026-10-14 (evening) | Fact-check corrections: a model result is refused for an unknown power-up or a `seq` above the highest accepted one, and a `seq` inside a gap is not detected (4.5); a deploy refused in its checks before the stop leaves no record (6.3 step 1); `tools.deploy_service` needs `paramiko`, which no requirements file lists (6.3, 11, 12.1; superseded by the next row: `requirements-dev.txt` now lists it); the installed Week 7 app can neither subscribe to the version-3 service nor accept any version-3 result (8 step 5); display lines 1 and 3 in the current source (7.3); test totals at `3b94990` with and without `B07_LINUX_DEPLOY_TEST=1` (1, 6.2, 11); the code-only branch `comms/protocol-v3-team` and its worktree (6.2, 12.4); the right board was flashed once with version 3, and the 10 s re-run has no saved evidence (6.1); D16's status split (6.5); the `CommsPhoneCore.cs` caveat in the progress list (6.4); the log files of a service started by `tools.deploy_service` (9.2); the cleanup's `LCS1` sentence written as history (6.2); what Wen Ree shared, without the guess that it runs on the phone (2.3); the `on_sample` call is at `ultra96/server.py:277` (7.2, 12.2); where a detail chapter disagrees with this document, this document governs (0) |
+| 2026-10-15 | Second fact-check corrections: the installed Week 7 build is the package under its earlier name `Week7Native`, built on 2026-09-28; it exports the three functions only as `Week7Start`/`Week7CopyDisplay`/`Week7Stop` and shows `Week 7 • DUMMY inference` (4.6, 7, 7.3); `CommsNextResult` is in the source, not planned (7.3); `paramiko>=2.8,<4` was added to `requirements-dev.txt` with the documents, after `3b94990`, and still has to be added to the team branch `348fc10` (6.2, 6.3, 12.1); the left board's firmware of 10-14 was version 2 (6.1); what was compiled of the C# reference, and the C# self-test that was not compiled (1, 12.2, 13); the model interface is in the board-service code, not on the Ultra96 (6.4); which refused results log a warning, at most one per kind per second (7.2); the laptop reads the source statistics twice at shutdown (4.2); `comms_sample.h`, `host_sample.cpp` and the `on_sample` contract follow the channel count (12.6); the fork-only `.gitignore` lines and the `.gitattributes` rule for `tests/linux/*.sh` (12.4) |
+| 2026-10-15 | Final clean-up after the documentation pass: `tools/deploy_service.py` reports paramiko errors with a `FAILED:` line and `requirements-dev.txt` lists `paramiko>=2.8,<4` (`15de82e`); the opt-in Linux deploy test uses `5a004c6` as its old service; the team branch `comms/protocol-v3-team` gained `ed2aa1f` (the same code fixes and the shared `README.md` Communications lines) and `ab3c7f6` (the iOS notes), and is clean at `ab3c7f6`, not pushed (6.2, 12.4); `CommsNextResult` returns minus (bytes + 1) when the buffer is null or too small (7.3); `NATIVE-INTEGRATION.md` no longer tells new integrations to keep patched bridge calls. Totals: 780 passed, 3 skipped with the Linux test; 779 passed, 4 skipped without |

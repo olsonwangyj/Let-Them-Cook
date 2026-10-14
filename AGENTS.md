@@ -84,7 +84,7 @@ If the authors are not `olsonwangyj`, treat the path as a teammate's.
      section the change makes wrong.
    - The matching detail chapter in `docs/handoff-details/` (architecture,
      firmware, laptop, Ultra96, phone, tests and operations).
-   - `docs/co-protocol-v2.md` when a wire format, message, constant or limit
+   - `docs/co-protocol-v3.md` when a wire format, message, constant or limit
      changes.
    Read the affected passages after the change and correct every statement
    the change made untrue. Put the code and its document updates in the same
@@ -92,9 +92,9 @@ If the authors are not `olsonwangyj`, treat the path as a teammate's.
 8. Formal documents are written in English: the hand-off document, its detail
    chapters, specifications, quickstarts, runbooks, READMEs and the docs
    index. Chat with olsonwangyj may be in Chinese.
-   `docs/B07-CO-protocol-explained.zh-CN.md` is a Chinese study companion to
-   `docs/co-protocol-v2.md`, not a formal document; the English specification
-   governs. `docs/archive/` is history and is not translated.
+   `docs/B07-CO-protocol-explained.zh-CN.md` is a Chinese study companion
+   written for protocol version 2, not a formal document; the English
+   specification `docs/co-protocol-v3.md` governs. `docs/archive/` is history and is not translated.
 
 ## Git layout
 

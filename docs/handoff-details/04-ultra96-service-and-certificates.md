@@ -1,49 +1,55 @@
 # Detail chapter 4: Ultra96 service and certificates
 
-> This is a detail chapter of the hand-off document, [../communications-handoff.md](../communications-handoff.md). It was checked against local `main` on 2026-10-14 (commit `dc582c7`, which was `25fe4e4` before the history rewrite in hand-off 6.2; the code has not changed since, up to `971fc52`), and updated the same day for the owner's rules, the owner's direction on the interfaces and the proposed schedule up to the in-person integration session on Tue 2026-10-20 (hand-off sections 3.1, 6.4, 7, 8 and 13). The interface shapes and the teammate dates are proposals until the teammates confirm them. Everything marked "planned" below does not exist in code yet. The code is the only source of truth. Where this chapter and the code disagree, follow the code.
+> This is a detail chapter of the hand-off document, [../communications-handoff.md](../communications-handoff.md). It was rewritten on 2026-10-14 (late evening) against branch `comms/protocol-v3` at `3b94990` (code commits `a34c467`, `57a3fbd`, `a4b907b` and `3b94990`; hand-off 6.2): protocol version 3, the model interface on the board, and the deploy tool `tools/deploy_service.py` (hand-off 6.5). The previous version described local `main` at `c42b386` (protocol versions 1 and 2); what was removed is under "History and removed items". **Nothing of version 3 has run on the Ultra96, on the phone, or with both gloves together.** The last deployment on the board is the 28 September snapshot (version 2, session `week7-demo`); whether it is still running has not been checked. The phone still has the Week 7 build. Status words follow hand-off 6.5: **verified** (run or measured; the place is named), **built** (compiled and tested on the laptop only), **written, not compiled** (the Swift code; most of the C# reference file), **provisional** (waits for a teammate's answer). The interface names and the teammate dates are proposals until the teammates confirm them. The code is the only source of truth. Where this chapter and the code disagree, follow the code.
 
 ## Role and boundaries
 
-- The Ultra96 service is a Python asyncio process that uses only the standard library. Its entry point is `python3 -m ultra96.server` (`main` in `ultra96/server.py`).
+- The Ultra96 service is a Python asyncio process that uses only the standard library. Its entry point is `python3 -m ultra96.server` (`main` in `ultra96/server.py`). A model module loaded with `--model` runs inside the same process (see "The model interface").
 - It opens only two TLS listeners, both on the board's loopback address: the ingest port `127.0.0.1:8888` and the gateway port `127.0.0.1:9999`.
-- The ingest port receives `SENSOR_BATCH` from the laptop and answers each one with an `INGEST_ACK`.
-- The gateway port receives `SUBSCRIBE` from the phone and answers `SUBSCRIBED`. After that it only pushes `GESTURE_RESULT` to the phone.
+- The ingest port receives `SENSOR_BATCH` (version 3) from the laptop and answers each one with an `INGEST_ACK` (version 3).
+- The gateway port receives `SUBSCRIBE` (version 1) from the phone and answers `SUBSCRIBED` (version 1). After that it only pushes `GESTURE_RESULT` (version 3) to the phone.
 - Both ports are reachable only through SSH. The laptop first logs in over SSH to port 22 of the jump host `stujump`. It then logs in through the jump host to port 22 of the Ultra96. Finally an SSH local forward reaches port 8888 on the board. The iPhone makes the same two hops inside the app and ends at port 9999 on the board. The two routes are independent of each other.
 - The service never connects out. The code has only the two listeners and no logic that opens a connection to the phone or the laptop.
-- Communications' responsibility here ends at these two interfaces: samples are received accurately (proven by the ACK), and results are written accurately to the subscriber. Once the model interface exists (planned; the owner's proposal of 2026-10-14, final when Wen Ree confirms; hand-off 3.1 and 7.2), the board side of Communications also decodes each newly accepted sample into 11 physical floats, calls the model's `on_sample` once per sample, provides `emit`, and carries each result to the phone unchanged. It never merges, splits, filters or reinterprets results.
+- Communications' responsibility here ends at these interfaces: samples are received accurately (proven by the ACK); each newly accepted stream sample is decoded into 11 physical floats and handed to the model's `on_sample`; the model's results come back through the thread-safe `emit`; each result is written accurately to the subscriber. The board side of this is built on the branch (hand-off 6.5, D9). Wen Ree's model module does not exist yet, and the function names stay provisional until Wen Ree confirms in-process use (hand-off 7.2). The service never merges, splits, filters, renames or reinterprets results. It refuses only a result that the phone would refuse or misread (an invalid label or confidence; a glove power-up the service has not seen, or a `seq` above the highest it accepted for that power-up; a second result for one sample), and it counts each refusal. A `seq` inside a gap is not detected.
 - The following belong neither to this service nor to Communications: pairing the left and right gloves, building model windows, deciding gesture or idle, model accuracy, and mapping labels to game actions. They belong to Wen Ree and Jie Ling. Wen Ree and Jie Ling also agree between themselves the label names, how often a label is produced, and whether several identical labels in a row (for example several `CHOP`) mean one action or several (hand-off 3.1).
-- The current results are dummy labels. They are generated at `ultra96/server.py:264-267`. This is where Wen Ree's model input and output will connect. The interface requirements are in section 7.2 of the hand-off document. They are planned, not built: none of `start(emit)`, `on_sample(...)` or the thread-safe `emit(...)` exists in code yet. The dates asked of Wen Ree, proposals until Wen Ree confirms them, are a first connectable version pushed to the team repo by Fri 10-16 and the real model by Sun 10-18; what the Friday push must contain for the in-process and the separate-process option is in hand-off 6.4 and 7.2.
-- Evidence levels follow the 5 levels in section 4.7 of the hand-off document. `INGEST_ACK` is level 3. It proves only that the board service validated and accepted this input, not that the phone received anything. `result_write_complete` in the event log is level 4. It proves only that the board wrote the result into the connection, not that the phone received it; the event always carries `phone_receipt_confirmed=false`. `Received` on the phone screen is level 5. `CAPTURE PASSED` printed by `demo.py` is level 3. The phone status `Subscribed` is none of these: it means only that the `SUBSCRIBE`/`SUBSCRIBED` handshake with this service succeeded, and it does not prove that results are flowing.
-- Certificates: the local tool `tools/generate_comms_pki.py` generates a new CA and server certificate, or renews only the server certificate from the existing CA. The service loads only the server certificate and private key. The laptop and the phone get only the CA certificate.
+- Results in the version-3 code: without `--model`, the service runs its built-in dummy model, which answers each accepted stream sample with one random `REST`, `FIST`, `OPEN` or `POINT` at confidence 1.0. Each new command gets one echo result from the service itself, never from the model. Wen Ree's module plugs in at `ultra96/model.py` and the call at `ultra96/server.py:275-278`; the requirements are in hand-off 7.2. The dates asked of Wen Ree, proposals until Wen Ree confirms them, are a first connectable version pushed to the team repo by Fri 10-16 and the real model by Sun 10-18 (hand-off 6.4).
+- Evidence levels follow section 4.7 of the hand-off document. `INGEST_ACK` is level 3: the board service validated and accepted this input and, for a stream sample, the model's `on_sample` has returned. It does not prove that the model produced a result or that the phone received anything. Level 3a is the counters `model_samples` and `model_results` in the `stopped` line and the events `model_result` and `model_result_refused` in the event log: how many samples went to the model and how many of its results the board accepted for sending. `result_write_complete` in the event log is level 4. It proves only that the board wrote the result into the connection; the event always carries `phone_receipt_confirmed=false`. `Received` on the phone screen is level 5. `CAPTURE PASSED` printed by `demo.py` is level 3. The phone status `Subscribed` is none of these: it means only that the `SUBSCRIBE`/`SUBSCRIBED` handshake with this service succeeded.
+- Certificates: the local tool `tools/generate_comms_pki.py` generates a new CA and server certificate, or renews only the server certificate from the existing CA. The service loads only the server certificate and private key. The laptop and the phone get only the CA certificate. A renewed server certificate exists on the owner's laptop since 2026-10-14; it is not on the board yet (see "Certificates").
 
 ## Components and files
 
 | File | Responsibility |
 |---|---|
 | `ultra96/__init__.py` | Package marker with a one-line docstring. |
-| `ultra96/protocol.py` | Field sets and all validation rules for the five message types; the label table `GESTURES`; `validate_session`, `validate_message`, `trace_fields`, `result_identity`. |
-| `ultra96/server.py` | `CommsServer` (two listeners, connection limit, deduplication, replay protection, dummy results, subscriber, shutdown); `ResultQueue` (the result queue); the command-line entry point and SIGTERM handling. |
-| `ultra96/diagnostics.py` | `BoundedEventLog`: an optional bounded event log. A background thread writes it to file. On close it gives an integrity receipt and a SHA-256. |
+| `ultra96/protocol.py` | Field sets and all validation rules for the five message types (version 3; `SUBSCRIBE` and `SUBSCRIBED` version 1); the label rule (`GESTURE_PATTERN`, `valid_gesture`) and the confidence rule (`valid_confidence`); `DUMMY_GESTURES` for the dummy model and the command echo; `validate_session`, `validate_message`, `trace_fields`, `result_identity`. |
+| `ultra96/model.py` | New on 2026-10-14. The model interface: `load_model` (`--model`, `--model-path`), the built-in `DummyModel`, `ModelPort` (calls `start` and `on_sample`, counts errors and slow calls, provides the thread-safe `emit`), `normalize_result`, `ModelStartError`, `SLOW_CALL_SECONDS`. |
+| `ultra96/server.py` | `CommsServer` (two listeners, connection limit, de-duplication, replay protection, the call into the model, the command echo, `_model_result` with the identity and duplicate checks for model results, subscriber, shutdown); `ResultQueue` (the result queue); the command-line entry point (`--model`, `--model-path`; the `model_ready`, `model_failed` and `exit_with_model_threads` lines) and SIGTERM handling. |
+| `ultra96/diagnostics.py` | `BoundedEventLog`: an optional bounded event log. A background thread writes it to file. On close it gives an integrity receipt and a SHA-256. Accepts the model events `model_result` and `model_result_refused`. |
 | `common/__init__.py` | Package entry. It imports `common.sensor`, and `common/sensor.py` reads `common/dummy_fixtures.json` at import time. So importing `common.wire` on the board also needs these two files. |
+| `common/sensor.py` | `VERSION = 3`, `CHANNELS`, `SCALES`, `CHANNEL_COUNT = 11`, and `physical_values` (int16 / scale). The service uses them to check `values` and to give the model floats. |
 | `common/wire.py` | Frame encoding and decoding: a 4-byte big-endian length plus a UTF-8 JSON object; length limit; read and write timeouts; `ProtocolError`. |
 | `common/tls.py` | TLS contexts: `client_context(ca_file)`, `server_context(cert_file, key_file)`; the constant `TLS_SERVER_NAME`. |
 | `tools/generate_comms_pki.py` | Two modes. Without `--renew-server-from` it creates a new CA and server certificate, 4 files in all. With `--renew-server-from <CA folder>` it issues only a new server certificate from the existing CA, 3 files in all (function `renew_server_identity`). Only this tool needs the third-party library `cryptography`. |
-| `tools/demo_service.py` | The implementation of `python demo.py service`. Over two SSH hops it inspects the service status on the board read-only, or starts the service in the foreground when both ports are free. `demo.py service --session-id` passes in the session ID. The deployment folder constants `BOARD_ROOT` and `BOARD_SOURCE` are here. |
-| `tests/test_transport.py` | Over real local TLS: frames, trust, schema validation, 100 ACK and result pairs, v1 deduplication eviction, queue, connection limit, shutdown, PKI properties, renewal (the new certificate is signed by the original CA, old clients still trust it, a mismatched key is refused, non-empty and Git folders are refused), simulated subscriber. |
+| `tools/deploy_service.py` | New on 2026-10-14, the tracked successor of `.week7-local/co_deploy.py`. Uploads `common/` and `ultra96/` into a new folder on the board, optionally installs a renewed server certificate, and replaces the running service with checks, SIGKILL escalation, certificate restore and rollback. Every run that reaches the final re-check of the old process (board step 7, `tools/deploy_service.py:244` onwards) leaves a final record; a refusal in the earlier checks leaves none and changes nothing that runs. Needs the third-party library `paramiko`. See "Deploying with `tools/deploy_service.py`". |
+| `tools/demo_service.py` | The implementation of `python demo.py service`. Over two SSH hops it inspects the service status on the board read-only, or starts the service in the foreground when both ports are free. `BOARD_ROOT`, the fallback `BOARD_SOURCE` and `DEPLOYMENTS` are here, and `newest_deployment()` / `board_source()`, which make `--start` use the folder and the model of the newest local deployment record. |
+| `tests/test_transport.py` | Over real local TLS: frames, trust, schema validation, 100 ACK and result pairs, an identity evicted from the 4096 fingerprints refused as stale, queue, connection limit, shutdown, PKI properties, renewal (the new certificate is signed by the original CA, old clients still trust it, a mismatched key is refused, non-empty and Git folders are refused), simulated subscriber. |
 | `tests/test_transport_cleanup.py` | Shutdown releases connections that are waiting for TLS close; after shutdown the same ports can restart at once. |
-| `tests/test_v2_events.py` | v2 `request_id` rules, random labels, a duplicate produces no second result, fingerprint conflicts, stale identities, namespace and command capacity, correlation fields in the event log. |
+| `tests/test_v3_events.py` | Replaced `test_v2_events.py`. The `request_id` rules on every data message, stream and command results keep their trace, a duplicate has no second effect, the dummy labels, conflicting payloads, a stale identity after cache eviction, namespace and command capacity, positive-integer capacities, correlation fields in the event log. |
+| `tests/test_model_interface.py` | New. The dummy model answers each new stream sample once; without a subscriber each model result counts as disconnected; commands bypass the model; `on_sample` gets 11 scaled floats on the loop before the ACK; exceptions and `SystemExit` in `on_sample` are counted and warnings are rate-limited; slow calls; `emit` from a worker thread; invalid emits; numpy-like scalars; unaccepted identities and repeated results; model events in the event log; the bounded result memory; late emits; `start` once before any listener, and a `start` that raises or exits; model naming; leftover model threads; loading from a folder; model errors over real TLS; the command line with a model module, the `model_failed` cases, and a bad session that is not blamed on the model. |
+| `tests/test_protocol_rules.py` | New. The label rule, the confidence rule (including huge integers and strict JSON), the channel names and scales, `physical_values`. |
 | `tests/test_server_diagnostics.py` | Event log: exclusive folder, non-blocking, overflow, file cap, write failure, short write, field allowlist, close timeout, receipt and hash, sequence numbers with several producers. |
-| `tests/test_server_observation.py` | Each accepted result has exactly one outcome; accounting for replacement, cancellation, send failure and staleness; observer errors do not affect ACKs or forwarding; the default metric keys are unchanged; the command-line `--event-log-dir`. |
-| `tests/test_server_signals.py` | Real SIGTERM and SIGINT on Linux: exit code 0, exactly one `stopped` line, ports reusable at once. These two cases are skipped on non-Linux systems. One more case does not depend on the platform: when the event loop does not support signal handlers, cleanup still follows the cancellation path. |
+| `tests/test_server_observation.py` | Each accepted result has exactly one outcome; accounting for replacement, cancellation, send failure and staleness; observer errors do not affect ACKs or forwarding; the default metric keys include the model counters and no `observer_errors`; the command-line `--event-log-dir`. |
+| `tests/test_server_signals.py` | Real SIGTERM and SIGINT on Linux: `model_ready` then `listening`, exit code 0, exactly one `stopped` line (with `model_results` 1), ports reusable at once. These two cases are skipped on non-Linux systems. One more case does not depend on the platform: when the event loop does not support signal handlers, cleanup still follows the cancellation path and prints `model_ready`, `listening`, `stopped`. |
 | `tests/test_accept_recovery.py` | Retry on temporary listener errors (capped at 1.0 s); fatal errors are visible; the command line does not idle after its listener dies. |
 | `tests/test_ack_window_transport.py` | Over real TLS with a 0.35 s downstream delay: the ACK windows of two laptop bridges working with `CommsServer`; results match per device, one by one. |
-| `tests/test_co_contracts.py` | v2 header bytes (`LC`, `4c43…`), dummy data selection, the firmware dummy data header file matches the JSON, control frame round trip and limits. Least related to the board service. |
+| `tests/test_co_contracts.py` | The version-3 packet layout and command correlation, dummy data selection, the firmware dummy data header file matches the JSON, control frame round trip, a command frame carries one version-3 packet, control limits. Least related to the board service. |
 | `tests/test_ssh_trust.py` | SSH command: strict host checking on each of the two hops, timeouts, keep-alive, port 22, the `-L` specification; the identity file is used only for the target hop; supervised mode refuses an interactive proxy. |
-| `tests/test_demo_service.py` | The start script passes the requested session ID to the service as one argument (including session IDs with spaces and quotes); an invalid session ID is rejected; `service --start` follows the same session rule as capture (environment variable and command-line argument); port guard (a failed query does not start, either port taken does not start, start only when both are free); interactive SSH options; a cancel does not contact SSH; status mode is read-only. |
+| `tests/test_demo_service.py` | `board_source()` follows the newest usable deployment record; `--start` restarts the deployed model too; the start script passes the requested session ID as one argument (including session IDs with spaces and quotes); an invalid session ID is rejected; `service --start` follows the same session rule as capture; port guard (a failed query does not start, either port taken does not start, start only when both are free); interactive SSH options; a cancel does not contact SSH; status mode is read-only. |
+| `tests/test_deploy_service.py` | New. The uploaded file set, the manifest hashes, the board program compiles and survives shell quoting, option validation, a certificate folder needs both files, a dry run connects nothing, a missing certificate folder fails before connecting. One opt-in case (`B07_LINUX_DEPLOY_TEST=1`) runs the board program in Linux or WSL with `tests/linux/deploy_remote_test.sh` (27 checks, see the deploy section). Since `3b94990` it hands bash a copy of that script with LF line endings, so it also runs from a Windows checkout whose copy has CRLF endings. |
 
-Used directly but outside this table: `tools/ssh_tunnel.py` (`tunnel_command` builds the two-hop SSH command), `demo.py` (entry point of the `service` subcommand), `common/sensor.py` and `common/dummy_fixtures.json` (needed at import time).
+Used directly but outside this table: `tools/ssh_tunnel.py` (`tunnel_command` builds the two-hop SSH command), `demo.py` (entry point of the `service` subcommand), `common/dummy_fixtures.json` (needed at import time). The deploy tool also uploads `common/control.py`, which the service does not import.
 
-Local files that are not under version control but concern this chapter: `.week7-local/co_deploy.py` (the script used for the 28 September deployment) and `.week7-local/deployment-20260928T122047Z.json` (the record of that deployment). See "Cautions and known limitations".
+Local files that are not under version control but concern this chapter: `.week7-local/co_deploy.py` (the script used for the 28 September deployment) and `.week7-local/deployment-20260928T122047Z.json` (the record of that deployment), see "History and removed items"; and `.comms-local/deployments/deployment-<stamp>.json`, the local copy of each record that `tools.deploy_service` brings back. The folder `.comms-local/deployments/` does not exist yet, because the tool has never run against the board.
 
 ## Data formats and constants
 
@@ -64,116 +70,190 @@ Local files that are not under version control but concern this chapter: `.week7
 
 ### Rules common to all messages (`ultra96/protocol.py`)
 
-- `type` must be one of the five types. The field set must match the tables below exactly. One extra or one missing field is rejected (`ultra96/protocol.py:46-48`).
+- `type` must be one of the five types.
+- `v` must equal the version of that type: 3 for `SENSOR_BATCH`, `INGEST_ACK` and `GESTURE_RESULT`; 1 for `SUBSCRIBE` and `SUBSCRIBED` (`ultra96/protocol.py:23-24`, `:64-66`). Any other value, including 1 or 2 on a data message, is rejected as `unsupported protocol version`. There is no interoperability with versions 1 and 2 (the owner's rule: only the newest version is supported).
+- The field set must match the tables below exactly. One extra or one missing field is rejected (`ultra96/protocol.py:67-68`).
 - Integers must be real integers. The booleans `true` and `false` do not count as integers.
-- `v` can only be 1 or 2 (`ultra96/protocol.py:42-43`). Planned: version 3 replaces both, with no interoperability between versions (see "Communications' own extension points").
-- `session_id`: a string of 1 to 128 characters, with no control characters below code point 32 and nothing in U+D800 to U+DFFF (`ultra96/protocol.py:20-25`). It must also equal the session ID configured when the service started. Otherwise the code raises `wrong configured session` internally (`ultra96/protocol.py:50-51`).
-- Every validation failure is handled the same way: the connection is closed, `rejected` goes up by 1, and no message is sent back. The exception texts (for example `wrong configured session`, `unexpected message type`, `values must contain exactly eight int16 integers`, `inconsistent dummy result`) are used only inside the process. They are not logged and not sent to the peer. The peer only sees the connection close (`ultra96/server.py:224-227`).
+- `session_id`: a string of 1 to 128 characters, with no control characters below code point 32 and nothing in U+D800 to U+DFFF (`ultra96/protocol.py:43-48`). It must also equal the session ID configured when the service started. Otherwise the code raises `wrong configured session` internally (`ultra96/protocol.py:70-71`).
+- Every validation failure is handled the same way: the connection is closed, `rejected` goes up by 1, and no message is sent back. The exception texts (for example `wrong configured session`, `unsupported protocol version`, `values must contain exactly eleven int16 integers`, `gesture must be 1..32 characters from A-Z a-z 0-9 _ -`) are used only inside the process. They are not logged and not sent to the peer. The peer only sees the connection close (`ultra96/server.py:242-243`).
 
 ### `SENSOR_BATCH` (laptop to 8888)
 
 | Field | Type | Values and rules |
 |---|---|---|
-| `v` | int | 1 or 2 |
+| `v` | int | 3 |
 | `type` | string | `"SENSOR_BATCH"` |
 | `session_id` | string | See the common rules; the current default is `ltc-comms` |
 | `device_id` | int | 1 or 2 (1 = left hand, 2 = right hand) |
 | `boot_id` | int | 0 to 4294967295 |
 | `seq` | int | 0 to 4294967295 |
 | `uptime_ms` | int | 0 to 4294967295 |
-| `values` | list | Exactly 8 integers, each −32768 to 32767 (`ultra96/protocol.py:67-69`). v1 must also equal `seq % 2000 − 1000 + 10*i`, for i from 0 to 7 (`ultra96/protocol.py:70-72`) |
-| `request_id` | null or int | v2 only, and then required. Rules below |
+| `values` | list | Exactly 11 integers, each −32768 to 32767 (`ultra96/protocol.py:86-89`). Order and scales: `ax, ay, az` ×10000, `gx, gy, gz` ×100, `yaw, pitch, roll` ×100, `flex1, flex2` ×10000 (`common/sensor.py:15-18`). No other check on the values. The layout and the scales are provisional (hand-off 8, step 1) |
+| `request_id` | null or int | Always present. Rules below |
 
 ### `INGEST_ACK` (8888 back to the laptop on the same connection)
 
 | Field | Type | Values and rules |
 |---|---|---|
-| `v` | int | Same as the matching input |
+| `v` | int | 3 (copied from the input, which can only be 3; `ultra96/server.py:285`) |
 | `type` | string | `"INGEST_ACK"` |
 | `session_id`, `device_id`, `boot_id`, `seq` | As above | Echoed unchanged |
 | `status` | string | `"accepted"` or `"duplicate"` |
-| `request_id` | null or int | v2 only, echoed unchanged |
+| `request_id` | null or int | Always present, echoed unchanged |
 
 ### `SUBSCRIBE` (phone to 9999) and `SUBSCRIBED` (9999 back to the phone)
 
 | Field | Type | Values and rules |
 |---|---|---|
-| `v` | int | Only 1. A v2 subscription message is rejected (`ultra96/protocol.py:44-45`) |
+| `v` | int | Only 1. These envelopes never carried the packet version and did not change with version 3 (hand-off 6.5, D5) |
 | `type` | string | `"SUBSCRIBE"` or `"SUBSCRIBED"` |
 | `session_id` | string | Must equal the session ID configured on the service |
 
-The `SUBSCRIBED` that the service sends is always `{"v":1,"type":"SUBSCRIBED","session_id":<configured session ID>}` (`ultra96/server.py:331`).
+The `SUBSCRIBED` that the service sends is always `{"v":1,"type":"SUBSCRIBED","session_id":<configured session ID>}` (`ultra96/server.py:376`).
 
 ### `GESTURE_RESULT` (9999 pushes to the phone)
 
+Exactly 10 keys:
+
 | Field | Type | Values and rules |
 |---|---|---|
-| `v` | int | Same as the input that triggered it |
+| `v` | int | 3 |
 | `type` | string | `"GESTURE_RESULT"` |
-| `session_id`, `device_id`, `boot_id`, `seq` | As above | Taken from the input that triggered it |
-| `result_id` | string | Telemetry: `"device_id:boot_id:seq"`; command: `"cmd:device_id:boot_id:seq"` (`ultra96/protocol.py:94-96`) |
-| `gesture` | string | Currently only `REST`, `FIST`, `OPEN`, `POINT` (`ultra96/protocol.py:4`). v1 must equal `GESTURES[seq % 4]`; v2 is a random one of the four |
-| `confidence` | number | Currently fixed at 1.0. Validation accepts only the numeric value 1.0; the integer 1 also passes (`ultra96/protocol.py:82-83`) |
-| `request_id` | null or int | v2 only, echoed unchanged |
+| `session_id` | string | The configured session ID |
+| `device_id`, `boot_id`, `seq` | As above | The identity of one sample: for a model result, the sample the model named in `emit`; for a command echo, the command |
+| `request_id` | null or int | `null` for every model result; the command's ID for a command echo |
+| `result_id` | string | Model result: `"device_id:boot_id:seq"`; command echo: `"cmd:device_id:boot_id:seq"` (`result_identity`, `ultra96/protocol.py:107-109`) |
+| `gesture` | string | 1 to 32 characters, each from `A–Z a–z 0–9 _ -` (`ultra96/protocol.py:11-12`, `:31-33`). A model's label passes through as it is; the label set is Wen Ree's and Jie Ling's (hand-off 3.1). The dummy model and the command echo use `DUMMY_GESTURES` (`REST`, `FIST`, `OPEN`, `POINT`; `:10`) |
+| `confidence` | number | A JSON number, not a boolean, finite, from 0 to 1 inclusive; the integers 0 and 1 also pass (`ultra96/protocol.py:36-40`). A model's value passes through unrounded (hand-off 6.5, D17). The dummy model and the command echo send 1.0 |
 
-### v1 versus v2, and the `request_id` rules
+The same label and confidence rules are applied by every receiver: `phone/receiver.py:25`, `:118-126`; `phone/unity/CommsPhoneCore.cs:37`, `:65-71`; `ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:66-70`, `:79` (details in [detail chapter 5](05-phone-and-week7-receiver.md)). The installed Week 7 phone app still accepts only results of version 1 or 2, with the four dummy labels and confidence 1.0, so it rejects every version-3 result.
 
-| Item | v1 | v2 |
-|---|---|---|
-| `request_id` field | Not allowed | Required |
-| `values` | Must be the deterministic sentinel values | Any 8 int16 values |
-| Dummy label | `GESTURES[seq % 4]` | `random.SystemRandom().choice(GESTURES)` |
-| Deduplication | Looks only at `(device_id, boot_id, seq)`; content is not compared | Also compares the fingerprint `(uptime_ms, values)`, with replay protection |
-| Subscription messages | Use v1 | Not allowed |
+### The `request_id` rules
 
-- `request_id = null`: ordinary telemetry.
-- `request_id` is an integer: a command. The range is 1 to 4294967295, and `seq == request_id` is required (`ultra96/protocol.py:58-62`). 0, negative numbers, 2^32 and booleans are rejected.
-- The ACK and the result echo `request_id` unchanged. A command's `result_id` has the `cmd:` prefix.
+- The key is always present in `SENSOR_BATCH`, `INGEST_ACK` and `GESTURE_RESULT` (hand-off 6.5, D6).
+- `request_id = null`: an ordinary stream sample; and every model result.
+- `request_id` is an integer: a command. The range is 1 to 4294967295, and `seq == request_id` is required (`ultra96/protocol.py:78-82`). 0, negative numbers, 2^32 and booleans are rejected.
+- The ACK and the command echo carry `request_id` unchanged. A command echo's `result_id` has the `cmd:` prefix.
 
-### Deduplication and replay protection
+### De-duplication and replay protection
+
+Since version 3 there is one rule for every sample (`CommsServer._duplicate`, `ultra96/server.py:322-352`). The version-1 rule, which compared only the key and forgot it after 4096 entries, is gone (see "History and removed items").
 
 | Category | Storage | Limit | When full | Counts as a duplicate when | Connection is closed when |
 |---|---|---|---|---|---|
-| v1 | `_recent` (ordered dictionary) | 4096 | Evicts the oldest entry; an evicted identity is accepted again later | The key exists | Never |
-| v2 telemetry | `_v2_recent` (fingerprints) and `_v2_high_water` (the highest `seq` per `(device_id, boot_id)`) | 4096 fingerprints; 128 namespaces | Fingerprints evict the oldest entry; high-water marks are never evicted | The key is in the fingerprint table with the same fingerprint | Different fingerprint; `seq` not above the high-water mark and not in the fingerprint table; the 129th namespace |
-| v2 command | `_v2_commands` | 4096, never evicted | No eviction | The key exists with the same fingerprint | Different fingerprint; the 4097th new command |
+| Stream sample (`request_id` null) | `_fingerprints` (ordered dictionary of `(device_id, boot_id, seq)` → fingerprint `(uptime_ms, values)`) and `_high_water` (the highest `seq` per `(device_id, boot_id)`) | 4096 fingerprints; `max_namespaces` = 128 namespaces | Fingerprints evict the oldest entry; high-water marks are never evicted | The key is in the fingerprint table with the same fingerprint | Different fingerprint; `seq` at or below the high-water mark and not in the fingerprint table; the 129th namespace |
+| Command (`request_id` set) | `_commands` | `max_commands` = 4096, never evicted | No eviction | The key exists with the same fingerprint | Different fingerprint; the 4097th new command |
 
-- The implementation is at `ultra96/server.py:250-259` (v1) and in `_v2_duplicate` (`ultra96/server.py:277-307`).
-- A duplicate input gets `status: "duplicate"` and produces no second result.
-- When the connection is closed, no ACK is sent and `rejected` goes up by 1. The internal exception texts for the three kinds of close are `conflicting payload for existing v2 identity`, `stale v2 stream identity outside replay window`, and `v2 stream identity capacity exhausted; start a new session` or `v2 command identity capacity exhausted; start a new session` (`ultra96/server.py:291`, `:300`, `:302`, `:295`). These texts are never output.
-- After capacity runs out, existing namespaces and existing commands still work normally. A new glove reboot (a new `boot_id`) or a new command is rejected every time until the service restarts.
-- All deduplication state lives only in memory and belongs to this one process. A service restart clears all of it.
-- v2 telemetry `seq` must increase within one power-up. Wrap-around is not supported. An earlier sample that arrives out of order makes the service close the connection.
-- State is recorded before the next input is processed (`_v2_duplicate` finishes before any `await`). So even if the ACK was never written, the same identity arriving again is treated as a duplicate or a conflict.
+- The limits are the constructor arguments `max_namespaces` and `max_commands` (`ultra96/server.py:98`). They must be positive integers, otherwise `ValueError` (`:118-120`). Before version 3 they were called `max_v2_namespaces` and `max_v2_commands`.
+- A duplicate input gets `status: "duplicate"`, `duplicates` goes up by 1, and the event is `result_duplicate`. It reaches neither the model nor the phone.
+- When the connection is closed, no ACK is sent and `rejected` goes up by 1. The internal exception texts are `conflicting payload for existing identity` (`ultra96/server.py:336`), `stale stream identity outside replay window` (`:345`), `stream identity capacity exhausted; start a new session` (`:347`) and `command identity capacity exhausted; start a new session` (`:340`). These texts are never output.
+- Stream samples and commands use separate ledgers. A command does not move the high-water mark.
+- After capacity runs out, existing namespaces and existing commands still work normally. A new glove power-up (a new `boot_id`) or a new command is rejected every time until the service restarts.
+- All de-duplication state lives only in memory and belongs to this one process. A service restart clears all of it.
+- A stream's `seq` must increase within one power-up. Wrap-around is not supported. An earlier sample that arrives out of order makes the service close the connection. Gaps are allowed: a `seq` above the high-water mark is accepted however far above it is (`ultra96/server.py:342-348`).
+- State is recorded before the next input is processed (`_duplicate` finishes before any `await`). So even if the ACK was never written, the same identity arriving again is treated as a duplicate or a conflict.
+- The high-water marks are also used for the identity check on model results: the result's power-up must be known and its `seq` must not be above the mark. A `seq` inside a gap passes (see "The model interface").
+
+### The model interface (`ultra96/model.py`, built 2026-10-14)
+
+Status: built and tested on the laptop (`tests/test_model_interface.py`). The dummy-model path was also verified with the right board against a service on the laptop: 2934 samples to the model and 2934 results back, slowest call 0.39 ms (hand-off 6.1). It has never run on the Ultra96. Wen Ree's module does not exist yet; the names `start`, `on_sample` and `emit` and the in-process use are provisional until Wen Ree confirms them (hand-off 7.2; 6.5, D9).
+
+**What a model is.** Any object or module with two callables, `start(emit)` and `on_sample(device_id, boot_id, seq, uptime_ms, values)`. The command line loads only modules. An object can be passed only through the Python API (`CommsServer(..., model=...)`), which the tests use.
+
+**Loading** (`load_model`, `ultra96/model.py:53-69`):
+
+- Without `--model`, the built-in `DummyModel` is used.
+- With `--model MODULE`, the folder given by `--model-path DIR` (if any) is inserted first on `sys.path`, then `MODULE` is imported (`importlib.import_module`; a dotted name inside a package works).
+- `start` and `on_sample` must be callable attributes of the module, and neither may be `async def` (checked with `inspect.iscoroutinefunction`). Otherwise `TypeError`. The service calls both directly on its event loop, where a coroutine would never run (hand-off 6.5, D10).
+- The model's name in `model_ready` and `model_failed` is the module's import name (`__name__`), never a global inside the module. An object is named by its `name` attribute or its class name (`model_name`, `:72-76`). The dummy model is `dummy`.
+
+**Order at start-up** (`_run_service`, `ultra96/server.py:472-522`; `CommsServer.start`, `:150-174`):
+
+1. Import the model. This happens before the certificate is loaded. Any exception, or a `SystemExit` raised while importing, prints `model_failed` and ends with a non-zero exit. A `SystemExit` is turned into `ModelStartError`, so even `sys.exit(0)` in the module gives a non-zero exit (`:476-482`).
+2. Build `CommsServer`: load the certificate and key (`:483`), check the session. A bad session, certificate or key is reported as itself, with a traceback, not as a model failure (the comment at `:474-475`).
+3. Call `start(emit)` once, on the event-loop thread, before any listener exists (`:153-154`). If it raises an exception or `SystemExit`, the result is `ModelStartError("model start(emit) raised <type>")` (`ultra96/model.py:126-138`): no port is opened, `model_failed` is printed, and the exit is non-zero (`ultra96/server.py:486-490`).
+4. Open both listeners. Then print `model_ready` and `listening`.
+
+- `model_ready`: `{"event": "model_ready", "model": <name>, "seconds": <duration of start(emit), rounded to 3 decimals>}` (`ultra96/server.py:496-497`). The import time is not included.
+- `model_failed`: `{"event": "model_failed", "model": <MODULE, or "dummy">, "error_type": <type name of the original exception>}` (`ultra96/server.py:467-469`). For example `ModuleNotFoundError` for a missing module, `TypeError` for a missing or `async def` function, `RuntimeError` for a `start` that raised it, `SystemExit` for `sys.exit()` in the module or in `start`.
+
+**`on_sample`** (`ModelPort.on_sample`, `ultra96/model.py:150-166`; called at `ultra96/server.py:275-278`):
+
+- Called once for each newly accepted stream sample (`request_id` null). Not for a duplicate, not for a command, not for a rejected frame.
+- Called on the event-loop thread, inside `_ingest`, before that sample's ACK is written.
+- Arguments: `device_id`, `boot_id`, `seq`, `uptime_ms` as received, and `values`, a tuple of 11 Python floats, each `int16 / SCALES[i]` (`physical_values`, `common/sensor.py:92-98`). Packing keeps 4 decimal places for acceleration and flex and 2 for angular rate and angles; restoring cannot recover more. Any normalisation is Wen Ree's.
+- The return value is ignored.
+- Any `Exception` or `SystemExit` raised by `on_sample` is caught. `model_errors` goes up by 1, a warning is logged (rate-limited), and ingestion continues on the same connection. The ACK is still `accepted` (hand-off 6.5, D18).
+- Every call is timed. A call longer than 5 ms (`SLOW_CALL_SECONDS = 0.005`, `ultra96/model.py:30`) increments `model_slow_calls` and logs a rate-limited warning. `model_max_call_ms` keeps the longest call in milliseconds, rounded to 3 decimals. Nothing is cut short: a slow call still delays the ACKs of both gloves, result sending and new connections, because they all share one event loop.
+
+**`emit(gesture, confidence, device_id, boot_id, seq)`** (`ModelPort.emit`, `ultra96/model.py:168-187`):
+
+- Callable from any thread, including from inside `on_sample`.
+- It first checks and converts the arguments synchronously (`normalize_result`, `:84-100`). `gesture` must be a `str` (a subclass such as a numpy string is converted with `str()`) that satisfies the label rule. `confidence` may be any `numbers.Real` that is not a `bool` (numpy floats, `fractions.Fraction`); it is converted with `float()` and must satisfy the confidence rule. `device_id` must be a `numbers.Integral` (not a `bool`) equal to 1 or 2; `boot_id` and `seq` must be `numbers.Integral` from 0 to 4294967295. All three become plain `int`. The confidence is not rounded: a numpy `float32` 0.93 arrives as 0.9300000071525574 (hand-off 6.5, D17).
+- It returns `True` when the arguments are valid and the service is running, and `False` when they are invalid or the service has not started or has stopped. `True` does not mean the result was sent: the identity and duplicate checks below, and the subscriber, come afterwards.
+- Hand-over: on the event-loop thread the result is handled at once; from any other thread it is passed with `loop.call_soon_threadsafe`. Only the event loop touches the result queue and the subscriber.
+- Invalid arguments are counted on the event loop as `model_results_rejected`, with a rate-limited warning. Nothing is sent.
+
+**Checks on the event loop** (`CommsServer._model_result`, `ultra96/server.py:296-320`):
+
+1. Identity: the result is refused unless `(device_id, boot_id)` is a stream namespace this process has accepted and `seq` is at or below its high-water mark. Counted as `model_results_rejected`; event `model_result_refused` with `reason=unknown_identity`; warning.
+2. Duplicate: the result is refused when its `result_id` (`device_id:boot_id:seq`) is among the last 4096 model result IDs (`_emitted`, `:126-127`, `:312-314`). Counted as `model_results_duplicate`; event `model_result_refused` with `reason=duplicate`; warning.
+3. Otherwise the service builds the 10-key version-3 `GESTURE_RESULT` with `request_id: null` and the configured session, validates it with `validate_message`, counts `model_results`, logs the event `model_result`, and publishes it like any result (`_publish`, `:289-294`): with no subscriber it is dropped at once (`disconnected_results`, event `result_no_subscriber`); otherwise it goes into the subscriber's queue of 32.
+
+**Late emits.** `emit` before the model was started, after the service closed, or when the event loop is closed returns `False` and counts `model_results_late`. A result handed over from another thread that the event loop reaches only after the service stopped is also counted `model_results_late`, although `emit` had returned `True`. This is the only counter updated off the event loop, under a lock (`ultra96/model.py:189-191`).
+
+**Commands bypass the model** (`ultra96/server.py:279-284`; hand-off 6.5, D11). For a newly accepted command the service itself publishes one echo result: version 3, the command's trace fields (so `request_id` equals `seq`), `result_id` `cmd:device_id:boot_id:seq`, a random label from `DUMMY_GESTURES`, confidence 1.0. Command values are transformed dummy rows and their `seq` comes from the command ID space, so they must not reach the model's windows. A repeated command gets `duplicate` and no second echo. Command echoes are not counted in `model_results`.
+
+**The built-in dummy model** (`DummyModel`, `ultra96/model.py:38-50`; hand-off 6.5, D12). For each `on_sample` it calls `emit` at once, on the event-loop thread, for the same sample, with a random `REST`, `FIST`, `OPEN` or `POINT` (system randomness unless a test injects a generator) and confidence 1.0. So with the dummy model every accepted input, stream sample or command, gives exactly one result, and that result is queued before the ACK is written. The one-input-one-result checks (`Phone expected increase` in `demo.py run`, `tools/rehearse_comms.py`, `tools/rehearse_remote_comms.py`, `tools/check_board.py`) hold only while the dummy model runs; `demo.py run` prints a line saying so (`demo.py:212-213`). A real model that emits from another thread may emit after the ACK, or not at all for a given sample.
+
+**Warnings** (`ModelPort.warn`, `ultra96/model.py:143-148`). WARNING lines on standard error, at most one per kind per second (`_WARNING_INTERVAL`, `:31`): `model on_sample raised <type>`, `model on_sample took <ms> ms; it must return immediately`, `model emitted an invalid result; it was not sent`, `model result names a sample this service has not accepted`, `model emitted a second result for one sample`. Repeats within the second are only counted.
+
+**Model threads at exit** (`ultra96/server.py:540-564`; hand-off 6.5, D18). When the command line's event loop has ended (after `stopped`, or after an error such as `model_failed`), it checks for non-daemon threads other than the main thread that are still alive (for example a model's worker). If there are any, it prints `{"event": "exit_with_model_threads", "threads": <n>}` and ends the process with `os._exit`: code 0 after a normal stop (Ctrl+C or SIGTERM); after an error, the traceback first and then code 1 (or the integer code of a `SystemExit`). Without this, the interpreter would wait for those threads, and a process without ports would linger. The threads end abruptly, and interpreter clean-up is skipped.
+
+**Model counters** (always in the metrics, also with the dummy model; `ultra96/model.py:116-119`):
+
+| Key | Meaning |
+|---|---|
+| `model_samples` | `on_sample` calls (newly accepted stream samples) |
+| `model_errors` | `on_sample` calls that raised (`Exception` or `SystemExit`) |
+| `model_slow_calls` | Calls longer than 5 ms |
+| `model_max_call_ms` | The longest call, in milliseconds, 3 decimals |
+| `model_results` | Model results that passed every check and were published (with or without a subscriber) |
+| `model_results_rejected` | Invalid arguments, or an identity that fails the high-water check (an unknown power-up, or a `seq` above the highest accepted one) |
+| `model_results_duplicate` | A second result for one sample (within the last 4096 model result IDs) |
+| `model_results_late` | Emits before the start or after the service stopped |
 
 ### Limits and timeouts
 
 | Item | Value | Location |
 |---|---|---|
-| Listen address | `127.0.0.1`, IPv4 | `ultra96/server.py:149` |
-| Default ports | Ingest 8888, gateway 9999 | `ultra96/server.py:87` |
-| Listen backlog | 8 | `ultra96/server.py:150` |
-| Concurrent connection limit | 8, both ports together, including connections still in the handshake | `ultra96/server.py:181` |
-| TLS handshake timeout | 5.0 s | `ultra96/server.py:216` |
+| Listen address | `127.0.0.1`, IPv4 | `ultra96/server.py:165` |
+| Default ports | Ingest 8888, gateway 9999 | `ultra96/server.py:97` |
+| Listen backlog | 8 | `ultra96/server.py:166` |
+| Concurrent connection limit | 8, both ports together, including connections still in the handshake | `ultra96/server.py:197` |
+| TLS handshake timeout | 5.0 s | `ultra96/server.py:232` |
 | Timeout to read one frame | 5.0 s | `common/wire.py:49` |
 | Write timeout for an ACK or `SUBSCRIBED` | 5.0 s | `common/wire.py:76` |
-| Result queue length | 32, shared by both gloves | `ultra96/server.py:35` |
-| Result freshness (waiting on the board only) | 2.0 s, counted from enqueue time; checked once at dequeue and once before the write | `ultra96/server.py:73`, `:369-370` |
-| Result write timeout | The remaining freshness: 2.0 s minus the time already waited | `ultra96/server.py:378` |
-| Wait when closing one connection | 1.0 s, then a forced abort | `ultra96/server.py:27` |
-| Retry after a temporary listener error | Starts at 0.1 s, doubles each time, capped at 1.0 s | `ultra96/server.py:162-179` |
-| Write buffer water marks | High 32768, low 16384 | `ultra96/server.py:218` |
-| Minimum TLS version | 1.2 on both ends. If the server context does not meet it, construction fails with `server requires TLS >=1.2` | `common/tls.py:9`, `:18`; `ultra96/server.py:89-91` |
-| v2 namespace and command capacity | 128 and 4096 (constructor arguments `max_v2_namespaces`, `max_v2_commands`) | `ultra96/server.py:88` |
-| Event log queue | 2048 entries | `ultra96/diagnostics.py:56` |
-| Event log file cap | 50 × 1024 × 1024 bytes | `ultra96/diagnostics.py:56` |
-| Event log close wait | 2.0 s | `ultra96/server.py:416` |
+| Result queue length | 32, shared by both gloves | `ultra96/server.py:45` |
+| Result freshness (waiting on the board only) | 2.0 s, counted from enqueue time; checked once at dequeue and once before the write | `ultra96/server.py:83`, `:414-415` |
+| Result write timeout | The remaining freshness: 2.0 s minus the time already waited | `ultra96/server.py:414`, `:423` |
+| Wait when closing one connection | 1.0 s, then a forced abort | `ultra96/server.py:37` |
+| Retry after a temporary listener error | Starts at 0.1 s, doubles each time, capped at 1.0 s | `ultra96/server.py:178-195` |
+| Write buffer water marks | High 32768, low 16384 | `ultra96/server.py:234` |
+| Minimum TLS version | 1.2 on both ends. If the server context does not meet it, construction fails with `server requires TLS >=1.2` | `common/tls.py:9`, `:18`; `ultra96/server.py:99-101` |
+| Namespace and command capacity | 128 and 4096 (constructor arguments `max_namespaces`, `max_commands`) | `ultra96/server.py:98` |
+| Model result IDs remembered | 4096 (oldest forgotten) | `ultra96/server.py:313-314` |
+| Slow model call | Longer than 5 ms | `ultra96/model.py:30` |
+| Model warning interval | At most one per kind per second | `ultra96/model.py:31` |
+| Event log queue | 2048 entries | `ultra96/diagnostics.py:57` |
+| Event log file cap | 50 × 1024 × 1024 bytes | `ultra96/diagnostics.py:57` |
+| Event log close wait | 2.0 s | `ultra96/server.py:461` |
 
-- What the 2 s rule covers. It limits how long a result may wait on the board: in the queue (`ResultQueue.get_timed`, `ultra96/server.py:69-77`) plus the write into the phone's connection (`_send_results`, `ultra96/server.py:366-387`, where the write gets only the time that is left). It is not an end-to-end latency bound, and it is not a promise that the phone receives the result: once `write_frame` returns, the bytes are with TCP and TLS and cannot be recalled (the comment at `ultra96/server.py:374-375`). Time spent before the board (the glove, BLE, the laptop's own 2 s freshness, the tunnel) and after it (SSH, the phone) is not counted here. The phone keeps its own 2 s display window, counted from when it received a result (`ios-visualizer/CommsNative/Sources/CommsCore/DisplayState.swift:79`, `:109`). The planned phone result queue for `CommsNextResult` would also drop a result 2 s after the phone received it (a provisional V1 limit, revisited once Wen Ree says how often results come; hand-off 7.3, detail chapter 5). See also hand-off 9.2.
-- Every accepted connection gets `TCP_NODELAY` (`ultra96/server.py:185`).
-- `SO_REUSEADDR` is set only on POSIX (`ultra96/server.py:144-148`). It lets the same ports restart at once after the service stops.
-- With port 0, the system assigns a port. The actual port is read from the `listening` line (`ultra96/server.py:154-155`, `:439-440`). The tests use it this way.
-- Temporary listener errors are: a connection aborted by the peer while it was queued, file descriptors exhausted, buffers or memory exhausted (`errno` `ECONNABORTED`, `EMFILE`, `ENFILE`, `ENOBUFS`, `ENOMEM`, or Windows 10024, 10053, 10055). See `ultra96/server.py:170-174`.
+- What the 2 s rule covers. It limits how long a result may wait on the board: in the queue (`ResultQueue.get_timed`, `ultra96/server.py:79-87`) plus the write into the phone's connection (`_send_results`, `ultra96/server.py:411-432`, where the write gets only the time that is left). It is not an end-to-end latency bound, and it is not a promise that the phone receives the result: once `write_frame` returns, the bytes are with TCP and TLS and cannot be recalled (the comment at `ultra96/server.py:419-420`). Time spent before the board (the glove, BLE, the laptop's own 2 s freshness, the tunnel, and the model's own processing before it calls `emit`) and after it (SSH, the phone) is not counted here. The phone keeps its own 2 s display window, counted from when it received a result (`ios-visualizer/CommsNative/Sources/CommsCore/DisplayState.swift:104`, `:141`). The phone's result queue for `CommsNextResult` also drops a result 2 s after the phone received it (`DisplayState.swift:29`, `:169`; written, not compiled; a provisional V1 limit, hand-off 7.3). See also hand-off 9.2.
+- Every accepted connection gets `TCP_NODELAY` (`ultra96/server.py:201`).
+- `SO_REUSEADDR` is set only on POSIX (`ultra96/server.py:160-164`). It lets the same ports restart at once after the service stops.
+- With port 0, the system assigns a port. The actual port is read from the `listening` line (`ultra96/server.py:170-171`, `:505-506`). The tests use it this way.
+- Temporary listener errors are: a connection aborted by the peer while it was queued, file descriptors exhausted, buffers or memory exhausted (`errno` `ECONNABORTED`, `EMFILE`, `ENFILE`, `ENOBUFS`, `ENOMEM`, or Windows 10024, 10053, 10055). See `ultra96/server.py:186-189`.
 
 ### Command-line arguments (`python3 -m ultra96.server`)
 
@@ -185,57 +265,82 @@ The `SUBSCRIBED` that the service sends is always `{"v":1,"type":"SUBSCRIBED","s
 | `--ingest-port` | 8888 | Ingest port |
 | `--gateway-port` | 9999 | Gateway port |
 | `--event-log-dir` | Off | Event log folder; must be a new folder that does not exist yet |
+| `--model` | The built-in dummy model | An importable module with `start(emit)` and `on_sample(...)` |
+| `--model-path` | None | A folder put first on the import path before `--model` is imported. Ignored without `--model` (the dummy model is used) |
 
-Defined at `ultra96/server.py:459-466`. The log format is `%(asctime)s %(levelname)s %(message)s`, at level INFO (`ultra96/server.py:468`).
+Defined at `ultra96/server.py:526-538`. The log format is `%(asctime)s %(levelname)s %(message)s`, at level INFO (`ultra96/server.py:539`).
 
 ### Command-line arguments (`python demo.py service`)
 
 | Argument | Default | Meaning |
 |---|---|---|
-| No arguments | — | Read-only inspection: `ss -ltnp` on the board, this user's processes, and the PID and working directory of each `ultra96.server` process (`tools/demo_service.py:64-71`) |
-| `--start` | Off | Starts the service in the foreground when both ports are free |
-| `--session-id` | The environment variable `LTC_COMMS_SESSION`, otherwise `ltc-comms` | Used only with `--start`. Same default rule as `demo.py run` and `live` (`demo.py:54-55`, `:70-71`). It is first checked with `validate_session`, then written into the start command through `shlex.quote` (`tools/demo_service.py:29-30`, `:50`) |
+| No arguments | — | Read-only inspection: `ss -ltnp` on the board, this user's processes, and the PID and working directory of each `ultra96.server` process (`tools/demo_service.py:114-121`) |
+| `--start` | Off | Starts the service in the foreground when both ports are free, from the folder and with the model of the newest local deployment record (see "Deployment constants") |
+| `--session-id` | The environment variable `LTC_COMMS_SESSION`, otherwise `ltc-comms` | Used only with `--start`. Same default rule as `demo.py run` and `live` (`demo.py:54-55`, `:70-71`). It is first checked with `validate_session`, then written into the start command through `shlex.quote` (`tools/demo_service.py:73`, `:98`) |
 
 The account, jump host, board and deployment folders cannot be changed with arguments (see "Deployment constants" below).
 
+### Command-line arguments (`python -m tools.deploy_service`)
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `--server-cert-dir` | None: keep the certificate on the board | A folder holding a renewed `server-cert.pem` and `server-key.pem`. Both must exist; this is checked before anything connects |
+| `--session-id` | `ltc-comms` | Passed to the new service. Checked with `validate_session`. Unlike `demo.py`, it does not read `LTC_COMMS_SESSION` |
+| `--model` | None: the built-in dummy model | A module name passed to `ultra96.server --model` |
+| `--model-path` | None | A folder **on the board** passed to `ultra96.server --model-path`. Needs `--model`. The tool does not upload it |
+| `--no-event-log` | Off | Without it, the new service is started with `--event-log-dir BOARD_ROOT/evidence/observer-co-live-<stamp>` |
+| `--start-timeout` | 30 s | 5 to 300 s. How long to wait for the new service (or the rollback) to listen on both ports; the model's import and `start(emit)` count |
+| `--jump-user` | `yanjie` | Jump-host account |
+| `--board-user` | `xilinx` | Board account |
+| `--dry-run` | Off | Prints the plan only; connects nothing |
+
+Defined at `tools/deploy_service.py:418-436`. Exit codes: 0 when deployed (or after a dry run); 1 when the board reports a non-zero exit or does not answer in time; 2 when a `ValueError`, `RuntimeError` or `OSError` stops it on the laptop, for example invalid options, a missing certificate file or a network error (`FAILED: …` on standard error; `:432-436`). Other errors, for example paramiko's own exceptions for a rejected host key or a wrong password, are not caught and end with a traceback.
+
 ### Standard output, logs and metrics
 
-- After start, the service prints one line on standard output: `{"event": "listening", "host": "127.0.0.1", "tls": true, "ingest_port": 8888, "gateway_port": 9999}` (`ultra96/server.py:439-440`).
-- On stop it prints one line: `{"event": "stopped", "metrics": {...}}` (`ultra96/server.py:453`). This is the only place the metrics are visible. There is no way to query metrics while the process runs.
-- With the event log on, one more line comes last: `{"event": "observation_stopped", "state": {...}}` (`ultra96/server.py:419`).
-- For each new input accepted, one INFO line goes to standard error: `accepted session=… device=… boot=… seq=…` (`ultra96/server.py:262-263`). `values` is not printed.
-- When a listener task dies, one ERROR line goes to standard error: `listener task failed: <exception type name>` (`ultra96/server.py:202`).
-- These two are the only routine log lines. Duplicates, rejections and drops are not logged.
-- Metric keys: `accepted`, `duplicates`, `rejected`, `subscribers`, `replaced`, `disconnected_results`, `result_drops`, `result_stale`, `client_limit`, `accept_retries`, `accept_failures`. With an observer there is one more: `observer_errors` (`ultra96/server.py:121-126`).
-- `result_drops` and `result_stale` are added to the metrics only when a subscriber ends (`ultra96/server.py:361-362`).
-- `rejected` counts more than bad frames on the ingest port. All of the following land in the same `except _EXPECTED_ERRORS` in `_client` (`ultra96/server.py:20-21`, `:226-227`), and each adds 1:
-  - a failed handshake, or a handshake longer than 5.0 s (`ultra96/server.py:215-216`);
-  - on the ingest port: a bad frame, mismatched fields, a wrong session, a v2 identity conflict, exhausted capacity, a read timeout;
+- After start, the service prints two lines on standard output: `{"event": "model_ready", "model": …, "seconds": …}` and then `{"event": "listening", "host": "127.0.0.1", "tls": true, "ingest_port": 8888, "gateway_port": 9999}` (`ultra96/server.py:496-497`, `:505-506`).
+- When the model cannot be loaded or its `start(emit)` fails, `{"event": "model_failed", …}` (`ultra96/server.py:467-469`) takes the place of `model_ready` and `listening`, and there is never a `stopped` line. With the event log on, `observation_stopped` follows it (`ultra96/server.py:451-464`). If model threads remain, the last line is `exit_with_model_threads` (`:544-547`).
+- On stop it prints one line: `{"event": "stopped", "metrics": {...}}` (`ultra96/server.py:519`). This is the only place the metrics are visible. There is no way to query metrics while the process runs.
+- With the event log on, one more line follows: `{"event": "observation_stopped", "state": {...}}` (`ultra96/server.py:464`).
+- If non-daemon model threads remain, the very last line is `{"event": "exit_with_model_threads", "threads": n}` (`ultra96/server.py:561-562`).
+- For each new input accepted (stream sample or command), one INFO line goes to standard error: `accepted session=… device=… boot=… seq=…` (`ultra96/server.py:273-274`). `values` is not printed.
+- When a listener task dies, one ERROR line goes to standard error: `listener task failed: <exception type name>` (`ultra96/server.py:218`).
+- Model problems log the rate-limited WARNING lines listed under "The model interface". Duplicates, rejections and drops are not logged.
+- Metric keys: `accepted`, `duplicates`, `rejected`, `subscribers`, `replaced`, `disconnected_results`, `result_drops`, `result_stale`, `client_limit`, `accept_retries`, `accept_failures` (`ultra96/server.py:132-135`), the eight model counters (`model_samples`, `model_errors`, `model_slow_calls`, `model_max_call_ms`, `model_results`, `model_results_rejected`, `model_results_duplicate`, `model_results_late`; `ultra96/model.py:116-119`), and with an observer one more: `observer_errors` (`ultra96/server.py:136-137`).
+- `accepted` counts new stream samples and new commands; `model_samples` counts only the stream samples. With the dummy model, `model_results` equals `model_samples` when nothing was refused.
+- `result_drops` and `result_stale` are added to the metrics only when a subscriber ends (`ultra96/server.py:406-407`).
+- `rejected` counts more than bad frames on the ingest port. All of the following land in the same `except _EXPECTED_ERRORS` in `_client` (`ultra96/server.py:30-31`, `:242-243`), and each adds 1:
+  - a failed handshake, or a handshake longer than 5.0 s (`ultra96/server.py:231-232`);
+  - on the ingest port: a bad frame, mismatched fields, a wrong version, a wrong session, an identity conflict, exhausted capacity, a read timeout;
   - on the gateway port: a bad frame or a timeout before `SUBSCRIBE`;
-  - on the gateway port: a failed or timed-out result write. The exception travels from `_send_results` (`ultra96/server.py:377-385`) through `task.result()` and `except Exception: raise` in `_gateway` (`ultra96/server.py:337-339`, `:345-348`) up to `_client`.
+  - on the gateway port: a failed or timed-out result write. The exception travels from `_send_results` (`ultra96/server.py:427-430`) through `task.result()` and `except Exception: raise` in `_gateway` (`ultra96/server.py:383-384`, `:390-393`) up to `_client`.
 
-  So `rejected` above 0 does not necessarily mean that the laptop sent bad data.
+  So `rejected` above 0 does not necessarily mean that the laptop sent bad data. Model errors and refused model results never count in `rejected`.
 
 ### Event log (`--event-log-dir`)
 
 - Files: while the service runs, `events.partial.jsonl` and `status.json`. After a normal end, `events.partial.jsonl` is renamed to `events.jsonl`, and `status.json` receives `events_sha256` and the counts.
-- The folder is created with `mkdir(parents=True, exist_ok=False)` (`ultra96/diagnostics.py:62`). If the folder already exists, this raises `FileExistsError` and the service does not start.
+- The folder is created with `mkdir(parents=True, exist_ok=False)` (`ultra96/diagnostics.py:63`). If the folder already exists, this raises `FileExistsError` and the service does not start.
 - Each line is one JSON object with these fixed fields: `schema` (`ultra96-observer-event-v1`), `run_id`, `event_seq`, `utc`, `monotonic`, `event`.
-- The `schema` of `status.json` is `ultra96-bounded-event-log-status-v1` (`ultra96/diagnostics.py:32`). Its keys include `complete`, `incomplete`, `lost_event_count`, `overflow_count`, `callback_error_count`, `file_cap_reached`, `file_cap_drop_count`, `writer_error_count`, `writer_error_type`, `close_timed_out` and `finalized` (`ultra96/diagnostics.py:241-269`).
-- There are 15 event names (`ultra96/diagnostics.py:17-23`): `result_accepted`, `result_duplicate`, `result_no_subscriber`, `result_enqueued`, `result_drop_oldest`, `result_drop_stale`, `result_send_started`, `result_write_complete`, `result_send_failed`, `result_send_cancelled`, `result_abandoned`, `subscriber_claimed`, `subscriber_replaced`, `subscribed_write_complete`, `subscriber_ended`.
-- There are 14 allowed extra fields (`ultra96/diagnostics.py:24-30`): `device_id`, `boot_id`, `seq`, `subscriber_id`, `previous_subscriber_id`, `queue_size`, `queued_count`, `session_id`, `reason`, `error_type`, `phone_receipt_confirmed`, `ambiguous`, `age_seconds`, `request_id`. The allowlist includes `queued_count`, but the current service code does not emit it.
-- The log does not record `values`, `gesture`, the peer address or any credential.
-- Result-queue events carry `subscriber_id` and `queue_size` automatically, and `age_seconds` when the enqueue time is known (`ultra96/server.py:43-54`).
-- `result_drop_stale` carries `reason`: `dequeue` when the result is found stale at dequeue, `before_write` when the re-check before the write finds it stale (`ultra96/server.py:75`, `:372`).
-- The `reason` of `result_abandoned` equals the reason that subscriber ended (`ultra96/server.py:83`, `:359-360`).
-- `result_send_failed` and `result_send_cancelled` carry `ambiguous=true`. The first also carries `error_type` (`ultra96/server.py:380`, `:383-384`).
-- `subscribed_write_complete` and `result_write_complete` carry `phone_receipt_confirmed=false`. The log object allows only `false` for this field (`ultra96/diagnostics.py:126-128`).
-- `reason` and `error_type` must match `^[A-Za-z][A-Za-z0-9_.-]{0,63}$` (`ultra96/diagnostics.py:31`, `:118-120`).
-- Values of `reason` in `subscriber_ended`: `peer_eof`, `unexpected_input`, `sender_stopped`, `replaced`, `server_shutdown`, `cancelled`, `error`, `disconnected` (`ultra96/server.py:319`, `:340-347`, `:359`).
-- An invalid event name or field is not raised into the service. That event is dropped and `callback_error_count` goes up by 1 (`ultra96/diagnostics.py:160-165`).
-- A full queue, exceeding the file cap, a write failure, a rejected field or a close timeout all make the receipt's `complete` `false` (`ultra96/diagnostics.py:304-312`). After the file cap is exceeded, later events are only dropped, never written (`ultra96/diagnostics.py:205-212`).
+- The `schema` of `status.json` is `ultra96-bounded-event-log-status-v1` (`ultra96/diagnostics.py:33`). Its keys include `complete`, `incomplete`, `lost_event_count`, `overflow_count`, `callback_error_count`, `file_cap_reached`, `file_cap_drop_count`, `writer_error_count`, `writer_error_type`, `close_timed_out` and `finalized` (`ultra96/diagnostics.py:244-270`).
+- There are 17 event names (`ultra96/diagnostics.py:17-24`): `result_accepted`, `result_duplicate`, `result_no_subscriber`, `result_enqueued`, `result_drop_oldest`, `result_drop_stale`, `result_send_started`, `result_write_complete`, `result_send_failed`, `result_send_cancelled`, `result_abandoned`, `subscriber_claimed`, `subscriber_replaced`, `subscribed_write_complete`, `subscriber_ended`, and since 2026-10-14 `model_result` and `model_result_refused`.
+- `result_accepted` means that an input (stream sample or command) was accepted, not that a result exists.
+- `model_result` (a model result passed the checks and is being published) and `model_result_refused` (with `reason` `unknown_identity` or `duplicate`) carry `session_id`, `device_id`, `boot_id`, `seq` and `request_id` (null). Invalid and late emits produce no event; they are only counted. A command echo produces no `model_result`.
+- There are 14 allowed extra fields (`ultra96/diagnostics.py:25-31`): `device_id`, `boot_id`, `seq`, `subscriber_id`, `previous_subscriber_id`, `queue_size`, `queued_count`, `session_id`, `reason`, `error_type`, `phone_receipt_confirmed`, `ambiguous`, `age_seconds`, `request_id`. The allowlist includes `queued_count`, but the current service code does not emit it.
+- The log does not record `values`, `gesture`, `confidence`, the peer address or any credential.
+- Result-queue events carry `subscriber_id` and `queue_size` automatically, and `age_seconds` when the enqueue time is known (`ultra96/server.py:53-64`).
+- `result_drop_stale` carries `reason`: `dequeue` when the result is found stale at dequeue, `before_write` when the re-check before the write finds it stale (`ultra96/server.py:85`, `:417`).
+- The `reason` of `result_abandoned` equals the reason that subscriber ended (`ultra96/server.py:93`, `:404-405`).
+- `result_send_failed` and `result_send_cancelled` carry `ambiguous=true`. The first also carries `error_type` (`ultra96/server.py:425`, `:428-429`).
+- `subscribed_write_complete` and `result_write_complete` carry `phone_receipt_confirmed=false`. The log object allows only `false` for this field (`ultra96/diagnostics.py:127-129`).
+- `reason` and `error_type` must match `^[A-Za-z][A-Za-z0-9_.-]{0,63}$` (`ultra96/diagnostics.py:32`, `:119-121`).
+- Values of `reason` in `subscriber_ended`: `peer_eof`, `unexpected_input`, `sender_stopped`, `replaced`, `server_shutdown`, `cancelled`, `error`, `disconnected` (`ultra96/server.py:364`, `:385-388`, `:391`, `:404`).
+- An invalid event name or field is not raised into the service. That event is dropped and `callback_error_count` goes up by 1 (`ultra96/diagnostics.py:161-166`).
+- A full queue, exceeding the file cap, a write failure, a rejected field or a close timeout all make the receipt's `complete` `false` (`ultra96/diagnostics.py:306-313`). After the file cap is exceeded, later events are only dropped, never written (`ultra96/diagnostics.py:206-213`).
 
 ### Certificates (`tools/generate_comms_pki.py`)
+
+The tool did not change in the version-3 work (`c42b386`..`3b94990`). Its renewal mode was added earlier the same day, on 2026-10-14, in `aa18643` (`23bdee6` on the team main).
 
 New-PKI mode (without `--renew-server-from`, function `generate_pki`):
 
@@ -251,7 +356,7 @@ Renewal mode (`--renew-server-from <CA folder>`, function `renew_server_identity
 | Output | Content |
 |---|---|
 | `server-key.pem` | A new server private key, same specification as above |
-| `server-cert.pem` | A new server certificate signed by the existing CA, same specification as above |
+| `server-cert.pem` | A new server certificate signed by the existing CA, same specification as above; its issuer name is copied from the existing CA |
 | `ca-cert.pem` | An unchanged copy of the existing CA certificate |
 
 - Renewal mode neither outputs nor changes the CA private key or the CA certificate. Clients keep trusting the same `ca-cert.pem`, and the CA fingerprint registered in the phone source stays valid.
@@ -265,76 +370,163 @@ Renewal mode (`--renew-server-from <CA folder>`, function `renew_server_identity
 - Output on success: new-PKI mode prints `Created B07 Communications development PKI in <folder>` and `Copy only ca-cert.pem to clients; copy server-cert.pem/server-key.pem to Ultra96.` (`tools/generate_comms_pki.py:145-146`). Renewal mode prints `Issued a new server certificate from the existing CA in <folder>` and `Clients keep their ca-cert.pem; copy server-cert.pem/server-key.pem to Ultra96.` (`tools/generate_comms_pki.py:141-142`).
 - On connect, clients verify the certificate chain and the host name `ultra96.week7.internal` (`TLS_SERVER_NAME`), even though they actually connect to the forwarded port on `127.0.0.1`.
 - Server authentication only. There are no client certificates.
-- The current CA is valid until 2027-09-06. Its SHA-256 matches the fingerprint registered in the phone source (`ios-visualizer/CommsNative/Sources/CommsBridge/Configuration.swift:12`). Under the rule above, it can no longer be used for renewal after about 2027-08-07. From then on, only a new PKI works.
 
-### Deployment constants (`tools/demo_service.py`)
+The current trust material (hand-off 4.8):
+
+| Item | State |
+|---|---|
+| CA | Made in September; its name is `Week 7 Development CA` (the current tool would name a new CA `B07 Communications Development CA`). SHA-256 `4dfba4905c171e68c3623dbc952154149076ed89004b85d475e858cc550760ec`, valid until 2027-09-06. The same value is registered in the phone source (`ios-visualizer/CommsNative/Sources/CommsBridge/Configuration.swift:12`). Under the rule above, it can no longer be used for renewal after about 2027-08-07; from then on, only a new PKI works. Unchanged on 2026-10-14 |
+| Renewed server certificate (2026-10-14, hand-off 6.5, D2) | Made with `python -m tools.generate_comms_pki --renew-server-from ~/.codex/private/cg4002-week7-20260906 --output-dir ~/.codex/private/cg4002-comms-server-20261014`. CN and SAN `ultra96.week7.internal`, issuer `Week 7 Development CA`, valid 2026-10-14 14:22:35 UTC to 2026-11-13 14:27:35 UTC. Verified on the laptop: it chains to the CA (`openssl verify`), the key matches, and a local TLS 1.3 handshake with `SUBSCRIBE`/`SUBSCRIBED` succeeded. **Not uploaded to the Ultra96** (the owner's login): `tools.deploy_service --server-cert-dir` installs it (hand-off 6.3, step 1). The laptop's `--ca` and the phone source do not change |
+| September server certificate | The laptop's copy expired at 2026-10-06 15:11:29 UTC. The copy on the board has not been checked |
+
+### Deployment constants (`tools/demo_service.py`, `tools/deploy_service.py`)
 
 | Constant | Value |
 |---|---|
-| `BOARD_ROOT` | `/var/tmp/cg4002-week7-<account>-20260907`; the exact value is at `tools/demo_service.py:11` |
-| `BOARD_SOURCE` | `BOARD_ROOT + "/source-co-v2-20260928T122047Z"` (`tools/demo_service.py:12`) |
-| Certificate paths | `BOARD_ROOT/tls/server-cert.pem`, `BOARD_ROOT/tls/server-key.pem` (`tools/demo_service.py:50`) |
-| Interpreter | `/usr/bin/python3 -u` (`tools/demo_service.py:50`) |
-| Ports | `--ingest-port 8888 --gateway-port 9999`, hard-coded in the start command |
-| SSH endpoints of the jump host and the board | See `tools/demo_service.py:17-18` |
-| Session ID | Passed in by `demo.py service --session-id`; the default is `LTC_COMMS_SESSION`, otherwise `ltc-comms` |
+| `BOARD_ROOT` | `/var/tmp/cg4002-week7-<account>-20260907`; the exact value is at `tools/demo_service.py:13`. `tools/deploy_service.py` imports it |
+| `BOARD_SOURCE` | `BOARD_ROOT + "/source-co-v2-20260928T122047Z"` (`tools/demo_service.py:16`), the 28 September snapshot. Since 2026-10-14 only a fallback |
+| `DEPLOYMENTS` | `.comms-local/deployments/` in the checkout (`tools/demo_service.py:17`). The same folder is `RECORDS` in `tools/deploy_service.py:41` |
+| Folder and model used by `--start` | `newest_deployment()` (`tools/demo_service.py:27-50`): it reads the records `deployment-*.json` from the newest file name back, and takes the first one whose `current` (the process the deploy left running) gives a working directory under `BOARD_ROOT/` (printable), a `--model` that looks like a module name, and a `--model-path` that is absolute and printable (both optional). It returns that folder, model and model path. A record that is unreadable, has no `current` (nothing was left running) or fails a check is skipped. Without a usable record it returns `BOARD_SOURCE` and no model. `board_source()` (`:53-55`) returns just the folder |
+| New source folders | `BOARD_ROOT/source-co-v3-<UTC stamp>` (`tools/deploy_service.py:359`) |
+| Certificate paths | `BOARD_ROOT/tls/server-cert.pem`, `BOARD_ROOT/tls/server-key.pem` (`tools/demo_service.py:98`; `tools/deploy_service.py:166-167`) |
+| Interpreter | `/usr/bin/python3 -u` (`tools/demo_service.py:98`). The deploy tool runs its board program with `/usr/bin/python3` and starts the service with the same interpreter (`tools/deploy_service.py:306`, `:166`) |
+| Ports | `--ingest-port 8888 --gateway-port 9999`, hard-coded in the `--start` command. The deploy tool relies on the service defaults and checks for exactly these two (`tools/deploy_service.py:49`) |
+| SSH endpoints | `tools/demo_service.py:60-61` (OpenSSH); `tools/deploy_service.py:39-40`, with the default accounts at `:428-429` (paramiko) |
+| Session ID | `demo.py service --session-id` (default `LTC_COMMS_SESSION`, otherwise `ltc-comms`); `tools.deploy_service --session-id` (default `ltc-comms`) |
 
-`ssh_command` (`tools/demo_service.py:15-26`) reuses the two-hop command that `tunnel_command` builds. It removes `-L` with its argument, removes `-N` and `-T`, and adds `-tt`. So it keeps the settings of both hops: `StrictHostKeyChecking=yes`, `ServerAliveInterval=15`, `ServerAliveCountMax=3`, `BatchMode=no`, `Port=22`, the explicit `ProxyCommand`, and the connect deadlines of 20 s for the jump host and 60 s for the target (`tools/ssh_tunnel.py:26-38`).
+`ssh_command` (`tools/demo_service.py:58-69`) reuses the two-hop command that `tunnel_command` builds. It removes `-L` with its argument, removes `-N` and `-T`, and adds `-tt`. So it keeps the settings of both hops: `StrictHostKeyChecking=yes`, `ServerAliveInterval=15`, `ServerAliveCountMax=3`, `BatchMode=no`, `Port=22`, the explicit `ProxyCommand`, and the connect deadlines of 20 s for the jump host and 60 s for the target (`tools/ssh_tunnel.py:26-38`).
 
 ## Workflow
 
 ### Normal path
 
-1. Prepare the certificates. On first deployment, run `python -m tools.generate_comms_pki --output-dir <empty folder outside Git>` on the laptop to get 4 files. When a CA already exists (as it does now), use `--renew-server-from` to issue only a new server certificate. The steps are under "Renewing the server certificate" below.
-2. Distribute the certificates. Put `server-cert.pem` and `server-key.pem` in `BOARD_ROOT/tls/` on the board, with the private key at mode 600. `demo.py service --start` uses only these two paths. Give `ca-cert.pem` to the laptop and the phone. `ca-key.pem` never leaves the machine that generated it.
-3. Upload the code. The repository has no tracked upload script. Two methods are recorded. The first is the manual method in `docs/week7-runbook.md:112-135`: pack with `git archive`, upload with `scp`, extract into a new folder under `BOARD_ROOT`, check with `compileall`. The second is `.week7-local/co_deploy.py`, which was used on 28 September but is not committed (see "Cautions and known limitations"). The snapshot needs at least the whole of `ultra96/`, plus `__init__.py`, `sensor.py`, `dummy_fixtures.json`, `wire.py` and `tls.py` under `common/`. The smoke check on line 134 of the runbook imports the old class name `Week7Server`; the current class name is `CommsServer`. Do not extract over the running folder. After the upload, change `BOARD_SOURCE` in `tools/demo_service.py` to the new folder.
-4. Inspect read-only first: `python demo.py service`. It prints, from the board, the listener list, this user's processes, and the PID and working directory of each `ultra96.server` process. If a healthy service already runs, reuse it. Do not start another one.
-5. Start: `python demo.py service --start`, adding `--session-id <name>` when needed. The session ID is first checked with `validate_session`. If it is invalid, `demo.py` prints `Demo could not complete: …` and returns 2 without contacting SSH (`demo.py:294-296`).
-6. After the check passes, it prints three lines (`tools/demo_service.py:57-59`): `Run 'python demo.py service' first. Reuse an existing healthy service.`, `Confirm ESP, board and iPhone versions match this deployment: <BOARD_SOURCE>`, `Session: <session ID> (the capture and the phone must use the same one)`. Then it prompts `Press Enter to start only if absent, or type q to cancel: `. Only pressing Enter alone continues. Any non-empty input cancels, returns 130 and does not contact SSH.
-7. The script runs a piece of `sh` on the board over two SSH hops (`tools/demo_service.py:29-51`). It uses `ssh -tt`, strict host key checking on both hops, and the operator types the passwords interactively in the terminal. The `sh` script first runs `set -eu`, enters `BOARD_SOURCE`, confirms with `command -v ss` that the `ss` command exists, then lists listeners with `ss -ltnH`. When 8888 and 9999 are both free, it runs `exec /usr/bin/python3 -u -m ultra96.server --cert BOARD_ROOT/tls/server-cert.pem --key BOARD_ROOT/tls/server-key.pem --session-id <session ID> --ingest-port 8888 --gateway-port 9999`. The service runs as the logged-in user and becomes the foreground process of this SSH session. The exit code of `demo.py` is the exit code of `ssh` (`tools/demo_service.py:73`).
-8. The service starts. It loads the certificate and private key (`ultra96/server.py:423`), opens the two listeners, registers a SIGTERM handler on platforms that support it, and prints the `listening` line.
-9. The phone subscribes. The phone connects to 9999. The TLS handshake must finish within 5.0 s, and `SUBSCRIBE` must arrive within 5.0 s. After validation, the service creates a new empty result queue, registers this connection as the current subscriber, and then sends `SUBSCRIBED`. Registration comes before writing `SUBSCRIBED`, so every result produced from that moment goes into this queue. The phone shows `Subscribed` when `SUBSCRIBED` arrives. That proves only this handshake; whether results flow depends on input arriving on 8888 while this connection is still the subscriber.
-10. After subscribing, the connection only receives. The service sets no idle timeout, so the phone can stay connected indefinitely.
-11. The laptop sends samples. Each `SENSOR_BATCH` goes through three steps in order: read the frame, validate the fields and session, check for a duplicate.
-12. A new sample: `accepted` goes up by 1, one INFO line is logged, and a result is produced. The code that produces the result is `ultra96/server.py:264-267`: v2 picks one of `GESTURES` at random, v1 takes `GESTURES[seq % 4]`, and `confidence` is hard-coded to 1.0.
-13. If there is a subscriber, the result goes into the queue. If there is none, the result is dropped and counted (`ultra96/server.py:268-272`). Then `INGEST_ACK` (`accepted`) goes back to the laptop. The order is enqueue first, ACK write second (`ultra96/server.py:273-275`).
-14. The send task takes results from the queue, checks freshness and writes them to the phone. The write timeout equals the remaining freshness (`ultra96/server.py:366-387`). This bounds only the waiting on the board, not end-to-end latency (see "Limits and timeouts").
-15. Stop. Press Ctrl+C in the foreground terminal, or send SIGTERM to a verified PID. The service cancels the listener tasks, closes the listeners, cancels all connection tasks, and prints `stopped` with the metrics (`ultra96/server.py:389-403`, `:447-453`). In the Linux tests, both signals give exit code 0.
+1. Prepare the certificates. On first deployment, run `python -m tools.generate_comms_pki --output-dir <empty folder outside Git>` on the laptop to get 4 files. When a CA already exists (as it does now), use `--renew-server-from` to issue only a new server certificate (see "Renewing the server certificate"). A renewed pair is ready on the owner's laptop (see "Certificates").
+2. Inspect read-only first: `python demo.py service`. It prints, from the board, the listener list, this user's processes, and the PID and working directory of each `ultra96.server` process.
+3. Deploy: `python -m tools.deploy_service --dry-run`, then `python -m tools.deploy_service --server-cert-dir <renewed folder>` (later with `--model MODULE --model-path DIR`). The owner types both passwords. The tool uploads the code into a new folder, installs the certificate, replaces a running service of this user or starts the first one, and prints a final record. The steps are in "Deploying with `tools/deploy_service.py`" below. The deployed service runs in the background in its own session and does not depend on any SSH session.
+4. Only when nothing runs (for example after the board rebooted) and the code has not changed: `python demo.py service --start`, adding `--session-id <name>` when needed. If a healthy service already runs, reuse it; do not start another one. The session ID is first checked with `validate_session`. If it is invalid, `demo.py` prints `Demo could not complete: …` and returns 2 without contacting SSH (`demo.py:296-298`).
+5. After the check passes, `--start` prints four lines (`tools/demo_service.py:105-109`): `Run 'python demo.py service' first. Reuse an existing healthy service.`, `Confirm ESP, board and iPhone versions match this deployment: <folder>`, `Model: <model, or "the built-in dummy model">`, `Session: <session ID> (the capture and the phone must use the same one)`. Then it prompts `Press Enter to start only if absent, or type q to cancel: `. Only an empty line (or one of blanks only) continues. Any other input cancels, returns 130 and does not contact SSH (`tools/demo_service.py:110-111`).
+6. The script runs a piece of `sh` on the board over two SSH hops (`tools/demo_service.py:72-99`). It uses `ssh -tt`, strict host key checking on both hops, and the operator types the passwords interactively in the terminal. The `sh` script first runs `set -eu`, enters the folder from `newest_deployment()`, confirms with `command -v ss` that the `ss` command exists, then lists listeners with `ss -ltnH`. When 8888 and 9999 are both free, it runs `exec /usr/bin/python3 -u -m ultra96.server --cert BOARD_ROOT/tls/server-cert.pem --key BOARD_ROOT/tls/server-key.pem --session-id <session ID> --ingest-port 8888 --gateway-port 9999`, plus `--model` and `--model-path` when the record names them (hand-off 6.5, D19). The service runs as the logged-in user and becomes the foreground process of this SSH session. The exit code of `demo.py` is the exit code of `ssh` (`tools/demo_service.py:123`).
+7. The service starts. It imports the model, loads the certificate and private key (`ultra96/server.py:483`), calls the model's `start(emit)`, opens the two listeners, prints `model_ready`, registers a SIGTERM handler on platforms that support it, and prints the `listening` line.
+8. The phone subscribes. The phone connects to 9999. The TLS handshake must finish within 5.0 s, and `SUBSCRIBE` must arrive within 5.0 s. After validation, the service creates a new empty result queue, registers this connection as the current subscriber, and then sends `SUBSCRIBED`. Registration comes before writing `SUBSCRIBED`, so every result produced from that moment goes into this queue. The phone shows `Subscribed` when `SUBSCRIBED` arrives. That proves only this handshake; whether results flow depends on input arriving on 8888, and on the model producing results, while this connection is still the subscriber.
+9. After subscribing, the connection only receives. The service sets no idle timeout, so the phone can stay connected indefinitely.
+10. The laptop sends samples. Each `SENSOR_BATCH` goes through three steps in order: read the frame, validate the fields, version and session, check for a duplicate.
+11. A new input: `accepted` goes up by 1 and one INFO line is logged. A stream sample goes to the model's `on_sample` (`ultra96/server.py:275-278`); with the dummy model, `on_sample` calls `emit` at once and the result passes the identity and duplicate checks. A command gets the service's own echo result (`:279-284`).
+12. Each result is published: if there is a subscriber, it goes into the queue; if there is none, it is dropped and counted (`ultra96/server.py:289-294`). Then `INGEST_ACK` (`accepted`) goes back to the laptop (`:285-287`). With the dummy model and for commands the order is enqueue first, ACK write second. A model that emits from another thread delivers its result later, independent of the ACK.
+13. The send task takes results from the queue, checks freshness and writes them to the phone. The write timeout equals the remaining freshness (`ultra96/server.py:411-432`). This bounds only the waiting on the board, not end-to-end latency (see "Limits and timeouts").
+14. Stop. Press Ctrl+C in the foreground terminal, or send SIGTERM to a verified PID. The service cancels the listener tasks, closes the listeners, cancels all connection tasks, closes the model port (later emits count as late), and prints `stopped` with the metrics (`ultra96/server.py:434-448`, `:513-522`). If non-daemon model threads remain, it then prints `exit_with_model_threads` and exits. In the Linux tests, both signals give exit code 0.
+
+### Deploying with `tools/deploy_service.py`
+
+Status: the board program (`REMOTE_PROGRAM`) was verified on Linux, in WSL Ubuntu with Python 3.10 (the same Python version as the Ultra96), through `tests/test_deploy_service.py` with `B07_LINUX_DEPLOY_TEST=1`: 27 of 27 checks (listed at the end of this section). The laptop half (paramiko, SFTP, the two password prompts) has never connected, because it needs the owner's login. **The tool has never run against the Ultra96.** Only olsonwangyj runs it, in their own terminal (hand-off 9.1). It is the tracked successor of `.week7-local/co_deploy.py` (hand-off 6.5, D15; see "History and removed items").
+
+On the laptop (`deploy`, `tools/deploy_service.py:354-415`):
+
+1. Validate the options (`options_from`, `:310-317`): the session with `validate_session`; `--model-path` needs `--model`; `--start-timeout` from 5 to 300 s. With `--server-cert-dir`, both `server-cert.pem` and `server-key.pem` must be in that folder (`:320-328`). These failures print `FAILED: …` and return 2 before anything connects.
+2. Collect the files: every `.py` and `.json` directly in `common/` and every `.py` directly in `ultra96/` (`source_files`, `:288-297`), with the SHA-256 of each (`manifest`).
+3. Print the plan: the new board folder `BOARD_ROOT/source-co-v3-<UTC stamp>`, the number of files, whether a certificate will be installed, and the options. `--dry-run` stops here with `Dry run: nothing was connected or changed.` and returns 0.
+4. Connect with paramiko (`_connect`, `:331-351`): the jump host first, then the board through a `direct-tcpip` channel. Both hops load `~/.ssh/known_hosts` and reject unknown host keys (`RejectPolicy`). Keys and agents are not used. The passwords are asked with `getpass` and kept nowhere. Connect timeout 10 s, authentication timeout 15 s, channel open timeout 10 s.
+5. Upload over SFTP (`:370-382`): create the new folder (mode 700) with `common/` and `ultra96/`, put the files, write `source-manifest.json`, and with `--server-cert-dir` put the pair into `tls-incoming/` (folder mode 700, key mode 600). An interrupted upload leaves only a partial new folder; the running service is untouched.
+6. Run the board program with `/usr/bin/python3 -c`, passing `BOARD_ROOT`, the new folder, the stamp and the options as JSON (`remote_command`, `:304-307`). Wait at most 2 × start timeout + 120 s for its answer (180 s by default; `:385-387`). If nothing comes in that time, print `FAILED: no answer from the board within … s.` with the advice to run `python demo.py service` and read `BOARD_ROOT/evidence/active-deployment.json` before trying again, and return 1.
+7. Print the board's output, and save its last JSON line as `.comms-local/deployments/deployment-<stamp>.json` (`:400-405`). A non-zero exit from the board prints `FAILED: the board reported exit <code>; see the record above.` and returns 1. Otherwise it prints `Deployed. Next: python demo.py service (inspect), then the acceptance run.` and returns 0.
+
+On the board (`REMOTE_PROGRAM`, `tools/deploy_service.py:43-285`). The checks come first; nothing that runs is touched until step 7:
+
+1. Create `BOARD_ROOT/evidence/` if it is missing (mode 700).
+2. Find this user's `ultra96.server` processes by reading `/proc` (an argv with `-m ultra96.server`; other users' processes are skipped). One whose working directory is outside `BOARD_ROOT` stops the run, and so do two or more.
+3. If one runs, it must listen on exactly `127.0.0.1:8888` and `127.0.0.1:9999` (its listening sockets are found through its open file descriptors; a non-loopback listener stops the run). If none runs, nothing at all may listen on 8888 or 9999, on IPv4 or IPv6; otherwise `port 8888 or 9999 is in use by another process; nothing was changed`.
+4. Compile the new folder (`compileall`).
+5. Check the certificate that will be used: the uploaded pair if there is one, otherwise the pair already in `BOARD_ROOT/tls/`. The key must match the certificate (`load_cert_chain`), and the certificate must not expire within an hour (`check_certificate`, `:123-130`). Its expiry goes into the record as `certificate_not_after`.
+6. If a service runs, copy its `common/` and `ultra96/` (without caches) to `BOARD_ROOT/rollback-co-<stamp>/`, with `previous-process.json` (PID, argv, working directory and start time in clock ticks).
+
+   A failure in steps 2 to 6 ends with a Python traceback on standard error and no JSON record. The running service is untouched; only new folders were created. The laptop reports the non-zero exit.
+7. Re-read the old process. If it is no longer the same process (PID, argv, working directory, start time), stop.
+8. Stop it (`stop_old`, `:194-204`): SIGTERM, then wait up to 10 s until the process is gone (a zombie counts as gone; the PID must still have the same start time to count as the same process). Closing the ports is not enough, because a model's thread can keep a process alive after its listeners have closed. If it is still there after 10 s, read it again: if it is no longer the same process, stop with an error and send nothing; otherwise send SIGKILL and wait up to 5 s more. The record gets `"old_stop": "sigterm"` or `"old_stop": "sigkill"`.
+9. With an uploaded pair: back up the current pair to `BOARD_ROOT/tls/backup-<stamp>/`, install each file through a `.new` file and an atomic rename (key mode 600, certificate mode 644), and remove `tls-incoming/` (`install_certificate`, `:210-221`).
+10. Check the installed pair again (match, not expiring within an hour).
+11. Start the new service from the new folder in its own session (`start_new_session=True`, standard input from `/dev/null`), so it keeps running after SSH closes: `/usr/bin/python3 -u -m ultra96.server --cert BOARD_ROOT/tls/server-cert.pem --key BOARD_ROOT/tls/server-key.pem --session-id <session>`, plus `--event-log-dir BOARD_ROOT/evidence/observer-co-live-<stamp>` unless `--no-event-log`, plus `--model` and `--model-path` when given (`:166-173`). The ports are the service defaults. Standard output and standard error go to `BOARD_ROOT/evidence/server-co-<stamp>.log`.
+12. Wait up to the start timeout until the new process listens on exactly the two loopback ports. If it exits first or the time runs out, that is a failure (`healthy`, `:112-120`).
+13. Success: write `deployment.json` in the new folder, `BOARD_ROOT/evidence/server.pid` and `BOARD_ROOT/evidence/active-deployment.json`, print the record, exit 0.
+
+A failure from step 7 on (`:259-284`): the new process, if started, gets SIGTERM, and SIGKILL after 5 s. The previous certificate pair is copied back from the backup (`certificate_restored`). Then the outcome depends on whether a service ran before and whether a signal was sent to it (the program does not look at the old process again). The record is printed and saved in `active-deployment.json`, and the program exits non-zero by raising the original error again.
+
+| Status | Meaning | What runs afterwards |
+|---|---|---|
+| `deployed` | The new service listens on both ports | The new service (`current`) |
+| `rolled_back` | The old service had been stopped; it was started again from the rollback copy with its own recorded argv and listens on both ports. An `--event-log-dir` in that argv is replaced by `BOARD_ROOT/evidence/rollback-observer-<stamp>`, because the old folder exists and the service would refuse it. Output goes to `BOARD_ROOT/evidence/rollback-server-<stamp>.log` | The previous code, from `rollback-co-<stamp>` (`current`) |
+| `failed_old_still_running` | The run failed before any signal was sent to the old service (the re-check in step 7) | The old service, as far as the program knows (`current`) |
+| `failed_nothing_running` | No service ran before, and the run failed (the certificate install or check, or the new service did not come up) | Nothing |
+| `rollback_failed_nothing_running` | The old service was stopped and the rollback did not come up either; `rollback_error` says why | Nothing, as far as the program knows. A rollback process that started but did not listen in time (or opened a non-loopback listener) is not stopped (`:281-283`); check with `python demo.py service` |
+
+Records:
+
+| Record | Where | Written when |
+|---|---|---|
+| Final record | Printed as the last JSON line; saved as `BOARD_ROOT/evidence/active-deployment.json` (replaced on every run) | Every run that reaches step 7 |
+| Local copy | `.comms-local/deployments/deployment-<stamp>.json` on the laptop | Whenever the board printed a JSON line. `demo.py service --start` reads these (see "Deployment constants") |
+| PID | `BOARD_ROOT/evidence/server.pid` | When a service is left running: `deployed`, `rolled_back`, `failed_old_still_running` |
+| Deployment note | `<new folder>/deployment.json` | `deployed` only (it has no `current`) |
+| Source manifest | `<new folder>/source-manifest.json` (SHA-256 per file) | Every upload |
+| Previous process | `BOARD_ROOT/rollback-co-<stamp>/previous-process.json` | When a service was running |
+| Logs | `BOARD_ROOT/evidence/server-co-<stamp>.log`, `rollback-server-<stamp>.log`; event logs `observer-co-live-<stamp>/`, `rollback-observer-<stamp>/` | When those services are started |
+| Certificate backup | `BOARD_ROOT/tls/backup-<stamp>/` | With `--server-cert-dir` |
+
+The record's keys: `timestamp`, `previous` (the old process, or `null`), `new_source`, `options`, `certificate_not_after`, `rollback_source`, `old_stop`, `certificate_backup`, `certificate_restored`, `ports`, `log`, `status`, `current` (the process left running: `pid`, `argv`, `cwd`, `start_ticks`), `error`, `rollback_error`. Keys appear only once their step has run.
+
+Timeouts:
+
+| Step | Limit |
+|---|---|
+| SSH connect, authentication, channel open (laptop) | 10 s, 15 s, 10 s |
+| Old service gone after SIGTERM | 10 s |
+| Old service gone after SIGKILL | 5 s |
+| New service (and rollback) listening on both ports | `--start-timeout`, default 30 s, 5 to 300 s |
+| Stopping a failed new service | SIGTERM, 5 s, then SIGKILL, 5 s |
+| The laptop waiting for the board's answer | 2 × start timeout + 120 s |
+
+The 27 Linux checks (`tests/linux/deploy_remote_test.sh`): an old service running the version-2 code from `5a004c6`, the team main, whose service code equals `c42b386`, started detached with session `week7-demo` and an event log as on the board (1 check); a version-3 deploy with a renewed certificate (11: exit 0, `deployed`, old process gone, new process in the new folder, new certificate installed, key mode 600, old certificate backed up, `tls-incoming` removed, rollback copy made, `--session-id ltc-comms`, `model_ready` in the log); version 3 end to end through the deployed service, 5 samples each with its ACK and dummy-model result (1); a broken new source rolled back to the running service, certificate restored, both ports listening (5); a mismatched certificate and key refused with the running service and the certificate untouched (3); a port held by another program refused, nothing started (2); a first start with nothing running (1); an old service that closes its ports on SIGTERM but never exits, stopped with SIGKILL (3). The script kills this user's `ultra96.server` processes when it cleans up; never run it on the Ultra96.
 
 ### Renewing the server certificate
 
-1. On the laptop, run `python -m tools.generate_comms_pki --renew-server-from <existing CA folder> --output-dir <new empty folder outside Git>`. The existing CA folder must hold both `ca-cert.pem` and `ca-key.pem`. The location of the current CA and the full command are in section 6.3 of the hand-off document.
+1. On the laptop, run `python -m tools.generate_comms_pki --renew-server-from <existing CA folder> --output-dir <new empty folder outside Git>`. The existing CA folder must hold both `ca-cert.pem` and `ca-key.pem`. The location of the current CA and the full command are in section 6.3 of the hand-off document and in "Certificates" above. This was done on 2026-10-14; the next renewal is due in early November (hand-off 9.2).
 2. The tool checks the key pair and the CA's remaining validity, checks the output folder, generates 3 files, and prints the two success lines (see "Certificates" above).
-3. Put the new `server-cert.pem` and `server-key.pem` in `BOARD_ROOT/tls/` on the board, with the private key at mode 600. The new certificate is still valid for only 30 days.
-4. The service loads the certificate only at start (`ultra96/server.py:423`). After replacing the files, restart the service to use the new certificate.
+3. Install the new pair with `python -m tools.deploy_service --server-cert-dir <that folder>`. It backs up the old pair, installs the new one in `BOARD_ROOT/tls/` (key mode 600), restarts the service and restores the old pair if anything fails. The new certificate is still valid for only 30 days.
+4. The service loads the certificate only at start (`ultra96/server.py:483`). Placing the files by hand therefore also needs a restart.
 5. Neither the laptop's `--ca` nor the CA fingerprint in the phone source needs to change.
 
 ### Failure paths
 
-1. Invalid session ID: `demo.py` prints `Demo could not complete: session_id must be a nonempty string of at most 128 characters`, returns 2 and does not contact SSH.
-2. The board cannot enter `BOARD_SOURCE` (the folder is missing or there is no permission): `cd` fails, the script exits at once because of `set -eu`, and nothing starts.
-3. The board has no `ss` command: the script exits at `command -v ss` because of `set -eu`. Nothing starts and no explanation is printed (`tools/demo_service.py:34`).
-4. The `ss` query fails: the script prints `Could not inspect service ports. Nothing was started.`, exits with code 2, and starts nothing (`tools/demo_service.py:35-38`).
-5. Either 8888 or 9999 is taken: the script prints `Service ports are already in use. Nothing was stopped or started.` and the output of `ss -ltnp`, and exits with code 2 (`tools/demo_service.py:39-46`). The guard matches a listener on any local address that ends in `:8888` or `:9999` (`*:8888|*:9999`), not only `127.0.0.1`. The script never stops or kills an existing process.
-6. The certificate or private key fails to load: the service raises an exception during start-up, prints a traceback and exits non-zero. There is no `listening` line.
-7. The certificate has expired: the service loads it and starts as usual, because the service code does not check its own certificate's validity. Clients enforce validity, so the handshake fails. On the board this shows as `rejected` growing. The laptop gets no ACK. The phone stops, does not retry, and needs the passwords typed again before it can reconnect (hand-off document sections 4.6 and 9.2).
-8. `--event-log-dir` points to an existing folder: constructing the log object raises `FileExistsError` and the service does not start.
-9. A plaintext connection, a failed handshake, or a handshake over 5.0 s: the connection is closed and `rejected` goes up by 1.
-10. The 9th concurrent connection: closed at once, and `client_limit` goes up by 1. Connections accepted while the service is shutting down are handled the same way.
-11. An invalid frame, mismatched fields, or a wrong session ID: the connection is closed, `rejected` goes up by 1, no error frame is sent and nothing is logged. The peer must reconnect.
-12. An ingest connection receives no complete frame within 5.0 s: the read times out, the connection is closed, and `rejected` goes up by 1.
-13. A duplicate sample: the service answers `duplicate`, `duplicates` goes up by 1, and no result is produced.
-14. A v2 fingerprint conflict, a stale identity, or exhausted capacity: see the "Deduplication and replay protection" table. The connection is closed.
-15. No subscriber: the result is dropped at once, `disconnected_results` goes up by 1, and the event is `result_no_subscriber`. The laptop still gets `accepted`. A later phone subscription does not get the result resent.
-16. The queue already holds 32 results: the oldest is dropped, with the event `result_drop_oldest`.
-17. A result has waited 2.0 s or longer on the board (in the queue, or found stale just before the write): it is dropped, with the event `result_drop_stale`.
-18. A result write fails or times out: the event is `result_send_failed` (`ambiguous=true`). This subscriber ends (`reason=error`). What remains in the queue is recorded as `result_abandoned`. `rejected` goes up by 1. The phone must subscribe again.
-19. A new `SUBSCRIBE` arrives: the new connection becomes the subscriber. The service closes the old connection. Unsent results in the old queue are recorded as `result_abandoned`, `replaced` goes up by 1, and the event is `subscriber_replaced`.
-20. The phone sends any byte after subscribing: the subscription ends with `reason=unexpected_input` and the connection is closed.
-21. A temporary listener error: `accept_retries` goes up by 1 and the listener retries after a delay.
-22. A listener task exits on any other error: `accept_failures` goes up by 1 and standard error shows `listener task failed: <exception type name>`. The service shuts down as usual and prints `stopped`, then exits non-zero with a `RuntimeError: B07 Communications listener failed` traceback (`ultra96/server.py:204-207`, `:445-446`). It never leaves an idle process behind with a dead listener.
-23. The observer (event log) raises an exception: only `observer_errors` counts it. ACKs and result forwarding are not affected.
-24. During renewal, the CA private key and certificate do not match, the CA has less than 30 days left, or the output folder breaks the rules: the tool exits with an error and writes no file.
+1. Invalid session ID: `demo.py` prints `Demo could not complete: session_id must be a nonempty string of at most 128 characters`, returns 2 and does not contact SSH. `tools.deploy_service` prints `FAILED: …` and returns 2.
+2. The board cannot enter the start folder (missing, or no permission): `cd` fails, the script exits at once because of `set -eu`, and nothing starts.
+3. The board has no `ss` command: the script exits at `command -v ss` because of `set -eu`. Nothing starts and no explanation is printed (`tools/demo_service.py:82`).
+4. The `ss` query fails: the script prints `Could not inspect service ports. Nothing was started.`, exits with code 2, and starts nothing (`tools/demo_service.py:83-86`).
+5. Either 8888 or 9999 is taken: the script prints `Service ports are already in use. Nothing was stopped or started.` and the output of `ss -ltnp`, and exits with code 2 (`tools/demo_service.py:87-97`). The guard matches a listener on any local address that ends in `:8888` or `:9999` (`*:8888|*:9999`), not only `127.0.0.1`. The script never stops or kills an existing process.
+6. The model cannot be imported, lacks `start` or `on_sample`, has an `async def` one, or its import or `start(emit)` raises (including `SystemExit`): `model_failed`, a traceback, a non-zero exit, and no port is opened. Under `tools.deploy_service` this is a failed start: it rolls back, or ends in `failed_nothing_running` when nothing ran before.
+7. The certificate or private key fails to load: the service raises an exception during start-up, prints a traceback and exits non-zero. There is no `listening` line.
+8. The certificate has expired: the service loads it and starts as usual, because the service code does not check its own certificate's validity. Clients enforce validity, so the handshake fails. On the board this shows as `rejected` growing. The laptop gets no ACK. The phone stops, does not retry, and needs the passwords typed again before it can reconnect (hand-off document sections 4.6 and 9.2). `tools.deploy_service` refuses a certificate that expires within an hour, so it does not start a service with an expired one.
+9. `--event-log-dir` points to an existing folder: constructing the log object raises `FileExistsError` and the service does not start.
+10. A plaintext connection, a failed handshake, or a handshake over 5.0 s: the connection is closed and `rejected` goes up by 1.
+11. The 9th concurrent connection: closed at once, and `client_limit` goes up by 1. Connections accepted while the service is shutting down are handled the same way.
+12. An invalid frame, mismatched fields, a wrong version (for example a laptop or a tool from before version 3 sending `v` 2), or a wrong session ID: the connection is closed, `rejected` goes up by 1, no error frame is sent and nothing is logged. The peer must reconnect.
+13. An ingest connection receives no complete frame within 5.0 s: the read times out, the connection is closed, and `rejected` goes up by 1.
+14. A duplicate sample: the service answers `duplicate`, `duplicates` goes up by 1, and the sample reaches neither the model nor the phone.
+15. A fingerprint conflict, a stale identity, or exhausted capacity: see the "De-duplication and replay protection" table. The connection is closed.
+16. `on_sample` raises: `model_errors` goes up by 1, a warning is logged at most once a second, the ACK is still `accepted`, and the connection stays open.
+17. `on_sample` is slow: `model_slow_calls` goes up and `model_max_call_ms` shows the worst call. The ACKs of both gloves wait; if they wait past the laptop's 5 s ACK limit, the laptop counts `ack_errors` and `transport_errors` (hand-off 9.2).
+18. The model emits an invalid result, a result whose power-up the service has not seen or whose `seq` is above the highest accepted one (a `seq` inside a gap is not detected), or a second result for one sample: nothing is sent; `model_results_rejected` or `model_results_duplicate` goes up, with a warning and (for the last two) a `model_result_refused` event.
+19. The model emits after the service stopped: `emit` returns `False` (or the result is dropped on the event loop) and `model_results_late` goes up.
+20. No subscriber: the result is dropped at once, `disconnected_results` goes up by 1, and the event is `result_no_subscriber`. The laptop still gets `accepted`. A later phone subscription does not get the result resent.
+21. The queue already holds 32 results: the oldest is dropped, with the event `result_drop_oldest`.
+22. A result has waited 2.0 s or longer on the board (in the queue, or found stale just before the write): it is dropped, with the event `result_drop_stale`.
+23. A result write fails or times out: the event is `result_send_failed` (`ambiguous=true`). This subscriber ends (`reason=error`). What remains in the queue is recorded as `result_abandoned`. `rejected` goes up by 1. The phone must subscribe again.
+24. A new `SUBSCRIBE` arrives: the new connection becomes the subscriber. The service closes the old connection. Unsent results in the old queue are recorded as `result_abandoned`, `replaced` goes up by 1, and the event is `subscriber_replaced`.
+25. The phone sends any byte after subscribing: the subscription ends with `reason=unexpected_input` and the connection is closed.
+26. A phone app from before version 3 (the installed Week 7 build): its `SUBSCRIBE` is still version 1, so it can subscribe if its session matches, but it rejects the first version-3 result with a terminal error (hand-off 8, step 5). The installed build uses the session `week7-demo`, so against a service on `ltc-comms` it cannot even subscribe.
+27. A temporary listener error: `accept_retries` goes up by 1 and the listener retries after a delay.
+28. A listener task exits on any other error: `accept_failures` goes up by 1 and standard error shows `listener task failed: <exception type name>`. The service shuts down as usual and prints `stopped`, then exits non-zero with a `RuntimeError: B07 Communications listener failed` traceback (`ultra96/server.py:220-223`, `:511-512`). It never leaves an idle process behind with a dead listener.
+29. The observer (event log) raises an exception: only `observer_errors` counts it. ACKs and result forwarding are not affected.
+30. Non-daemon model threads remain after the stop: `exit_with_model_threads`, and the process ends with `os._exit`.
+31. During renewal, the CA private key and certificate do not match, the CA has less than 30 days left, or the output folder breaks the rules: the tool exits with an error and writes no file.
+32. `tools.deploy_service` fails: see the statuses table in "Deploying with `tools/deploy_service.py`". A failure before the old service is stopped leaves it running; a failure after that tries to restart it from the rollback copy.
 
 ## Why it is designed this way
 
@@ -344,159 +536,212 @@ Renewal mode (`--renew-server-from <CA folder>`, function `renew_server_identity
 | Separate ingest and gateway ports; the laptop does not forward results | The board hands results directly to the phone's own connection, independent of whether the laptop is online | Having the laptop relay `GESTURE_RESULT` | Architecture draft sections 3 and 4.2; selected design decision 7 |
 | A 4-byte big-endian length plus strict JSON; disconnect on any error | TCP and TLS are byte streams and need explicit boundaries. Strict validation keeps the two ends from reading the data differently | Resynchronising after an error; a plaintext mode | Selected design decision 5 |
 | No error frame for a wrong schema or session | Keeps the protocol minimal. The closed connection is itself the signal | Adding an ERROR message | Selected design, end of the `Wire reference` section (line 192) |
+| Only version 3 on data messages; no interoperability | The owner's rule: only the newest version is supported, and every end is upgraded together | Accepting versions 1, 2 and 3 side by side | Hand-off 6.5, D4; hand-off 13 |
+| `SUBSCRIBE` and `SUBSCRIBED` stay at version 1 | They never carried the packet version and did not change; moving them would only break subscription | Moving them to version 3 | Hand-off 6.5, D5 |
+| `request_id` always present | Keeps the exact field sets on the laptop, board and phone unchanged except for `v`; commands still need it | Dropping the field from stream samples | Hand-off 6.5, D6 |
+| Label rule (1 to 32 of `A–Z a–z 0–9 _ -`) and confidence rule (finite, 0 to 1), checked on the board before sending | Communications carries labels without knowing the set; one identical rule on every receiver; the phone ends its session on an invalid result, so the board refuses it first | A fixed label table | Hand-off 6.5, D8 |
+| The model runs in the service process: `start(emit)` before the ports open, `on_sample` on the event loop before the ACK, a thread-safe `emit` | A sample can never reach a model that is not ready; the ACK then also proves `on_sample` returned; the result queue and the subscriber have no lock, so results must be moved onto the event loop | Calling the model after the ACK; a separate network route for results | Hand-off 6.5, D9; hand-off 7.2 |
+| Model exceptions and `SystemExit` are counted, never fatal; slow calls are counted | One model error must not take both gloves and the phone down; Wen Ree's existing scripts report missing files with `raise SystemExit(...)` | Closing the connection, or stopping the service, on a model error | Hand-off 6.5, D18 |
+| `emit` converts numpy-style numbers; confidence is passed on unrounded; `async def` is refused at load | Model code commonly produces numpy floats; rounding would change the model's output; an async `on_sample` would silently never run | Rejecting non-`float` values; rounding | Hand-off 6.5, D10 and D17 |
+| Identity and duplicate checks on model results | Every receiver requires `result_id` to be one sample's identity, and the phone de-duplicates by it; a result for a sample the board never accepted, or a second result for one sample, would be refused or dropped later | Passing every emitted result on | Hand-off 6.5, D9; hand-off 7.2 |
+| Commands bypass the model and get one echo from the service | Command values are transformed dummy rows with `seq` from the command space; feeding them to the model would corrupt its windows | Sending commands through the model | Hand-off 6.5, D11 |
+| Built-in dummy model: one random dummy label per accepted sample, confidence 1.0 | Keeps every one-input-one-result acceptance check valid until the real result rate is known; does not pretend to be inference; the dummy labels cannot be mistaken for game actions | The deterministic `seq % 4` label of version 1 | Hand-off 6.5, D12; selected design decision 8 |
+| A stopped service exits even when model threads remain | A stopped service must really stop; a process without ports would linger | Waiting for the model's threads | Hand-off 6.5, D18 |
 | TLS inside SSH, a dedicated CA, a fixed host name | Even when the client connects to a local forwarded port, it verifies that the peer really is this service | Skipping the host name check; plaintext fallback | Selected design decision 11 |
 | No client certificates | SSH already authenticates whoever gets in | mTLS | Selected design decision 11 |
 | Short certificate lifetimes (server 30 days, CA 365 days); private keys stay out of Git | This is a development PKI | Long-lived certificates; keys in the repository | Selected design decision 11 |
-| Renewal replaces only the server certificate; the CA stays | The phone source hard-codes the CA fingerprint, and the laptop trusts only this CA. Keeping the CA means no app rebuild and no `--ca` change | Creating a new CA every time | The docstring at `tools/generate_comms_pki.py:75-79`; commit `aa18643` |
-| One process, standard library only, an ordinary user, an own folder under `/var/tmp` | The home folder on the board belongs to another user and is not accessible. No sudo, and no changes to the shared board | sudo; a system service; start on boot | Selected design decisions 7, 26 and 28; `docs/week7-runbook.md:104` |
+| Renewal replaces only the server certificate; the CA stays | The phone source hard-codes the CA fingerprint, and the laptop trusts only this CA. Keeping the CA means no app rebuild and no `--ca` change | Creating a new CA every time | The docstring at `tools/generate_comms_pki.py:75-79`; commit `aa18643`; hand-off 6.5, D2 |
+| One process, standard library only, an ordinary user, an own folder under `/var/tmp` | The home folder on the board belongs to another user and is not accessible. No sudo, and no changes to the shared board | sudo; a system service; start on boot | Selected design decisions 7, 26 and 28; `docs/week7-runbook.md:106` |
 | An own accept loop instead of `asyncio.start_server` | Connections still in the handshake must count toward the limit of 8, and shutdown must be bounded | A high-level TLS listener (it cannot see connections before the handshake, and under Python 3.12 its shutdown waits for live clients) | Selected design decision 21; `RED/GREEN and fixes` in `docs/archive/test-evidence/week7-transport-evidence.md` |
 | `SO_REUSEADDR` on POSIX | The same ports must restart at once after a stop | Waiting for TIME_WAIT to end | Selected design decision 21 |
 | One subscriber; a new one replaces the old one | The V1 scope is one phone, and the result stream always has exactly one owner | Broadcasting to several subscribers | Selected design decision 9 |
 | Live results only: queue of 32, drop oldest, 2 s freshness, nothing resent when no one subscribes | A stale gesture must not be taken as a new game action. The 2 s limits only the board's own waiting (queue plus write); each segment has its own limit and there is no end-to-end bound (see "Limits and timeouts") | Keeping history and resending it after a reconnect | Selected design decision 9; architecture draft section 11 |
-| v1 deduplication keeps only the latest 4096 entries, nothing on disk | Only best-effort deduplication within the process is promised | Persistent "exactly once" | Selected design decision 8; `docs/week7-runbook.md:302` |
-| v2 high-water marks and the command ledger are never evicted | After an old identity is pushed out of the fingerprint table, it must not draw another random event | Evicting replay protection state along with the cache | `docs/co-protocol-v2.md:15`; `docs/archive/design/plans/2026-09-28-co-features.md:19`; the comment at `ultra96/server.py:105-108` |
-| Dummy labels: v1 by `seq % 4`, v2 random | Validates Communications only and does not pretend to be inference | None | Selected design decision 8; `docs/co-protocol-v2.md:15` |
+| One de-duplication rule for every sample: high-water marks and the command ledger are never evicted | After an old identity is pushed out of the fingerprint table, it must not reach the model or the phone again | Version 1's rule of forgetting an identity after 4096 entries; evicting replay protection state along with the cache | `docs/co-protocol-v3.md`, section "Results: model results and command echoes" (before version 3, `docs/co-protocol-v2.md:15` at `c42b386`); `docs/archive/design/plans/2026-09-28-co-features.md:19`; the comment at `ultra96/server.py:114-117` |
 | Graceful exit on SIGTERM with printed metrics | Stopping the service needs a final record that can be checked | Killing the process outright | Selected design decision 28 |
 | The event log is optional, bounded and written on a background thread | Added after the phone missed 109 results on 2026-09-21, to find which segment results were lost in. The existing log had only the INFO line for each accepted input | Synchronous disk writes in the event loop; an unbounded log | `Optional server diagnostics` in `docs/archive/test-evidence/phone-recovery-test-2026-09-21.md` |
-| A completed write is not a phone receipt | Bytes handed to TCP and TLS cannot be recalled, and the peer's handling of them cannot be confirmed | Treating write completion as delivery evidence | As above; `docs/week7-runbook.md:176-181`; the comment at `ultra96/server.py:374-375` |
-| The start script starts only when the ports are free and never stops an old process | A failed query must not count as "ports free". On a shared board, nobody else's process may be killed by mistake | `pkill`; killing by port | The comment at `tools/demo_service.py:31`; `docs/week7-runbook.md:256` |
+| A completed write is not a phone receipt | Bytes handed to TCP and TLS cannot be recalled, and the peer's handling of them cannot be confirmed | Treating write completion as delivery evidence | As above; `docs/week7-runbook.md:178-183`; the comment at `ultra96/server.py:419-420` |
+| The start script starts only when the ports are free and never stops an old process | A failed query must not count as "ports free". On a shared board, nobody else's process may be killed by mistake | `pkill`; killing by port | The comment at `tools/demo_service.py:79`; `docs/week7-runbook.md:258` |
 | `demo.py service` passes in the session ID at start, follows the same rule as capture, and prints it before confirmation | The board service, the capture and the phone must use the same session. Before 2026-10-14 the start script hard-coded `week7-demo` | A start script that hard-codes the session ID | Commit `28db0b3`; `test_service_start_uses_the_same_session_rule_as_capture` in `tests/test_demo_service.py` |
+| A tracked deploy tool: typed passwords, strict `known_hosts`, a new folder each time, every check before the first change, SIGKILL only after re-checking the process, certificate backup and restore, rollback, a final record for every run that passes the checks | The redeploy is priority 1 on a shared board: it must replace code and certificate in one careful step, touch nobody else's process, and leave the previous service running if anything fails | Extracting over the running folder; `pkill`; passwords in environment variables and a hard-coded session (`co_deploy.py`) | Hand-off 6.5, D15; the docstring at `tools/deploy_service.py:1-24` |
+| `demo.py service --start` follows the newest deployment record, folder and model | Removes the stale `BOARD_SOURCE` pitfall; a restart after a reboot must not silently run the dummy model | Editing `BOARD_SOURCE` by hand after every upload | Hand-off 6.5, D16 and D19 |
 
 Where documents disagree with the code (follow the code):
 
-- Selected design decision 6 gives the session ID as `week7-demo`. The `Interfaces` section gives `Week7Server(ssl_context, session_id="week7-demo", …)` (`docs/archive/design/week7-selected-design-2026-09-06.md:14`, `:165`). Decision 7 mentions neither. The code uses `ltc-comms` and `CommsServer` (`ultra96/server.py:86-87`).
-- Selected design decision 8 mentions only `seq % 4`. In the code, v2 uses random labels.
-- `docs/week7-runbook.md` has not been updated. The `tools.generate_week7_pki`, `tools.rehearse_week7` and `Week7Server` in it have been renamed `tools.generate_comms_pki`, `tools.rehearse_comms` and `CommsServer`.
-- `docs/week7-runbook.md:302` says the same identity may be accepted again after cache eviction. This holds only for v1. v2 rejects it as a stale identity and closes the connection.
-- `docs/week7-runbook.md:137` suggests putting the certificates in a new `tls-redeploy-01` folder when the identity is replaced. `demo.py service --start` hard-codes the certificate path as `BOARD_ROOT/tls/` (`tools/demo_service.py:50`) and does not use files placed anywhere else.
-- The technical report says "Version is integer 1" (`docs/archive/reports/week7-system-technical-report.md:198`). The code accepts 1 and 2 (`ultra96/protocol.py:42`).
+- Selected design decision 6 gives the session ID as `week7-demo`. The `Interfaces` section gives `Week7Server(ssl_context, session_id="week7-demo", …)` (`docs/archive/design/week7-selected-design-2026-09-06.md:14`, `:165`). Decision 7 mentions neither. The code uses `ltc-comms` and `CommsServer` (`ultra96/server.py:96-97`).
+- Selected design decision 8 mentions only `seq % 4`. The code has no deterministic label: the dummy model and the command echo choose at random, and a real model's label passes through.
+- `docs/week7-runbook.md` has not been rewritten. Since 2026-10-14 a note at its top (`docs/week7-runbook.md:3`) says so, lists what version 3 changed and points to `tools.deploy_service` and hand-off 6.3. The `tools.generate_week7_pki`, `tools.rehearse_week7` and `Week7Server` in it have been renamed `tools.generate_comms_pki`, `tools.rehearse_comms` and `CommsServer`. Its manual upload (`:114-137`) is replaced by `tools.deploy_service`.
+- `docs/week7-runbook.md:304` says the same identity may be accepted again after cache eviction. In the code an evicted stream identity is refused as stale and the connection is closed; only a restart clears the state.
+- `docs/week7-runbook.md:139` suggests putting the certificates in a new `tls-redeploy-01` folder when the identity is replaced. `demo.py service --start` and `tools.deploy_service` both use only `BOARD_ROOT/tls/` (`tools/demo_service.py:98`, `tools/deploy_service.py:166-167`).
+- The technical report says "Version is integer 1" (`docs/archive/reports/week7-system-technical-report.md:198`). The code accepts only 3 on data messages and 1 on the subscription envelopes (`ultra96/protocol.py:23-24`).
 
 ## Cautions and known limitations
 
 ### Certificates
 
-- The server certificate is valid for only 30 days. The owner plans to renew it and redeploy on Thu 10-15, first in the priority order, because nothing on the board works without it (hand-off 6.4). A certificate issued that day expires about 30 days later (around 11-14): it covers the 10-20 session, but must be renewed again before later sessions.
-- The laptop keeps a copy of the server certificate that was deployed to the board in September. That laptop copy has been checked: it expired at 2026-10-06 15:11:29 UTC (the expiry is also recorded at `docs/archive/reports/week7-continuation-report-2026-09-07.md:733-734`). The 28 September redeploy kept the existing TLS files (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md:12`). The repository has no record of a later certificate change. The certificate actually on the board has not been checked.
-- The service code does not check whether its own certificate has expired. With an expired certificate the service starts as usual, and clients fail the handshake because they enforce validity.
-- `--renew-server-from` can now renew from the existing CA. Running the tool without it creates a new CA, and then the fingerprint in the phone source and the laptop's `--ca` must both change.
+- The server certificate is valid for only 30 days. The renewed one (see "Certificates") expires at 2026-11-13 14:27:35 UTC: it covers the 10-20 session but not the final demo around Week 13, so renew again in early November (hand-off 9.2). It is on the owner's laptop only, until `tools.deploy_service --server-cert-dir` installs it (hand-off 6.3, step 1).
+- The laptop keeps a copy of the server certificate that was deployed to the board in September. That laptop copy expired at 2026-10-06 15:11:29 UTC (also recorded at `docs/archive/reports/week7-continuation-report-2026-09-07.md:733-734`). The 28 September redeploy kept the existing TLS files (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md:12`). The repository has no record of a later certificate change. The certificate actually on the board has not been checked.
+- The service code does not check whether its own certificate has expired. With an expired certificate the service starts as usual, and clients fail the handshake because they enforce validity. `tools.deploy_service` does check: it refuses a pair that expires within an hour, so a deploy without `--server-cert-dir` fails its checks (nothing changes) if the board still has the September certificate.
+- Running the tool without `--renew-server-from` creates a new CA, and then the fingerprint in the phone source and the laptop's `--ca` must both change.
 - The phone app hard-codes the CA's SHA-256 in its source (`ios-visualizer/CommsNative/Sources/CommsBridge/Configuration.swift:12`) and compares against it when the CA is imported (`Configuration.swift:52-53`). Changing the CA means changing this value, rebuilding and reinstalling the app, and updating the laptop's `--ca`.
 - The current CA expires on 2027-09-06. From about 2027-08-07, the tool refuses renewal.
 
 ### Week 7 names that stay unchanged
 
-- The TLS host name `ultra96.week7.internal`. It is in the CN and SAN of the server certificate. It is also hard-coded in `common/tls.py:4`, `tools/generate_comms_pki.py:24`, `phone/receiver.py:16`, `phone/unity/CommsPhoneCore.cs:357` and `ios-visualizer/CommsNative/Sources/CommsTransport/CommsClient.swift:142`. Changing it needs a new certificate and a rebuild of the phone app.
-- The board deployment folder `BOARD_ROOT` and the code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:11-12`). They are real folders on the board.
+- The TLS host name `ultra96.week7.internal`. It is in the CN and SAN of the server certificate. It is also hard-coded in `common/tls.py:4`, `tools/generate_comms_pki.py:24`, `phone/receiver.py:17`, `phone/unity/CommsPhoneCore.cs:365` and `ios-visualizer/CommsNative/Sources/CommsTransport/CommsClient.swift:142`. Changing it needs a new certificate and a rebuild of the phone app.
+- The board deployment folder `BOARD_ROOT` and the old code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:13`, `:16`). They are real folders on the board. New snapshots are named `source-co-v3-<stamp>`.
 - The laptop's default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` (`demo.py:49-50`). Other machines must pass `--ca` explicitly.
 
 ### Board state (repository records)
 
-- The last recorded deployment is from 2026-09-28. It was done with `.week7-local/co_deploy.py` (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md:12`; local record `.week7-local/deployment-20260928T122047Z.json`). The code snapshot folder is `BOARD_ROOT/source-co-v2-20260928T122047Z`, which is the current `BOARD_SOURCE`. The start arguments include `--session-id week7-demo` and `--event-log-dir BOARD_ROOT/evidence/observer-co-live-20260928T122047Z`.
+Nothing on the board changed on 2026-10-14.
+
+- The last recorded deployment is from 2026-09-28. It was done with `.week7-local/co_deploy.py` (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md:12`; local record `.week7-local/deployment-20260928T122047Z.json`). The code snapshot folder is `BOARD_ROOT/source-co-v2-20260928T122047Z`, which is the current fallback `BOARD_SOURCE`. The recorded argv is `/usr/bin/python3 -u -m ultra96.server --cert BOARD_ROOT/tls/server-cert.pem --key BOARD_ROOT/tls/server-key.pem --session-id week7-demo --event-log-dir BOARD_ROOT/evidence/observer-co-live-20260928T122047Z`.
 - That process was not started by `demo.py service --start`. `co_deploy.py` put it in the background with `start_new_session=True`, wrote its standard output and standard error to a log file under `BOARD_ROOT/evidence/`, and wrote its PID to `BOARD_ROOT/evidence/server.pid`. So it does not depend on any SSH session, and it may still be running if the board has not rebooted. The recorded PID is only a historical value. Before using it, verify it again as described in "How to run and verify".
+- If it is still running, `tools.deploy_service` treats it as the old service: its argv and folder match what the tool looks for (this is read from the record, not checked on the board). The tool stops it, and on a failure restarts it from the rollback copy with a new event-log folder. If the board has rebooted, nothing runs and the first-start path applies.
 - The event log of that run was already close to its 50 MiB cap on 2026-09-28 (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md:109`). Later events are only dropped, never written.
-- If this old process is still running, it accepts only the session `week7-demo`, while the laptop and the phone in the current code default to `ltc-comms`. It also serves the certificate it loaded when it started on 2026-09-28. That deployment kept the existing TLS files, so this is the September certificate, whose laptop copy expired on 2026-10-06. The redeploy order is in section 6.3 of the hand-off document; the owner plans it for Thu 10-15 (6.4).
+- If this old process is still running, it speaks only version 2 and accepts only the session `week7-demo`, so the version-3 laptop cannot use it. It also serves the certificate it loaded on 2026-09-28, the September certificate whose laptop copy expired on 2026-10-06. The redeploy is step 1 of hand-off 6.3.
 
 ### Deployment and operation
 
-- `python demo.py service` hard-codes the account, jump host, board and code folders in `tools/demo_service.py:11-12` and `:17-18`. Arguments cannot change them. The session ID can be changed with `--session-id`.
-- `BOARD_SOURCE` points to the 28 September snapshot. After uploading new code to a new folder, change this constant as well. Otherwise the old snapshot still starts.
-- `--start` makes the service the foreground process of an `ssh -tt` session (`exec`, `tools/demo_service.py:50`, `:72-73`). There is no `nohup`, no system service and no automatic restart. If that terminal closes, the laptop sleeps, or the VPN drops, the service exits with it (hand-off document section 9.2). The service code handles only SIGTERM and Ctrl+C (`ultra96/server.py:433`, `:469-472`), not SIGHUP, so such an exit does not print the `stopped` line with the metrics. This is inferred from the code and was not tested. Keep the terminal that started the service open, just like the tunnel terminal. Every per-sample INFO log line also goes through this session.
-- The previous point applies only to a service started with `--start`. The 2026-09-28 process was started detached by `co_deploy.py` and does not exit with any terminal (see "Board state" above). When looking for an old process before a redeploy, do not assume it ended with an SSH session; check for it with `python demo.py service` and the PID record in `BOARD_ROOT/evidence/server.pid`.
-- `--start` does not pass `--event-log-dir`, so by default there is no event log. To record one, start the service by hand on the board.
-- If the board snapshot lacks `common/sensor.py` or `common/dummy_fixtures.json`, the service fails at import.
-- The board runtime (Python 3.10.4, OpenSSL 3.0.2, an ordinary user with uid 1000) comes from the records in `docs/week7-runbook.md:20` and `:104`. The code has no version check.
-- A leftover `LTC_COMMS_SESSION` in the terminal. Transition-period documents taught setting `LTC_COMMS_SESSION=week7-demo`. This variable affects `demo.py run`, `live` and `service --start` together. If it is left set, the newly started service and the capture both use `week7-demo`, and `CAPTURE PASSED` appears as usual. The phone source hard-codes `ltc-comms` (`ios-visualizer/CommsNative/Sources/CommsBridge/IntegrationController.swift:74`), so the phone cannot subscribe. Before starting, confirm that this variable is not set, and look at the `Session:` line in the confirmation prompt.
-- What `.week7-local/co_deploy.py` (not committed, ignored by Git) does: it logs in to the board through the jump host with `paramiko`, with strict `known_hosts` checking on both hops. It uploads the `.py` and `.json` files under `common/` and `ultra96/` to `BOARD_ROOT/source-co-v2-<timestamp>` and writes a manifest. It compiles the new code on the board. It requires exactly one of the user's own `ultra96.server` processes to be running under `BOARD_ROOT` and holding 8888 and 9999. It copies the old code to `rollback-co-<timestamp>`. It sends SIGTERM to the old process and waits for the ports to be released. It starts the new process in the background and counts the deployment as successful only if both ports are ready within 10 s; otherwise it stops the new process and restarts the old command from the rollback folder. It cannot be reused as it is: the session ID is hard-coded as `week7-demo`; it refuses to run when no old service is running on the board; `paramiko` is in no dependency file; and it reads the login passwords for both hops from environment variables. Under section 9 of the hand-off document, only olsonwangyj, the Communications owner, performs login steps. Agents do not run this script.
+- `python demo.py service` hard-codes the account, jump host, board and folders in `tools/demo_service.py:13`, `:16` and `:60-61`. Arguments cannot change them; the session ID can be changed with `--session-id`. `tools.deploy_service` has its own host constants (`tools/deploy_service.py:39-40`); its accounts default to `yanjie` and `xilinx` (`:428-429`) and can be changed with `--jump-user` and `--board-user`.
+- `demo.py service --start` follows the newest usable local deployment record and falls back to `BOARD_SOURCE`, the 28 September snapshot (version 2). No record exists yet, so today `--start` would start the version-2 code, which the version-3 laptop cannot use. A deployment made by hand or from another laptop leaves no record here either.
+- `--start` makes the service the foreground process of an `ssh -tt` session (`exec`, `tools/demo_service.py:98`, `:123`). There is no `nohup`, no system service and no automatic restart. If that terminal closes, the laptop sleeps, or the VPN drops, the service exits with it (hand-off document section 9.2). The service code handles only SIGTERM and Ctrl+C (`ultra96/server.py:499`, `:540-543`), not SIGHUP, so such an exit does not print the `stopped` line with the metrics. This is inferred from the code and was not tested. Keep the terminal that started the service open, just like the tunnel terminal. Every per-sample INFO log line also goes through this session.
+- The previous point applies only to `--start`. A service started by `tools.deploy_service` (or by `co_deploy.py` on 2026-09-28) runs in its own session and does not exit with any terminal. A service started with `--start` counts as the old service for the deploy tool too; after a rollback it comes back detached, from the rollback copy.
+- `--start` does not pass `--event-log-dir`, so by default there is no event log. `tools.deploy_service` starts every service with a new event log unless `--no-event-log`; each log is capped at 50 MiB, after which events are only dropped.
+- If the board snapshot lacks `common/sensor.py` or `common/dummy_fixtures.json`, the service fails at import. The deploy tool always uploads both.
+- The deploy tool uploads only `common/` and `ultra96/`. A model module and its files are not uploaded: `--model-path` must name a folder that already exists on the board. Give it as an absolute path: `demo.py service --start` skips a record whose `--model-path` is not absolute and falls back to an older record.
+- The deployed process may listen only on `127.0.0.1:8888` and `127.0.0.1:9999`. The health check compares the process's own listening sockets with exactly these two and stops on any non-loopback listener (`tools/deploy_service.py:77-120`). An in-process model that opens a listening socket of its own therefore makes the deployment fail and roll back.
+- The deploy tool reads the certificate's expiry with `ssl._ssl._test_decode_cert`, a private CPython helper (`tools/deploy_service.py:126`). It works with Python 3.10 (the Linux test); the board has 3.10.4.
+- `paramiko` is needed only by `tools.deploy_service` and is imported only when the tool connects (`tools/deploy_service.py:332`), so `--dry-run` works without it. `requirements-dev.txt` lists it (`paramiko>=2.8,<4`), added with the documents after `3b94990`; `3b94990` itself does not list it. The laptop's Python has it (2.8.1, checked on 2026-10-14). The board needs nothing beyond `/usr/bin/python3`.
+- The board runtime (Python 3.10.4, OpenSSL 3.0.2, an ordinary user with uid 1000) comes from the records in `docs/week7-runbook.md:22` and `:106`. The code has no version check.
+- A leftover `LTC_COMMS_SESSION` in the terminal. Transition-period documents taught setting `LTC_COMMS_SESSION=week7-demo`. This variable affects `demo.py run`, `live` and `service --start` together, but not `tools.deploy_service`, which defaults to `ltc-comms`. If it is left set, a service started with `--start` and the capture both use `week7-demo`, and `CAPTURE PASSED` appears as usual, while a deployed service on `ltc-comms` closes every connection from that capture. The phone source hard-codes `ltc-comms` (`ios-visualizer/CommsNative/Sources/CommsBridge/IntegrationController.swift:74`). Before starting, confirm that this variable is not set, and look at the `Session:` line in the confirmation prompt.
+
+### The model interface
+
+- `on_sample` runs on the service's only event loop, before the ACK. A model that does its inference inside `on_sample` holds up the ACKs of both gloves, result sending and new connections. The laptop waits up to 5 s for each frame's ACK (`laptop/bridge.py:603-612`; `io_timeout` defaults to 5.0 at `laptop/bridge.py:42`). Sample freshness is 2 s (`laptop/bridge.py:41`). The ACK window is 32 frames (`laptop/dual_bridge.py:414`), and at 50 Hz 32 frames are only 0.64 s. Slow calls are counted, not stopped. Inference belongs on another thread or in another process.
+- The identity check uses the high-water mark: it proves that the sample's power-up is known and that `seq` is not ahead of what arrived. It does not prove that this exact `seq` arrived; a `seq` inside a gap passes.
+- `emit` returning `True` does not mean the result was sent. The identity and duplicate checks, the subscriber, the queue of 32 and the 2 s limit come later.
+- The board remembers the last 4096 model result IDs. A repeated identity older than that would be sent again (the phone keeps its own last 4096).
+- With the dummy model a stream sample's result is queued before its ACK. With a model that emits from another thread, a result can follow the ACK by any amount of time, or never come.
+- `--model-path` is ignored by `ultra96.server` without `--model`; the deploy tool refuses that combination. The folder stays first on the import path for the whole process.
+- A model's non-daemon threads end abruptly at exit (`exit_with_model_threads`); daemon threads, or threads the model stops itself, avoid this. A model that calls `emit` inside `start(emit)` gets its results refused, because no sample has been accepted yet.
+- `model_ready`'s `seconds` counts only `start(emit)`, not the import.
+- The model gets no commands and no duplicates. Samples from the two gloves arrive interleaved on one thread, with no pairing and no alignment.
 
 ### Behaviour limits
 
 - Any process that can reach `127.0.0.1:9999` on the board and knows the session ID can take over the phone's subscription. During a demo, do not run `laptop.phone_simulator`, `tools.rehearse_remote_comms` or any other subscriber against the board in use.
 - The limit of 8 connections covers both ports together.
 - The service closes an ingest connection that is idle for more than 5.0 s. After a glove drops and reconnects, the first sample may get no ACK. The laptop records it as one ambiguous drop.
-- Reconnects can leave gaps in `seq` that the service, and later the model, sees. On a BLE disconnect the laptop discards that glove's queued samples (`inbox.deactivate` in `laptop/bridge.py`; reported as `callback_generation_dropped`). On a TLS reconnect, samples already written but not acknowledged count as ambiguous drops and are not resent (`ambiguous_dropped`). While a glove is disconnected it produces no samples and `seq` does not advance, so that time shows only as a jump in `uptime_ms`. None of these is resent, and nothing on the board fills or reports the gap (hand-off 7.2).
-- v2 telemetry must arrive in increasing `seq` order. Gaps are allowed: a `seq` above the high-water mark is accepted however far above it is (`ultra96/server.py:298-303`).
+- Reconnects can leave gaps in `seq` that the service, and the model, sees. On a BLE disconnect the laptop discards that glove's queued samples (`inbox.deactivate` in `laptop/bridge.py`; reported as `callback_generation_dropped`). On a TLS reconnect, samples already written but not acknowledged count as ambiguous drops and are not resent (`ambiguous_dropped`). While a glove is disconnected it produces no samples and `seq` does not advance, so that time shows only as a jump in `uptime_ms`. None of these is resent, and nothing on the board fills or reports the gap (hand-off 7.2).
+- Stream samples must arrive in increasing `seq` order. Gaps are allowed (`ultra96/server.py:342-348`).
 - One process lifetime allows at most 128 `(device_id, boot_id)` pairs and at most 4096 commands. When they are used up, restart the service. Every glove power-up uses one pair.
-- A service restart clears the deduplication state. After a restart, an old input that is sent again is accepted again.
-- One INFO line is printed per accepted input. With two gloves at about 50 Hz each, that is about 100 lines per second.
+- A service restart clears the de-duplication state. After a restart, an old input that is sent again is accepted again.
+- One INFO line is printed per accepted input. With two gloves at about 50 Hz each, that is about 100 lines per second, into the foreground terminal (`--start`) or into `BOARD_ROOT/evidence/server-co-<stamp>.log` (deploy tool).
 - The event log is capped at 50 MiB. Once full, it only drops events. Use a new folder each time.
 
 ### Blind spots when troubleshooting
 
-- The service records no rejection reasons. Expected errors are caught and only increment `rejected` (`ultra96/server.py:224-227`). A wrong session ID, mismatched fields, a stale v2 identity, exhausted capacity, and a handshake failure caused by an expired certificate all look the same on the board: the connection closes and `rejected` grows.
-- The metrics become visible only when the service stops and prints `stopped`. When troubleshooting, do not expect to find texts such as `wrong configured session` or `v2 stream identity capacity exhausted; start a new session` in the board logs. They are never output. When capacity is exhausted, the operator sees a newly powered glove that never connects, and the laptop's `transport_errors` growing.
-- The laptop side does not record reasons either (see [detail chapter 3](03-laptop-relay-and-tools.md)). A TLS connect or handshake failure increments only `transport_errors`. An ACK timeout or a mismatched ACK increments both `ack_errors` and `transport_errors`. So no log on either side records the reason. On the laptop, an expired certificate and an unreachable port show only `transport_errors`; a session mismatch and a protocol version mismatch between the two ends show `ack_errors` as well, because the Ultra96 closes the connection after reading the frame. When version 3 arrives, upgrading only one end shows up as a "silent disconnect". Only the newest version is supported (the owner's rule), so both boards, the laptop, the Ultra96 service and the phone app are upgraded together (hand-off 8, step 1).
-- The only way to find which segment results are lost in is to start the service by hand with `--event-log-dir`, then read `status.json` and `events.jsonl` after a graceful stop.
+- The service records no rejection reasons. Expected errors are caught and only increment `rejected` (`ultra96/server.py:242-243`). A wrong session ID, a wrong version, mismatched fields, a stale identity, exhausted capacity, and a handshake failure caused by an expired certificate all look the same on the board: the connection closes and `rejected` grows. The only problems logged with a reason are model problems (rate-limited warnings) and a dead listener.
+- The metrics become visible only when the service stops and prints `stopped`. When troubleshooting, do not expect to find texts such as `wrong configured session` or `stream identity capacity exhausted; start a new session` in the board logs. They are never output. When capacity is exhausted, the operator sees a newly powered glove that never connects, and the laptop's `transport_errors` growing.
+- The laptop side does not record reasons either (see [detail chapter 3](03-laptop-relay-and-tools.md)). A TLS connect or handshake failure increments only `transport_errors`. An ACK timeout or a mismatched ACK increments both `ack_errors` and `transport_errors`. So no log on either side records the reason. On the laptop, an expired certificate and an unreachable port show only `transport_errors`; a session mismatch and a protocol version mismatch between the two ends show `ack_errors` as well, because the Ultra96 closes the connection after reading the frame. With version 3, upgrading only one end shows up as such a "silent disconnect". Only the newest version is supported (the owner's rule), so both boards, the laptop, the Ultra96 service and the phone app are upgraded together (hand-off 6.3).
+- The only way to find which segment results are lost in is the event log: read `status.json` and `events.jsonl` after a graceful stop. A service started by the deploy tool has one by default; with `--start`, start the service by hand with `--event-log-dir`.
 
 ### Communications' own extension points
 
-These are all places that Communications itself must change. None is done yet. The order and scope are in section 8 of the hand-off document, and the dates in 6.4 (the owner's own plan; the teammate dates in it are proposals until the teammates confirm them): work on the version-3 packet (firmware, laptop and Ultra96) starting Thu 10-15, Wen Ree's first version connected on Fri 10-16, model labels and real confidence accepted in the three Python and C# checks on Fri 10-16 and in `Protocol.swift` on Sat 10-17, the real model on Sun 10-18. If time runs short, the order in 6.4 applies, and a hop whose teammate part is late is still tested with Communications' own dummy data (in the 11-value format once version 3 lands) and dummy labels.
+Most of what this section listed before 2026-10-14 is now built on branch `comms/protocol-v3` (hand-off 8 and 6.5). It is not merged into `main` and not deployed.
 
-| Goal | What blocks it now | Planned (the owner's direction of 2026-10-14, final when the teammates confirm, unless marked otherwise) | Code location |
+| Goal | Status on the branch | Still open | Code location |
 |---|---|---|---|
-| Real data with 11 values | `values` must be exactly 8 int16 values; the v1 sentinel formula is also written for 8 values. The service handles only `v` 1 and 2: `ultra96/protocol.py:42-43` rejects any other version, and the request-id field rule, de-duplication, the dummy label and `trace_fields` branch on `v == 1` or `v == 2` (`ultra96/protocol.py:46`, `:89-90`; `ultra96/server.py:250-251`, `:256-259`, `:266-267`). Today `common/sensor.py:50` copies the packet version into the message's `v`, and the service copies the sample's `v` into the result (`ultra96/server.py:264`), so the result path changes too | Protocol version 3, a new format. With the 11 values only it is 38 bytes (16-byte header + 11 × int16); the final layout is frozen only after the IDLE/MOVING answer, because an extra field changes the length and `on_sample`. Only the newest version is supported (the owner's rule): version 3 replaces versions 1 and 2 everywhere, including the dummy test data, which moves to the 11-value format, and there is no transition period. Firmware, laptop, Ultra96 and phone change together, with golden vectors and tests first (hand-off 8, step 1). The int16 scales are checked against Siqiang's real sample log before they are fixed. Out-of-range values are handled in the firmware when scaling: clamp to the int16 limit or drop that one sample, to be agreed with Wen Ree; counted either way, never by dropping a connection or a whole gesture. Normal values are expected to fit, but that is not guaranteed, and a clamped value cannot be told apart from a real value at the limit (the reasons, and the per-sample flag the model would need to know, are in hand-off 8, step 1) | `ultra96/protocol.py:42-46`, `:67-72`; `ultra96/server.py:250-259`, `:264` |
-| Give the model physical floats | Nothing decodes `values` today; the service uses them only for validation and the v2 fingerprint (`ultra96/server.py:286`) | Transport stays int16. On the board, Communications decodes each newly accepted sample and divides each value by its scale (hand-off 4.2: ×10000 for acceleration and flex, ×100 for angular rate and angles) before calling `on_sample`. Normalisation is Wen Ree's (7.2) | `ultra96/server.py:264-267` |
-| Carry the model's labels | The label table is hard-coded to four labels; result validation accepts only these four | Forward each label as it is. The label set is agreed between Wen Ree and Jie Ling (3.1); by default it is the six in `models/class_names.json` | `ultra96/protocol.py:4`, `:76-81` |
-| Carry the model's confidence | Validation accepts only 1.0 | Forward the model's confidence (0 to 1) as it is | `ultra96/protocol.py:82-83` |
-| Replace the dummy labels with model results | The result is produced synchronously in the same coroutine that receives the sample, and the ACK comes after it | `start(emit)` once at start-up; `on_sample(device_id, boot_id, seq, uptime_ms, values)` once per newly accepted sample, returning at once; the result comes back later through `emit` (7.2). Proposed dates, until Wen Ree confirms: a first connectable version pushed to the team repo by Fri 10-16, the real model by Sun 10-18 (6.4) | `ultra96/server.py:264-275` |
-| A thread-safe result hand-over function | None exists now. The result queue and the subscriber state can only be used on the event loop thread | `emit(gesture, confidence, device_id, boot_id, seq)`, written by the owner, callable from any thread, moving each result onto the event loop (7.2) | `ultra96/server.py:35`, `:56-63`, `:268-272` |
-| Result numbering | Now one input maps to one result, and `result_id` is built from that input's identity | Each `emit` names one sample's identity, and each result must name a different sample, because the phone de-duplicates by `result_id`. How often the model emits is Wen Ree's; Communications passes every result through and never merges, splits or filters (3.1) | `ultra96/protocol.py:94-96`, `ultra96/server.py:264-265` |
-| Labels in the event log | The field allowlist has no `gesture`. Passing a field outside the allowlist drops that event and makes the receipt incomplete | Not decided | `ultra96/diagnostics.py:24-30`, `:99-100` |
+| Real data with 11 values | Built: version 3 only on every data message (`SENSOR_BATCH`, `INGEST_ACK`, `GESTURE_RESULT`; the subscription envelopes stay at `v` 1); 11 int16 values; the right board verified against a service on the laptop | The layout is provisional until the IDLE/MOVING answer (an extra field changes the length and `on_sample`); the scales are checked against Siqiang's sample log; the out-of-range policy is the firmware's, to be agreed with Wen Ree (hand-off 8, step 1) | `common/sensor.py:14-22`; `ultra96/protocol.py:23-24`, `:83-89` |
+| Give the model physical floats | Built: `physical_values` before every `on_sample` | — | `common/sensor.py:92-98`; `ultra96/model.py:155` |
+| Carry the model's labels and confidence | Built: the label and confidence rules on the board and in `phone/receiver.py`; the changed part of `phone/unity/CommsPhoneCore.cs` compiled with the C# 5 compiler and passed 88 contract checks (the whole file was not compiled); `Protocol.swift` written, not compiled | The label set (Wen Ree and Jie Ling); the phone app rebuild (hand-off 6.3, steps 3 and 4) | `ultra96/protocol.py:10-12`, `:31-40` |
+| Replace the dummy labels with model results | Built: `start(emit)`, `on_sample`, `--model`, `--model-path` | Wen Ree's module; whether it can run in-process. A separate-process model would need a bridge between the two processes on the board, which is the owner's work and is not built (hand-off 7.2) | `ultra96/model.py`; `ultra96/server.py:275-278` |
+| A thread-safe result hand-over function | Built: `emit` | — | `ultra96/model.py:168-201` |
+| Result numbering | Built: each result names one sample; identity and duplicate checks | — | `ultra96/server.py:296-320` |
+| Deploy code and certificate in one step | Built: `tools/deploy_service.py`; its board half verified on Linux | Its first run against the board (the owner's login) | `tools/deploy_service.py` |
+| Acceptance criteria for a real model | Not done: `Phone expected increase` and the rehearsal checks assume one result per input | Waits for Wen Ree's result rate (hand-off 8, step 6) | `demo.py:209-213` |
+| Labels in the event log | Not decided: the allowlist has no `gesture` or `confidence`, so `model_result` carries the identity only. Passing a field outside the allowlist drops that event and makes the receipt incomplete | — | `ultra96/diagnostics.py:25-31`, `:100-101` |
 
-Each receiver also holds its own copy of the same label and confidence allowlist: `phone/receiver.py:17`, `ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:54-62`, `phone/unity/CommsPhoneCore.cs:32`. These three and `ultra96/protocol.py` must change together. The details are in [detail chapter 5](05-phone-and-week7-receiver.md). In the same step the phone gains a `confidence` field and the planned per-result function `CommsNextResult` (hand-off 7.3 and 8, step 5; the owner plans it ready by Sun 10-18). It promises only that results wait in arrival order, de-duplicated by `result_id`, and that each result that is not dropped can be taken out at most once; it does not promise that every result is delivered. Its provisional V1 limits (32 waiting results, oldest dropped when full, a result dropped 2 s after it reached the phone, drops counted) belong to the phone and are separate from this service's queue; they are revisited once Wen Ree says how often results come (hand-off 7.3, 13).
+In the same step the phone gained a `confidence` field and the per-result function `CommsNextResult` in the Swift package (written, not compiled; hand-off 7.3). It promises only that results wait in arrival order, de-duplicated by `result_id`, and that each result that is not dropped can be taken out at most once; it does not promise that every result is delivered. Its provisional V1 limits (32 waiting results, oldest dropped when full, a result dropped 2 s after it reached the phone, drops counted) belong to the phone and are separate from this service's queue; they are revisited once Wen Ree says how often results come (hand-off 7.3, 13). The details are in [detail chapter 5](05-phone-and-week7-receiver.md).
 
 ### Technical constraints related to teammate interfaces
 
-The content of the three interfaces (fields, how calls are made, questions for teammates) is maintained only in section 7 of the hand-off document: Siqiang in 7.1, Wen Ree in 7.2, Jie Ling in 7.3. This chapter records only the constraints that come from its own code. Every interface in section 7 is planned, not built; the division of work is the table in hand-off 3.1. The interface shapes are the owner's proposals of 2026-10-14, final when the teammates confirm them, and teammates deliver code by pushing it to the team repo on GitHub, not over Telegram (hand-off 7, 13).
+The content of the three interfaces (fields, how calls are made, questions for teammates) is maintained only in section 7 of the hand-off document: Siqiang in 7.1, Wen Ree in 7.2, Jie Ling in 7.3. This chapter records only the constraints that come from its own code. The Communications side of 7.2 is built; Wen Ree's side does not exist; the interface shapes are the owner's proposals of 2026-10-14, final when the teammates confirm them, and teammates deliver code by pushing it to the team repo on GitHub, not over Telegram (hand-off 7, 13).
 
-- The owner's direction of 2026-10-14 (planned; final when Wen Ree confirms): the model receives each sample's 11 values as physical floats in the agreed order and units. They travel as int16, and Communications decodes them and divides by the scale on the board before calling `on_sample`. Restoring cannot recover precision dropped when packing (acceleration and flex keep 4 decimal places, angular rate and angles 2). Any normalisation is Wen Ree's.
-- `on_sample` would be called once per newly accepted sample, from the ingest path at `ultra96/server.py:255-267`: a duplicate (`status: "duplicate"`) produces no call, just as it produces no result today. Samples from the two gloves arrive on two independent connections, with no pairing and no alignment, and can have `seq` gaps (see "Behaviour limits").
-- The model input must return immediately. The reason is that the board service has only one asyncio event loop, and the ingest connections of both gloves share it. Today the result is produced synchronously in the `_ingest` coroutine, and the ACK is written only after it (`ultra96/server.py:264-275`). If the model input sits in the same place and blocks, its time adds directly to the ACKs of both gloves, and it also holds up result sending and new connections. The laptop waits up to 5 s for each frame's ACK (`laptop/bridge.py:605-613`; `io_timeout` defaults to 5.0 at `laptop/bridge.py:41`). Sample freshness is 2 s (`laptop/bridge.py:40`). The ACK window is 32 frames (`laptop/dual_bridge.py:414`), and at 50 Hz 32 frames are only 0.64 s.
-- The model output must be called on the service's event loop thread. The result queue is an `asyncio.Queue` (`ultra96/server.py:35`). `ResultQueue.put` is synchronous and has no lock (`ultra96/server.py:56-63`). The current subscriber `_subscriber` has no lock either. If the model produces results on another thread or in another process, they must be handed over through the event loop (for example with `loop.call_soon_threadsafe`), not by calling the enqueue function directly. Communications provides this thread-safe hand-over function (the planned `emit`, written by the owner). It is an extension point in the table above.
-- Communications passes every result through unchanged: it does not merge, split, filter, rename or reinterpret results. Several identical labels in a row (for example several `CHOP`) reach the phone as several results (subject to the board queue of 32 and the 2 s limit); whether they mean one action or several is for Wen Ree and Jie Ling to agree (hand-off 3.1).
+- The model receives each sample's 11 values as physical floats in the agreed order and units. They travel as int16, and the service divides by the scale before calling `on_sample`. Restoring cannot recover precision dropped when packing (acceleration and flex keep 4 decimal places, angular rate and angles 2). Any normalisation is Wen Ree's. The scales are provisional.
+- `on_sample` is called once per newly accepted stream sample, from the ingest path at `ultra96/server.py:275-278`: a duplicate (`status: "duplicate"`) and a command produce no call. Samples from the two gloves arrive on two independent connections, with no pairing and no alignment, and can have `seq` gaps (see "Behaviour limits").
+- `on_sample` must return immediately. The board service has only one asyncio event loop, and the ingest connections of both gloves share it; the ACK is written only after `on_sample` returns. The numbers are in "The model interface" under "Cautions and known limitations".
+- `emit` may be called from any thread. The result queue is an `asyncio.Queue` (`ultra96/server.py:45`), `ResultQueue.put` is synchronous and has no lock (`ultra96/server.py:66-73`), and the current subscriber `_subscriber` has no lock either. `emit` therefore moves each result onto the event loop with `loop.call_soon_threadsafe`; a model must never call the queue directly.
+- Communications passes every valid result through unchanged: it does not merge, split, filter, rename or reinterpret results. Several identical labels in a row (for example several `CHOP`) reach the phone as several results (subject to the board queue of 32 and the 2 s limit); whether they mean one action or several is for Wen Ree and Jie Ling to agree (hand-off 3.1).
+- Each result must name a different sample: the board refuses a second result for the same `device_id:boot_id:seq` (within the last 4096), and the phone de-duplicates by `result_id`.
 - Only the existing send task may write results to the phone. The frame-writing contract is one writing task per connection (`common/wire.py:77`).
-- `GESTURE_RESULT` cannot gain fields freely. All four validators match fields exactly. On the board, `ultra96/protocol.py`, and the Python receiver `phone/receiver.py` (`:111-115`) require the key sets to be exactly equal. The C# reference implementation compares the field count: 9 for v1, 10 for v2 (`phone/unity/CommsPhoneCore.cs:46`, `:70`). The iPhone parser accepts at most 10 fields; a v2 result already has exactly 10, and the values may only be strings, numbers or `null` (`ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:179`). All four require `result_id` to equal `device_id:boot_id:seq` exactly (with `cmd:` for commands), and `device_id` to be 1 or 2. So the correlation that the model hands back can only be the identity of one sample, which matches the output fields in section 7.2 of the hand-off document. On the iPhone, a validation failure is a terminal error. All four also accept only `v` 1 and 2 on a result (`ultra96/protocol.py:42-43`, `phone/receiver.py:115`, `phone/unity/CommsPhoneCore.cs:70`, `Protocol.swift:40`), and the service copies the sample's version into the result (`ultra96/server.py:264`), so these checks change together with the version-3 packet (hand-off 8, step 1).
-- The service currently runs as an ordinary user, with `/usr/bin/python3 -u` and the standard library only (`tools/demo_service.py:50`).
+- `GESTURE_RESULT` cannot gain fields freely. All four validators match exactly the 10 keys: on the board `ultra96/protocol.py:67-68`; the Python receiver compares the key set (`phone/receiver.py:100`, with `RESULT_FIELDS` at `:21-22`); the C# reference implementation compares the field count, 10 (`phone/unity/CommsPhoneCore.cs:51`, `:78`); the iPhone requires exactly the result field set (`ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:51`, `:108`) and its parser accepts at most 10 fields (`Protocol.swift:202`). All four require `v` 3, `result_id` equal to `device_id:boot_id:seq` (with `cmd:` for commands) and `device_id` 1 or 2. So the correlation that the model hands back can only be the identity of one sample. On the iPhone, a validation failure is a terminal error. Adding a field means changing all four together, and the Swift 10-field cap.
+- The service runs as an ordinary user, with `/usr/bin/python3 -u` and the standard library only (`tools/demo_service.py:98`; `tools/deploy_service.py:166`). A model inside this process can import only what loads under this interpreter and this user. `fpga/README_FPGA_PYNQ.md` says the FPGA overlay needs `sudo` and the pynq-venv Python; a model that can only run that way is a separate process (hand-off 7.2).
+- The deploy tool does not upload the model; its files must already be on the board, and the model must not open listening sockets in the service process (see "Deployment and operation").
 
 ### History and removed items
 
+- **Protocol version 3 (2026-10-14, evening; branch `comms/protocol-v3`: `a34c467` core, `57a3fbd` all components, `a4b907b` review fixes, `3b94990` the Linux deploy test from a CRLF checkout and the specification rename).** Version 3 replaced versions 1 and 2 on the service (the owner's rule; hand-off 6.5, D4). Removed or renamed here:
+  - Versions 1 and 2 of `SENSOR_BATCH`, `INGEST_ACK` and `GESTURE_RESULT`, and the 8-value `values`. The table that compared them, kept for reference:
+
+    | Item | v1 | v2 |
+    |---|---|---|
+    | `request_id` field | Not allowed | Required |
+    | `values` | Must be the deterministic sentinel values `seq % 2000 − 1000 + 10*i` | Any 8 int16 values |
+    | Dummy label | `GESTURES[seq % 4]` | `random.SystemRandom().choice(GESTURES)` |
+    | De-duplication | Looks only at `(device_id, boot_id, seq)`; content is not compared; 4096 entries, then an evicted identity is accepted again | Also compares the fingerprint `(uptime_ms, values)`, with replay protection |
+    | Subscription messages | Use v1 | Not allowed |
+
+    Version 3 keeps version 2's `request_id` and de-duplication rules, has 11 values, and keeps the subscription messages at version 1.
+  - The fixed label table `GESTURES` as the only accepted labels (error text `inconsistent dummy result`, which also covered a wrong `result_id`), the rule that `confidence` must be 1.0 (`dummy confidence must be 1.0`), and the version-1 sentinel check (`wrong B07 Communications dummy sentinels`). The four labels live on as `DUMMY_GESTURES`, used only by the dummy model and the command echo.
+  - The result produced inside `_ingest` (at `c42b386`, `ultra96/server.py:264-267`). Results now come from the model through `emit`, or from the command echo.
+  - Version-specific names: `max_v2_namespaces` and `max_v2_commands` became `max_namespaces` and `max_commands`; `_v2_recent`, `_v2_high_water`, `_v2_commands` and `_v2_duplicate` became `_fingerprints`, `_high_water`, `_commands` and `_duplicate`, and the version-1 table `_recent` was removed; the exception texts lost their `v2` (for example `stale v2 stream identity outside replay window` became `stale stream identity outside replay window`).
+  - `tests/test_v2_events.py` became `tests/test_v3_events.py`; `docs/co-protocol-v2.md` became `docs/co-protocol-v3.md`.
+  - `BOARD_SOURCE` used to be the folder `--start` always used, and had to be edited after every upload. It is now only the fallback.
+- **The September deploy script.** `.week7-local/co_deploy.py` (not committed, ignored by Git) did the 2026-09-28 deployment: it logged in to the board through the jump host with `paramiko`, with strict `known_hosts` checking on both hops; uploaded the `.py` and `.json` files under `common/` and `ultra96/` to `BOARD_ROOT/source-co-v2-<timestamp>` and wrote a manifest; compiled the new code on the board; required exactly one of the user's own `ultra96.server` processes to be running under `BOARD_ROOT` and holding 8888 and 9999; copied the old code to `rollback-co-<timestamp>`; sent SIGTERM to the old process and waited for the ports to be released; started the new process in the background and counted the deployment as successful only if both ports were ready within 10 s, otherwise it stopped the new process and restarted the old command from the rollback folder. It hard-coded the session `week7-demo`, refused to run when no old service was running, read both passwords from environment variables, and did not install certificates. `tools/deploy_service.py` replaces it: tracked, typed passwords, the session as an option, a first start when nothing runs, certificate install and restore, waiting for the old process to exit (not only for the ports), SIGKILL escalation, and a final record for every run that passes the board checks. Agents do not run either script (hand-off 9).
 - Commit hashes in this chapter are those of local `main` after the history rewrite of 2026-10-14, which changed commit messages only, not file contents (hand-off 6.2): `25fe4e4` became `dc582c7`, `4c2b078` became `5db56ad`, `d2fff21` became `28db0b3`, `5f2c12a` became `b414696`, and `8dc536c` became `aa18643`. The pull request branch `comms/remove-week7-legacy` was rebased onto the team main `880abba` (`1bf8371`, `0fda8d5`, `23bdee6`, then `0b9ed2e` for a README line) and merged into the team main by PR #18 (merge commit `5a004c6`) at the owner's request; further pushes need the owner's go-ahead.
-- On 2026-10-14, merge `5db56ad` (branch `comms/remove-week7-legacy`, commits `28db0b3` and `b414696`) removed the Week 7 compatibility. Only one change concerns this chapter. The start command in `tools/demo_service.py` used to hard-code `--session-id week7-demo`. Now `demo.py service --session-id` passes the session ID in, with `LTC_COMMS_SESSION` or `ltc-comms` as the default, and prints it before confirmation. `ultra96/`, `common/wire.py` and `common/tls.py` did not change in this merge.
+- On 2026-10-14, merge `5db56ad` (branch `comms/remove-week7-legacy`, commits `28db0b3` and `b414696`) removed the Week 7 compatibility. Only one change concerned this chapter. The start command in `tools/demo_service.py` used to hard-code `--session-id week7-demo`. Now `demo.py service --session-id` passes the session ID in, with `LTC_COMMS_SESSION` or `ltc-comms` as the default, and prints it before confirmation. `ultra96/`, `common/wire.py` and `common/tls.py` did not change in that merge.
 - The session ID `week7-demo`: the September deployment and the old app installed on the phone use it. The current code defaults to `ltc-comms` everywhere.
-- The class name `Week7Server` and the tool names `generate_week7_pki.py` and `rehearse_week7.py` have been renamed `CommsServer`, `generate_comms_pki.py` and `rehearse_comms.py`. The old names appear only in archived documents and in `docs/week7-runbook.md`, which has not been updated.
-- The packet magic `W7` and the statistics magic `W7S1`: the board service receives only JSON and never touches them. The laptop side now accepts only `LC` and `LCS1` (see [detail chapter 3](03-laptop-relay-and-tools.md)).
+- The class name `Week7Server` and the tool names `generate_week7_pki.py` and `rehearse_week7.py` have been renamed `CommsServer`, `generate_comms_pki.py` and `rehearse_comms.py`. The old names appear only in archived documents and in `docs/week7-runbook.md`, which has not been rewritten (a note at its top says so).
+- The packet magic `W7` and the statistics magic `W7S1`: the board service receives only JSON and never touches them. The laptop side now accepts only `LC` packets of version 3 and `LCS3` statistics (see [detail chapter 3](03-laptop-relay-and-tools.md)).
 - The code no longer reads `.week7-local/`. It keeps the historical captures, the September deployment script and the deployment record. Do not delete it.
 
 ## How to run and verify
 
-This section comes from reading the code and documents. No test, script or build was run while this chapter was written.
+The commands below come from the code. At `3b94990` the test files listed below give 271 passed, 3 skipped on Windows (skipped: the two Linux signal cases and the opt-in deploy test; re-run when this chapter was last checked). The full suite gives 778 passed, 4 skipped, and with `B07_LINUX_DEPLOY_TEST=1` (the WSL deploy test, 27 of 27 checks) 779 passed, 3 skipped (hand-off 6.2). Nothing in this section has run on the Ultra96.
 
 ### Locally (without the board)
 
 1. Install the dependencies: `python -m pip install -r requirements-dev.txt`.
 2. Generate a temporary set of certificates: `python -m tools.generate_comms_pki --output-dir <empty folder outside Git>`.
-3. Start the service: `python -m ultra96.server --cert <folder>/server-cert.pem --key <folder>/server-key.pem`. The `listening` line means it started.
+3. Start the service: `python -m ultra96.server --cert <folder>/server-cert.pem --key <folder>/server-key.pem`. The `model_ready` line (model `dummy`) and then the `listening` line mean it started. To try a model module, add `--model <module> --model-path <folder holding it>`.
 4. Open a second terminal as the subscriber: `python -m laptop.phone_simulator --host 127.0.0.1 --port 9999 --ca <folder>/ca-cert.pem --count 3 --reconnect`. It waits only 5.0 s for each result (`laptop/phone_simulator.py:13-14`, `:26`). Without `--reconnect`, if no input arrives, it exits with `TimeoutError` about 5 s after subscribing (`laptop/phone_simulator.py:57-59`).
-5. Open a third terminal to send synthetic input: `python -m laptop.dual_bridge --ca <folder>/ca-cert.pem --port 8888 --mock --duration 10`. `--mock` is explicit two-device synthetic input and does not touch BLE (`laptop/dual_bridge.py:430-431`). `--port 8888` connects it directly to the local service; the default 18888 is the tunnel port (`laptop/dual_bridge.py:410`; the host defaults to `127.0.0.1`, see `laptop/bridge.py:36-38`). The subscriber should receive 3 results and exit.
-6. Press Ctrl+C to stop the service. The `stopped` line with the metrics should appear.
-7. A simpler one-shot rehearsal: `python -m tools.rehearse_comms --pki-dir <same folder> --duration 30 --target 100`. It starts the service, the bridge and the subscriber locally and prints one JSON line. `passed` should be `true`.
+5. Open a third terminal to send synthetic input: `python -m laptop.dual_bridge --ca <folder>/ca-cert.pem --port 8888 --mock --duration 10`. `--mock` is explicit two-device synthetic input and does not touch BLE (`laptop/dual_bridge.py:430-431`). `--port 8888` connects it directly to the local service; the default 18888 is the tunnel port (`laptop/dual_bridge.py:410`; the host defaults to `127.0.0.1`, see `laptop/bridge.py:37-38`). The subscriber should receive 3 results and exit.
+6. Press Ctrl+C to stop the service. The `stopped` line with the metrics, including the model counters, should appear.
+7. A simpler one-shot rehearsal: `python -m tools.rehearse_comms --pki-dir <same folder> --duration 30 --target 100`. It starts the service (with the dummy model), the bridge and the subscriber locally and prints one JSON line. `passed` should be `true`.
+8. One flashed board against a service on the laptop: `python -m tools.check_board left|right` (detail chapter 3).
 
 To run the tests for this chapter:
 
 ```
-python -m pytest tests/test_transport.py tests/test_transport_cleanup.py tests/test_v2_events.py tests/test_server_diagnostics.py tests/test_server_observation.py tests/test_server_signals.py tests/test_accept_recovery.py tests/test_ack_window_transport.py tests/test_co_contracts.py tests/test_ssh_trust.py tests/test_demo_service.py -q
+python -m pytest tests/test_transport.py tests/test_transport_cleanup.py tests/test_v3_events.py tests/test_model_interface.py tests/test_protocol_rules.py tests/test_server_diagnostics.py tests/test_server_observation.py tests/test_server_signals.py tests/test_accept_recovery.py tests/test_ack_window_transport.py tests/test_co_contracts.py tests/test_ssh_trust.py tests/test_demo_service.py tests/test_deploy_service.py -q -p no:cacheprovider
 ```
 
 - Do not run `python -m pytest` without paths from the repository root (rule 4 in `AGENTS.md`). For the full suite, use `python -m pytest tests laptop/tests phone/tests -q -p no:cacheprovider`.
 - The two real-signal cases in `test_server_signals.py` run only on Linux. The script cases in `test_demo_service.py` need `sh` on the local machine. Two cases in `test_ssh_trust.py` need `ssh` on the local machine. When a tool is missing, those cases are skipped.
+- With `B07_LINUX_DEPLOY_TEST=1`, `test_deploy_service.py` also runs the deploy tool's board program in Linux, or in WSL from Windows. It starts and stops `ultra96.server` processes there and needs the Git history with `c42b386`. The test hands bash a copy of the script with LF endings, so a Windows checkout with CRLF endings works. Never run `tests/linux/deploy_remote_test.sh` on the Ultra96 itself.
 
 ### On the board
 
-Every step below that logs in to the jump host or the Ultra96 is done only by olsonwangyj, the Communications owner, in their own terminal (hand-off document section 9).
+Every step below that logs in to the jump host or the Ultra96 is done only by olsonwangyj, the Communications owner, in their own terminal (hand-off document section 9). Version 3 has not been deployed yet; these steps are written from the code.
 
 1. Turn on the VPN first.
 2. Check the status: `python demo.py service`. It prints the board's listener list, this user's processes, and the PID and working directory of each `ultra96.server` process. This step is read-only. A detached process, such as the one `co_deploy.py` started on 2026-09-28, also appears here. Its recorded PID is in `BOARD_ROOT/evidence/server.pid`.
-3. Start: first confirm that `LTC_COMMS_SESSION` is not set in the terminal. Then run `python demo.py service --start`, check the `Session:` line, press Enter to confirm, and complete the two-hop login as prompted.
-4. Check: the `listening` line appears, and in `ss -ltnp` only `127.0.0.1:8888` and `127.0.0.1:9999` belong to this process.
-5. Check the certificate's validity. On the board, run `openssl x509 -noout -dates` on `BOARD_ROOT/tls/server-cert.pem` (whether the board has the `openssl` command-line tool is not recorded). Or, on the laptop with the tunnel open, run `openssl s_client -connect 127.0.0.1:18889 -servername ultra96.week7.internal` (hand-off document section 6.3).
-6. End-to-end check: on the laptop side, every sample gets `accepted` (level 3). On the phone side, the increase in `Received` equals the `Phone expected increase` that `demo.py` prints (level 5). These are evidence at different levels. The phone showing `Subscribed` is not evidence that results flow; only the `Received` increase is. `Phone expected increase` is the number of generated samples plus completed commands (`demo.py:209-211`), so it holds only while one input makes one dummy result. Once the model produces results per window, this criterion must be redefined (hand-off 8, step 6).
-7. To find which segment results are lost in, enter `BOARD_SOURCE` on the board and run by hand `/usr/bin/python3 -u -m ultra96.server --cert BOARD_ROOT/tls/server-cert.pem --key BOARD_ROOT/tls/server-key.pem --session-id ltc-comms --event-log-dir <new folder that does not exist>`. After a graceful stop, look at `status.json`. Only `complete` equal to `true` and `lost_event_count` equal to 0 make it usable as complete evidence.
-8. Stop: press Ctrl+C in the foreground terminal that started it. Or first verify with `ps -p <PID> -o pid=,uid=,args=` and `readlink -f /proc/<PID>/cwd` that it is the user's own `ultra96.server`, then run `kill -TERM <PID>`. Do not use `pkill` or kill by port. A service started in the foreground prints the `stopped` line in that terminal. A service that `co_deploy.py` started in the background writes this line to its log file under `BOARD_ROOT/evidence/`.
+3. Deploy: `python -m tools.deploy_service --dry-run`, then `python -m tools.deploy_service --server-cert-dir <renewed certificate folder>` (later also `--model MODULE --model-path DIR`). Type the two passwords when asked. Read the final record: `status` should be `deployed`, `ports` `[8888, 9999]`, and `certificate_not_after` the new expiry. Any other status means the run failed; the statuses table in "Deploying with `tools/deploy_service.py`" says what runs afterwards.
+4. Or, when nothing runs (for example after a reboot) and the code is unchanged: first confirm that `LTC_COMMS_SESSION` is not set in the terminal. Then run `python demo.py service --start`, check the folder, `Model:` and `Session:` lines, press Enter to confirm, and complete the two-hop login as prompted.
+5. Check: `model_ready` and `listening` appear (in `BOARD_ROOT/evidence/server-co-<stamp>.log` for a deployed service, in the terminal for `--start`), and in `ss -ltnp` only `127.0.0.1:8888` and `127.0.0.1:9999` belong to this process.
+6. Check the certificate's validity. On the board, run `openssl x509 -noout -dates` on `BOARD_ROOT/tls/server-cert.pem` (whether the board has the `openssl` command-line tool is not recorded). Or, on the laptop with the tunnel open, run `openssl s_client -connect 127.0.0.1:18889 -servername ultra96.week7.internal` (hand-off document section 6.3).
+7. End-to-end check: on the laptop side, every sample gets `accepted` (level 3). On the phone side, the increase in `Received` equals the `Phone expected increase` that `demo.py` prints (level 5). These are evidence at different levels. The phone showing `Subscribed` is not evidence that results flow; only the `Received` increase is. `Phone expected increase` is the number of generated samples plus completed commands (`demo.py:209-213`), so it holds only while the board runs the built-in dummy model; `demo.py` prints a line saying so. Once a real model produces results per window, this criterion must be redefined (hand-off 8, step 6). The phone side needs a phone app rebuilt for version 3 (hand-off 6.3, steps 3 and 4).
+8. To find which segment results are lost in, use the event log. A deployed service has one in `BOARD_ROOT/evidence/observer-co-live-<stamp>/`. For a service started by hand, enter its folder on the board and run `/usr/bin/python3 -u -m ultra96.server --cert BOARD_ROOT/tls/server-cert.pem --key BOARD_ROOT/tls/server-key.pem --session-id ltc-comms --event-log-dir <new folder that does not exist>`. After a graceful stop, look at `status.json`. Only `complete` equal to `true` and `lost_event_count` equal to 0 make it usable as complete evidence.
+9. Stop: press Ctrl+C in the foreground terminal that started it. Or first verify with `ps -p <PID> -o pid=,uid=,args=` and `readlink -f /proc/<PID>/cwd` that it is the user's own `ultra96.server`, then run `kill -TERM <PID>`. Do not use `pkill` or kill by port. A service started in the foreground prints the `stopped` line in that terminal. A service started in the background (by `tools.deploy_service` or by `co_deploy.py`) writes this line to its log file under `BOARD_ROOT/evidence/`. To replace a running service with new code, use `tools.deploy_service` instead of stopping it by hand.
