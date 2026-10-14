@@ -24,9 +24,10 @@
 ## 1. One-minute overview
 
 - **Project:** NUS CG4002 capstone, team B07, "Let Them Cook". A single-player AR cooking game, similar to Overcooked. The player wears two sensor gloves and makes gestures. A model on the Ultra96 FPGA board recognises the gestures. The results drive a Unity AR game on an iPhone.
-- **olsonwangyj's two roles:** owner of the Communications subsystem (the main technical work), and since 2026-10-13 also integration lead. Integration V1 must run by **2026-10-20 (Tuesday)**. The final version is due around Week 13.
+- **olsonwangyj's two roles:** owner of the Communications subsystem (the main technical work), and since 2026-10-13 also integration lead. Integration V1 must run by **2026-10-20 (Tuesday)**, when the team meets in person to integrate it together (the schedule up to that day is in 6.4). The final version is due around Week 13.
 - **What Communications does:** it sends each module's data out and makes sure the next module receives it accurately. The chain glove → laptop → Ultra96 → iPhone has run end to end on real hardware with dummy data, and the evidence is kept.
 - **Three interfaces not yet connected:** the real glove sensor module (Siqiang), the model's entry and exit on the board (Wen Ree), and the game script that calls the Communications bridge (Jie Ling).
+- **Documents done is not integration done.** The documents are complete, but real integration has not started. Every measured result so far used the 32-byte dummy packet and dummy labels. None of the interfaces planned in section 7 exists in code yet: the call into the glove sensor module, the 38-byte real-data packet, the model entry and exit on the board, the thread-safe result hand-back, the per-result bridge function for the game, and passing real labels and confidence through (today every receiver accepts only the four dummy labels with confidence 1.0).
 - **The two most urgent things:** first, the server certificate deployed to the board in September expired on 2026-10-06 15:11:29 UTC. That date was read from the laptop's copy of the same certificate. Whether the board's certificate was replaced later has not been checked. Renew the certificate before redeploying (section 6.3). Second, the three teammates' interfaces must be settled soon (section 7).
 
 ---
@@ -100,7 +101,7 @@ Teammates' paths are **read-only**. The full rules are in `AGENTS.md` at the rep
 | 2026-10-08 | Marker changed from `W7` to `LC` and session from `week7-demo` to `ltc-comms` (compatibility kept at the time) |
 | 2026-10-13 | olsonwangyj becomes integration lead; PR #15 merged into the team main branch |
 | 2026-10-14 | Week 7 compatibility code removed; documents reorganised; this hand-off document written |
-| **2026-10-20** | **Integration V1 deadline** |
+| **2026-10-20** | **Integration V1 deadline: the team meets in person and integrates together** |
 | Around Week 13 | Final version |
 
 The team's expectations are on the "Integration formulation" page of the team Google document: <https://docs.google.com/document/d/1P3-7mIIms9bHz4wJCk0NqZe7pYlBCBmjCKYXMzWKqlc> (append `/mobilebasic` to the URL to read it without signing in).
@@ -130,6 +131,18 @@ Further clarification the same day: as Communications owner, the owner is respon
 - Mapping labels to game actions, cooldowns and repeats, any script in `vis/` → Jie Ling.
 
 **What leading integration means:** defining the cross-module interfaces clearly (format, rate, labels, transport, timing, who connects to whom) and coordinating who delivers what on which day. It does not mean taking on the quality of teammates' components.
+
+### 3.1 Division of work at each hand-over
+
+The owner wants the division as simple and clear as possible: Communications moves data correctly and does nothing else. This table is the single statement of who does what. Section 7 gives the details of each row.
+
+| Hand-over | The teammate does | Communications (olsonwangyj) does |
+|---|---|---|
+| Glove sensors → glove firmware | **Siqiang:** the sensor module. It returns one sample of 11 floats in the agreed order and units (`gloveBegin`, optional `gloveUpdate`, `gloveRead`). Calibration, accuracy and sensor faults | Calls the module, scales each value to int16, packs the 38-byte packet, sends it over BLE, manages the connection |
+| Glove → laptop → Ultra96 | (nobody else) | All of it: BLE reception, the SSH and TLS route, ACKs, reconciliation |
+| Ultra96 service → model | **Wen Ree:** `start(emit)` and `on_sample(...)`. Pairing the gloves, building windows, inference, deciding when to produce a result, the label set | Decodes each sample, restores physical floats, calls `on_sample` once per sample, provides `emit`, carries each result unchanged to the phone |
+| Phone → game | **Jie Ling:** the C# that calls the bridge, and what the game does with each result | The `CommsNative` library and its functions, the per-result queue (`CommsNextResult`), linking `CommsNative` into the Xcode export (the first time) and short integration notes |
+| Model ↔ game | **Wen Ree and Jie Ling agree between themselves:** the label names, how often a label is produced, and whether consecutive identical labels (for example several `CHOP`) mean one action or several | Passes every result through as it is. It does not merge, split, filter or reinterpret results |
 
 ---
 
@@ -290,7 +303,13 @@ Communications • DUMMY inference
 Received: <N>
 ```
 
-Rules for the caller: only one poller; poll on the main thread every frame; use a 2048-byte buffer; decode as UTF-8; **use `result_id` to decide whether a result is new, not the label text**; the bridge gives only the latest result, so do not assume that every result is seen; do not call `CommsStop` on a scene change or when going to the background.
+Rules for the caller: only one poller; poll on the main thread every frame; use a 2048-byte buffer; decode as UTF-8; **use `result_id` to decide whether a result is new, not the label text**; do not call `CommsStop` on a scene change or when going to the background.
+
+What the text can and cannot tell the game:
+
+- The status `Subscribed` means only that the subscription handshake with the Ultra96 succeeded. It does not prove that results are flowing.
+- Line 3 holds only the latest result, and the next result overwrites it. Results that arrive between two polls can be lost: if `CHOP` and then `PLACEDOWN` arrive between two frames, the game sees only `PLACEDOWN`. Comparing `result_id` stops the game acting twice on one result, but it cannot recover an overwritten one. `Received` still counts every result.
+- So the text is a status display, not a game input. The game's actions are one-shot events, so Communications must deliver each result once. That is the planned `CommsNextResult` function (7.3), which does not exist yet.
 
 **What "Week 7 receiver" means exactly (confirmed by the owner):** the `CommsNative` Swift client on the iPhone, plus the bridge in the Unity export that calls `Week7Start` / `Week7CopyDisplay` / `Week7Stop`. It is the receiver made temporarily for the Week 7 demo:
 
@@ -349,7 +368,7 @@ The `CAPTURE PASSED` printed by `demo.py` is level 3. The phone sends no applica
 12. **Passwords only in memory; leaving the foreground disconnects.** The route on site uses password authentication. Nothing is written to disk, so there is no credential file to manage. It also does not rely on unverified iOS background survival.
 13. **One process on the board, standard library only, no sudo, no system service.** The board is shared; do not disturb other people's environment. The start script starts the service only when the ports are free and never stops or kills an existing process.
 14. **Graded evidence.** ACKs and phone results use two independent connections, and there has been a case where all ACKs arrived while the phone received fewer results. So each evidence level speaks only for its own segment.
-15. **BLE rather than Bluetooth Classic.** This choice was made and tested long ago: the 50 Hz and 70 Hz settings were both measured clean on 2026-09-28.
+15. **BLE rather than Bluetooth Classic.** This choice was made and tested long ago: the 50 Hz and 70 Hz settings were both measured clean on 2026-09-28, with the 32-byte dummy packet (the 70 Hz setting actually delivered about 66 packets/s). Real 38-byte data has not been measured.
 
 The source of each decision (the entry numbers in the archived design record) is in the design-reason part of each chapter in `docs/handoff-details/`.
 
@@ -425,16 +444,45 @@ To check whether the board's certificate has expired (with the tunnel open):
 openssl s_client -connect 127.0.0.1:18889 -servername ultra96.week7.internal
 ```
 
-### 6.4 Integration progress
+### 6.4 Integration progress and schedule
 
-- The messages to the three teammates (in English, with explicit functions and fields) were drafted on 2026-10-14. They were reviewed for accuracy against the code, for the role boundary, and for whether the reader can understand them, and then handed to the owner. Their content matches section 7. They ask for replies by Thursday (10-15). Siqiang and Wen Ree deliver their interfaces by Friday (10-16). Jie Ling delivers the export by Sunday (10-18). **Whether the messages have been sent, and how teammates replied, is for the owner to record here.**
+The team meets in person on **Tue 2026-10-20** to integrate V1 together. The schedule below works back from that day. It was set on Wed 2026-10-14 at about 19:00 (Singapore time), when the messages were finalised.
+
+- The messages to the three teammates (English, with explicit functions, fields and dates) were drafted on 2026-10-14, reviewed for accuracy against the code, for the role boundary and for clarity, revised after the owner's review and decisions, and handed to the owner. Each message lists what is needed by which date first, then the interface details, then the questions. Their content matches section 7. **Whether the messages have been sent, and how teammates replied, is for the owner to record here.**
+
+What each teammate was asked for:
+
+| Date | Siqiang | Wen Ree | Jie Ling |
+|---|---|---|---|
+| Thu 10-15 | Answers to the questions in the message; with Wen Ree, whether the glove's IDLE/MOVING state travels in V1 | Answers to the questions; with Siqiang, whether the IDLE/MOVING state is needed | Answers (who holds the phone on Tuesday; whether Saturday works for the export) |
+| Fri 10-16 | Sensor module as `gloveBegin` / `gloveUpdate` / `gloveRead` in one `.h` and one `.cpp` file (pushed under `hardware/` in the team repo, or sent as files), plus a CSV log of real samples from each glove | A first version of `start` / `on_sample` as a Python module the owner can import on the Ultra96 (with its location and module name), even one that always returns the same label | |
+| Sat 10-17 | Both gloves so the owner can flash and test them (Sat or Sun; Mon morning at the latest), and if possible left with the owner until Tuesday for the Monday dry run | | An iOS Xcode export of the current Unity project that calls the Communications functions, with the 5005 listener removed, zipped and sent as a download link |
+| Sun 10-18 | | The version with the real model | |
+| Tue 10-20 | Both gloves, charged, with USB cables | Model and files ready on the Ultra96 | The Unity project on their laptop, to rebuild if needed |
+
+The owner's own plan (proposed, Communications work only):
+
+| Date | Communications work |
+|---|---|
+| Wed 10-14 | Send the three messages |
+| Thu 10-15 | Renew the server certificate and redeploy the Ultra96 service from current source (6.3; the owner's login); flash the right board; start the version-3 38-byte packet in firmware, laptop and Ultra96 with golden vectors and tests; open the team pull request; if Wen Ree's code must run as its own process, send Wen Ree the format for passing the fields between the two processes the same day; pass the confirmed label strings on to Jie Ling |
+| Fri 10-16 | Build the firmware with Siqiang's sensor module. The owner's boards have no IMU or flex sensors, so on them check only that it compiles, that `gloveBegin()` returns false without blocking, and that the board still advertises; check the int16 scales against the sample log (real readings are first tested on the gloves). Connect Wen Ree's first version on the Ultra96 (`start`, `on_sample`, the thread-safe `emit`). Accept model labels and real confidence in the three Python and C# checks (`ultra96/protocol.py`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs`) |
+| Sat 10-17 | On the Mac: change the fourth check (`Protocol.swift`) and add `CommsNextResult` and the `confidence` field to the Swift client; rebuild the existing Week 7 export from current source and install it, so the phone can subscribe to the redeployed `ltc-comms` service before Jie Ling's export is linked (6.3, step 4); receive Jie Ling's export |
+| Sun 10-18 | Flash both gloves and test with Siqiang; link `CommsNative` into Jie Ling's export and install it on the phone; tell Jie Ling that `CommsNextResult` is ready; connect Wen Ree's real model; before the dry run, redefine `Phone expected increase` and the rehearsal checks for the model's result rate (8, step 6), or record that the phone count is not compared in the dry run |
+| Mon 10-19 | Full dry run: gloves → laptop → Ultra96 → model → phone → game. Keep the evidence and list the problems for Tuesday |
+| Tue 10-20 | In-person integration session |
+
+Order of priority if time runs short: (1) certificate and redeploy, because nothing works without them; (2) the 38-byte packet and Siqiang's module; (3) Wen Ree's interface; (4) `CommsNextResult` and the iOS link. A hop whose teammate part is late can still be tested with the dummy data and dummy labels that Communications already has, so the rest of the chain is ready on Tuesday. Between the Thursday redeploy and the Saturday phone build, the installed Week 7 app cannot subscribe (it uses session `week7-demo`).
+
 - The team-facing explainer: <https://claude.ai/code/artifact/b77bebd7-09f4-4c3e-9466-d4e19318359c> ("B07 integration: what to ask, what to tell, and why").
 
 ---
 
 ## 7. The three interfaces to connect
 
-Communications specifies only which functions and fields are needed at each hand-over point. Function names and internal implementation are the other side's decision.
+Communications specifies only which functions and fields are needed at each hand-over point. Function names and internal implementation are the other side's decision. Who does what is summarised in the table in 3.1.
+
+**Everything in this section is planned, not built.** Only the three existing C functions (`CommsStart`, `CommsCopyDisplay`, `CommsStop`) can be called today. The firmware still sends dummy data, the board still makes up dummy labels, and every receiver still accepts only `REST`, `FIST`, `OPEN`, `POINT` with confidence 1.0. The messages to the teammates say this, so nobody expects to call something that does not exist yet.
 
 ### 7.1 From Siqiang: the glove sensor module (called by the Communications firmware)
 
@@ -456,11 +504,11 @@ Constraints the Communications firmware places on the module (from the existing 
 - The module does not define `setup()`/`loop()`. It does not call `Serial.begin()` and does not read the serial port (the serial port is used for pairing). It does not use `BluetoothSerial`, BLE or Wi-Fi (the radio belongs to the Communications firmware). It does not print to serial for each sample.
 - `seq`, `uptime_ms` and the left/right identity are filled in by the Communications firmware. The module does not deal with them.
 
-Already asked of Siqiang in the message (the code cannot answer these): which sketch is authoritative; whether the behaviours above will stay; the longest single-call time of `gloveUpdate()`/`gloveRead()`; a log of real samples (only the 11 output values); whether the left and right glove code differ; whether the extra IDLE/MOVING state in `model_threshold_variant_1` (12 October) must travel with the samples in V1; whether both gloves are FireBeetles and when they can be flashed (once the Communications firmware is flashed, Siqiang's Bluetooth recording script can no longer connect to that glove).
+Already asked of Siqiang in the message (the code cannot answer these): which sketch is authoritative; whether the behaviours above will stay; the longest single-call time of `gloveUpdate()`/`gloveRead()`; a log of real samples (only the 11 output values); whether the left and right glove code differ; whether the extra IDLE/MOVING state in `model_threshold_variant_1` (12 October) must travel with the samples in V1; whether both gloves are FireBeetles and when they can be flashed (once the Communications firmware is flashed, Siqiang's Bluetooth recording script can no longer connect to that glove). The IDLE/MOVING question is asked of both Siqiang and Wen Ree, because Wen Ree's model would consume it; they agree it between them by Thu 10-15.
 
 ### 7.2 From Wen Ree: the model's entry and exit on the board (called by the Communications service on the board)
 
-The connection point is `ultra96/server.py:264-267`. Suggested shape (names are theirs to choose):
+The connection point is `ultra96/server.py:264-267`. **Planned; none of these functions exists yet.** Suggested shape (names are theirs to choose):
 
 | Function | Provided by | Called by whom, when | Contract |
 |---|---|---|---|
@@ -476,9 +524,9 @@ The connection point is `ultra96/server.py:264-267`. Suggested shape (names are 
 | `boot_id` | uint32 | A random number for this power-up of this glove. It changes when the glove restarts |
 | `seq` | uint32 | Sample sequence number within this power-up |
 | `uptime_ms` | uint32 | This glove's own millisecond clock. The two gloves are not synchronised |
-| `values` | 11 numbers | Order and units as in 7.1. By default, physical floats restored from int16 (acceleration and flex to 4 decimal places, angular rate and angles to 2). Wen Ree can ask for the raw int16 instead |
+| `values` | 11 floats | Order and units as in 7.1. Decided 2026-10-14: physical floats. The values travel as int16; Communications decodes them and divides by the scale, so the model gets the agreed physical units. Restoring cannot recover precision dropped when packing: acceleration and flex keep 4 decimal places, angular rate and angles 2. Any normalisation the model needs is Wen Ree's |
 
-What Communications guarantees: within one power-up (same `device_id` + `boot_id`), `seq` only increases and never repeats. After a glove restart, `boot_id` changes and `seq` starts again from 0, so track by `(device_id, boot_id)`. Samples can be missing: lost over the radio, or dropped after waiting more than 2 s (not resent). These show as gaps in `seq`. While a glove is disconnected, no samples are produced and `seq` does not advance; a reconnect shows only as a jump in `uptime_ms`. The two gloves arrive over two independent connections, **with no pairing and no alignment**. Pairing, building windows and deciding gesture or idle all happen after the entry point, on the model side.
+What Communications guarantees: within one power-up (same `device_id` + `boot_id`), `seq` only increases and never repeats. After a glove restart, `boot_id` changes and `seq` starts again from 0, so track by `(device_id, boot_id)`. Samples can be missing, and the missing ones show as gaps in `seq`: lost over the radio; dropped after waiting more than 2 s on the laptop (not resent); or lost when a link drops (on a BLE disconnect the laptop discards that glove's queued samples, and on a TLS reconnect the samples already written but not acknowledged count as ambiguous drops and are not resent). While a glove is disconnected it produces no samples and `seq` does not advance, so the disconnected time itself shows only as a jump in `uptime_ms`. The two gloves arrive over two independent connections, **with no pairing and no alignment**. Pairing, building windows and deciding gesture or idle all happen after the entry point, on the model side.
 
 `emit` fields:
 
@@ -488,7 +536,7 @@ What Communications guarantees: within one power-up (same `device_id` + `boot_id
 | `confidence` | number from 0 to 1 | Confidence |
 | `device_id`, `boot_id`, `seq` | as above | The identity of **one** sample this result used (usually the newest one in the window; either glove is fine). Communications uses it to build `result_id` (`device_id:boot_id:seq`). **Each result must point to a different sample**: the phone de-duplicates by `result_id`, and a second result with the same identity is dropped |
 
-The result message cannot gain fields freely. The field set of `GESTURE_RESULT` is matched exactly in four places (the board, the iPhone and the two reference receivers), so the only correlation information is one sample's identity. Communications forwards the label and the confidence as they are, without filtering or renaming. But results, like samples, are not resent: if a result cannot reach the phone within 2 s (for example, when the phone is not connected), it is dropped. The game also reads only the latest result each frame.
+The result message cannot gain fields freely. The field set of `GESTURE_RESULT` is matched exactly in four places (the board, the iPhone and the two reference receivers), so the only correlation information is one sample's identity. Communications forwards the label and the confidence as they are, without filtering or renaming. Results, like samples, are not resent. The board drops a result when no phone is subscribed at the moment it is produced. It also drops a queued result that has waited 2 s or more on the board (`get_timed`). The write to the phone's connection gets only what is left of those 2 s (`_send_results`). If the write does not finish in what is left of those 2 s, the board does more than drop that result: it ends that phone's subscription (`result_send_failed`, `reason=error`), abandons what is still queued, and the phone reconnects and subscribes again. This limits waiting on the board only. It is **not** a promise about when, or whether, the phone receives the result: bytes already handed to TCP/TLS cannot be recalled, and the phone keeps its own 2 s display window counted from when it received the result. There is no end-to-end latency bound (9.2).
 
 Whether the model can run directly inside the Communications service process: the service runs as the ordinary user `xilinx` (no sudo) with `/usr/bin/python3` (3.10), and uses only the standard library itself. If the model code runs in this process, everything it imports (numpy, pynq and so on) must load under this interpreter and this user. `fpga/README_FPGA_PYNQ.md` says the overlay is loaded with sudo and the pynq-venv Python. If the model can only run that way, it is a separate process, and Communications defines a format for passing the same fields between the two processes on the board. That is the owner's work, not a new network route.
 
@@ -496,7 +544,7 @@ Already asked of Wen Ree in the message: whether it can run inside the Communica
 
 ### 7.3 For Jie Ling: the interface Communications provides (called by the game)
 
-Agreed: **Jie Ling adds the phone client into the game in the Unity project**. Patching the export is no longer used. Communications **needs no API from the game**. The game calls the three Communications C functions (section 4.6) and can use the Week 7 receiver as an example. olsonwangyj links `CommsNative` into the newly exported `UnityFramework` (section 8, item 7). Jie Ling delivers an Xcode project exported from the current `vis/` that already calls the three functions. Before the link, the Xcode build reports `Undefined symbol: _CommsStart` and similar; this is expected.
+Agreed: **Jie Ling calls the Communications functions from C# in the Unity project; olsonwangyj links `CommsNative` into the exported Xcode project.** Patching the export is no longer used. Communications **needs no API from the game**. The game calls the three existing Communications C functions (section 4.6), plus the planned fourth one, `CommsNextResult`, once it exists, and can use the Week 7 receiver as an example. Decided 2026-10-14, two layers: Jie Ling writes the C# that calls the Communications functions and connects the results to the game logic (Unity layer); olsonwangyj links `CommsNative` into `UnityFramework` of the exported Xcode project the first time, so that the calls have an implementation, and writes short integration notes (iOS native layer; section 8, item 7). Jie Ling delivers an Xcode project exported from the current `vis/` that already calls the functions. Before the link, the Xcode build reports `Undefined symbol: _CommsStart` and similar; this is expected.
 
 C# declarations of the three functions (derived from the C signatures; not yet compiled in Unity). These symbols exist only in the iOS build. Calling them in the Unity Editor or on other platforms throws an exception, so calls go inside `#if UNITY_IOS && !UNITY_EDITOR`:
 
@@ -509,14 +557,22 @@ C# declarations of the three functions (derived from the C signatures; not yet c
 - `CommsStart`: call once at start-up. It places the `Communications Connect` button in the top-right corner of the screen and does not connect by itself. A person taps the button, enters the jump-host and board login details, and imports the CA. Keep that corner clear.
 - `CommsCopyDisplay`: call once per frame on the main thread with a 2048-byte buffer. It returns the number of UTF-8 bytes written (not counting the terminating 0). When nothing changed, or the buffer is null or too small, it returns 0 and writes nothing, and the game should keep the text it already has.
 - `CommsStop`: call only when the app closes. It ends the session, clears the passwords and removes the button. Do not call it on a scene change or when going to the background.
-- Line 3 holds only the latest result. Split it on `"  |  "` (two spaces, a vertical bar, two spaces): the first part is the gesture, the second the result id (for example `1:305419896:42`). The same gesture repeated still gets different ids, so compare ids, not gesture text, to decide whether a result is new. After 2 s without a new result, line 3 becomes `No live result`, which only means nothing new arrived. Do not rely on line 1 (`DUMMY inference` will change) or on `confidence 1.0` (currently a placeholder). Ids starting with `cmd:` come only from command tests the owner runs on the laptop.
-- Only one object may call `CommsCopyDisplay` (each call reports only the change since the previous call), and that object must survive scene changes.
+- Line 2 of the text is the status. `Subscribed` means only that the subscription handshake with the Ultra96 succeeded; it does not prove that results are flowing.
+- Line 3 holds only the latest result and is overwritten by the next one, so results that arrive between two polls can be lost (4.6). Use it to watch results while testing, not as game input. Do not rely on line 1 (`DUMMY inference` will change) or on `confidence 1.0` (a placeholder). Ids starting with `cmd:` come only from the owner's command tests on the laptop.
+- **Per-result delivery is Communications' job and is planned, not built.** The game's action entry points are one-shot: in `vis/Assets/Scripts/Core/GestureButtonController.cs` the `On...Pressed` methods are wired to the on-screen buttons' `OnClick()`, and its comment says Ultra96 gestures will call them later. So every result must reach the game exactly once. Decided 2026-10-14: the owner adds a fourth bridge function that hands out structured results one at a time. Proposed shape:
+
+  ```c
+  int32_t CommsNextResult(char* buffer, int32_t capacity);
+  ```
+
+  It removes the oldest result not yet handed out and writes it as one compact UTF-8 JSON object with a terminating 0, for example `{"result_id":"1:305419896:42","gesture":"CHOP","confidence":0.93,"device_id":1}`, and returns the number of bytes written (not counting the 0). It returns 0 when no result is waiting. A 512-byte buffer is enough. The game calls it in a loop each frame until it returns 0. The owner plans to have it ready by Sun 10-18 (6.4); Jie Ling can write the C# against the declaration before then. Each result is handed out once, in arrival order, de-duplicated by `result_id`. In C#: `[DllImport("__Internal")] static extern int CommsNextResult(byte[] buffer, int capacity);`. A queue cannot promise that nothing is ever lost, so its limits are stated. Proposed defaults, the same rules the board already uses: it holds up to 32 results; when it is full the oldest is dropped; a result that has waited 2 s after the phone received it is dropped; both kinds of drop are counted. Whether several identical labels in a row mean one action or several is for Wen Ree and Jie Ling to agree; Communications hands out every result as it is.
+- Only one object may call `CommsCopyDisplay` (each call reports only the change since the previous call), and that object must survive scene changes. The same object would call `CommsNextResult`.
 - What to do with a result (which action it maps to, cooldowns, repeats) is the game's business.
-- The phone can no longer rely on the 5005 listener. Results come in only through these three functions.
+- The phone can no longer rely on the 5005 listener. Results come in only through the Communications bridge functions: the three that exist today and, once built, `CommsNextResult`, which is the game input.
 - Passwords are not saved. As soon as the app stops being active (going to the background, screen lock, pulling down Control Center or Notification Center, an incoming call), it disconnects and clears the passwords, and they must be entered again.
 - Reference: in Week 7 the owner had no Unity project and patched the generated C++ (`TlsDataReceiver`) of one Xcode export. Jie Ling's own C# was never changed. The patched export is only on the fork. The patch script <https://github.com/olsonwangyj/Let-Them-Cook/blob/main/ios-visualizer/tools/patch_export.py> is for reference only and cannot be run against a new project.
 
-**One bridge limitation the owner must decide on (see section 13):** the current bridge keeps only the latest result, and `confidence 1.0` in the text is hard-coded. If several results arrive between two polls, the game sees only the last one (`Received` still counts them all). The message to Jie Ling is written for "V1 parses the four lines of text". If the owner wants per-result delivery, the message must change before it is sent.
+Until `CommsNextResult` exists, the game can show the text and test the connection, but it cannot drive actions reliably from it.
 
 ---
 
@@ -524,11 +580,11 @@ C# declarations of the three functions (derived from the C signatures; not yet c
 
 These are olsonwangyj's tasks. Do them in order. For each step, write the tests and golden vectors first.
 
-1. **38-byte real data packet.** Settle the version number and the saturation rule for out-of-range values, then change these together: `firmware/esp32/include/comms_packet.h` (8 channels → 11), `comms_security.h:19` (MTU 35 → 41), `comms_control.h` (the command payload embeds a whole packet), `common/sensor.py`, `common/control.py`, `common/dummy_fixtures.json`, `laptop/bridge.py` (MTU check), `ultra96/protocol.py:67` (8 values). `laptop/goodput.py` counts bytes with `PACKET_SIZE` from `common.sensor`, so it follows the packet size automatically; only its version-1 formula check needs review. Real data cannot use version 1 (version 1 requires the values to equal the dummy-data formula).
+1. **38-byte real data packet.** Decided 2026-10-14: it is a new protocol version, version 3, so no receiver can read it with the old 8-value layout; firmware, laptop and Ultra96 parsers change together. Before fixing the scales, check them against the real sample log Siqiang sends; with the current sensor settings every value fits (7.1). For a value that still falls outside int16, the recommended rule is to clamp it to the int16 limit and count it, never silently: a clamped value shows up as exactly the limit (for example 3.2767 g), the count is reported, and Wen Ree is told. It keeps the sample stream free of gaps and never disconnects. The owner still has to confirm clamp-and-count against dropping the one sample. Then change these together: `firmware/esp32/include/comms_packet.h` (8 channels → 11), `comms_security.h:19` (MTU 35 → 41), `comms_control.h` (the command payload embeds a whole packet), `common/sensor.py`, `common/control.py`, `common/dummy_fixtures.json`, `laptop/bridge.py` (MTU check), `ultra96/protocol.py:67` (8 values). `laptop/goodput.py` counts bytes with `PACKET_SIZE` from `common.sensor`, so it follows the packet size automatically; only its version-1 formula check needs review. Real data cannot use version 1 (version 1 requires the values to equal the dummy-data formula). Decide also whether version 3 appears in the network messages: `common/sensor.py` copies the packet version into `SENSOR_BATCH.v`, and `ultra96/server.py:264` copies the sample's `v` into `GESTURE_RESULT.v`. Every check that accepts only versions 1 and 2 must then change too: `ultra96/protocol.py:42` and the version branches for de-duplication and `request_id` (`ultra96/server.py:250-259`, `ultra96/protocol.py:46,89-90`), `Protocol.swift:40`, `phone/receiver.py:115` and `CommsPhoneCore.cs:70`. Until a phone build that accepts version 3 is installed, keep results at `v: 2`, or the first version-3 result ends the phone session with a terminal error.
 2. **Connect the sensor module in the firmware.** In `main.cpp`: call the initialisation in `setup()`, and replace the block that calls `serializeFixturePacket` with "read sample → scale → pack". This block runs while holding the connection-state mutex, which the BLE callbacks also take, so nothing slow may happen here. For 50 Hz use `-DCOMMS_INITIAL_RATE_HZ=50` or `--rate 50`.
 3. **Measure.** Two real gloves, 38 bytes, 50 Hz, at least 65 s, with clean source reconciliation on both boards.
 4. **Connect the model interface on the board.** Replace `ultra96/server.py:264-267`.
-5. **Accept model labels and real confidence.** Four checks currently accept only `REST`/`FIST`/`OPEN`/`POINT`, with confidence exactly 1.0: `ultra96/protocol.py:4,78-83`, `ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:54-62`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs`. **Without this change, the model's first real label makes the phone disconnect with a terminal error.** This step also covers the display text `DUMMY inference` and the hard-coded `confidence 1.0` (`DisplayMailbox.swift`, lines 16 and 18), and the setup-form text `DUMMY gestures · session ltc-comms` (`SetupViewController.swift:51`). The owner has said explicitly that Communications must support this itself and that the owner will make the change.
+5. **Accept model labels and real confidence.** Four checks currently accept only `REST`/`FIST`/`OPEN`/`POINT`, with confidence exactly 1.0: `ultra96/protocol.py:4,78-83`, `ios-visualizer/CommsNative/Sources/CommsCore/Protocol.swift:54-62`, `phone/receiver.py`, `phone/unity/CommsPhoneCore.cs`. **Without this change, the model's first real label makes the phone disconnect with a terminal error.** This step also covers the display text `DUMMY inference` and the hard-coded `confidence 1.0` (`DisplayMailbox.swift`, lines 16 and 18), and the setup-form text `DUMMY gestures · session ltc-comms` (`SetupViewController.swift:51`). The owner has said explicitly that Communications must support this itself and that the owner will make the change. In the same step, add the per-result bridge function `CommsNextResult` (7.3) and a `confidence` field in the Swift `GestureResult`, so the game receives every result once, with its real confidence.
 6. **The "one input, one result" criterion.** Once the model produces results per window, the reconciliation rules behind `Phone expected increase` in `demo.py` and in the two rehearsal tools (`tools/rehearse_comms.py`, `tools/rehearse_remote_comms.py`) must be redefined.
 7. **Linking a new Unity export.** `patch_export.py` is no longer needed. `configure_xcode.py` depends on fixed Xcode object IDs; whether it works on a new export is unverified.
 8. Do one redeploy round as in section 6.3 and run the acceptance check.
@@ -568,7 +624,7 @@ These are olsonwangyj's tasks. Do them in order. For each step, write the tests 
 - **`flash.py` rewrites the Git-tracked `comms_fixtures.h` every time.** After changing `common/dummy_fixtures.json` you must reflash before the data on the board changes.
 - **A leftover `LTC_COMMS_SESSION` in the terminal.** Documents from the transition period taught setting `LTC_COMMS_SESSION=week7-demo`. This variable affects `demo.py run`, `live` and `service --start` together, but not the phone. If it is still set, the laptop and a newly started service both use `week7-demo`. `CAPTURE PASSED` still appears, but the phone stays at `Disconnected: connection closed; retrying`. When troubleshooting, first make sure this variable is not set.
 - **Neither end records why something was rejected.** For a bad frame, a session mismatch, an identity conflict or exhausted capacity, the board only closes the connection and adds 1 to `rejected`; it writes no log entry, and it prints its metrics only once, when the service stops. On the laptop, an ACK timeout or a mismatched ACK increments both `ack_errors` and `transport_errors`; a TLS connect or handshake failure increments only `transport_errors`. Neither counter records a reason. So an expired certificate and an unreachable port look the same (only `transport_errors`), and a session mismatch and a protocol version mismatch between the two ends look the same (the board closes the connection after the frame, which counts as both). For the 38-byte migration, both ends must be upgraded together.
-- **The phone's "automatic retry" logs in to both SSH hops again and again.** When the board service is not running, the session does not match, or another subscriber has pushed the phone off, the phone treats it as a closed connection. It then logs in to the jump host and the board again with the password, at most every 5 s, with no limit on attempts. When the service is not ready, tap Disconnect first; do not leave the app on retrying.
+- **The phone's "automatic retry" logs in to both SSH hops again and again.** When the board service is not running, the session does not match, or another subscriber has pushed the phone off, the phone treats it as a closed connection. It then logs in to the jump host and the board again with the passwords, after a delay that starts at 0.5 s and doubles up to 5 s (reset after a result arrives), with no limit on attempts. When the service is not ready, tap Disconnect first; do not leave the app on retrying.
 - **A service started with `demo.py service --start` is the foreground process of that SSH session.** Closing that terminal, the laptop going to sleep or the VPN dropping all make the service exit. Keep the terminal that started the service open, like the tunnel terminal. This applies only to the `--start` path. The process recorded on the board on 2026-09-28 was started in the background by `.week7-local/co_deploy.py`, does not depend on any SSH session, and may still be running (4.5).
 - **A different laptop needs `known_hosts` first.** Both SSH hops use strict host-key checking, and nothing in the repository writes `known_hosts`. The two public keys in the phone source `Configuration.swift` can be used to check them.
 - **The single-board diagnostic tools cannot choose a board.** `laptop.ble_counter_receiver`, `laptop.mtu_probe` and `tools.rehearse_comms --ble` scan by service UUID and connect to whichever board they find first. The two boards advertise the same name, so power only one board when using these tools. They also do not set the rate, so the board keeps its last rate.
@@ -589,7 +645,7 @@ olsonwangyj corrected each of these.
 | Treating `phone/unity/CommsPhoneReceiver.cs` as the receiver deployed on the iPhone | It is the Android reference implementation. "Week 7 receiver" means `CommsNative` on the iPhone plus the `Week7*` bridge in the export |
 | Proposing to give the NumPy inference code to Wen Ree, or to write C# scripts for Jie Ling | Overstepping. The owner only calls their interfaces; how they implement them is not the owner's concern |
 | Writing pairing, windowing, one label per gesture, or label mapping as the owner's work | These are the teammates' work. Communications ends at the interface |
-| Saying the link was tested only at 10 Hz, or that the Bluetooth approach is not decided | 50 Hz and 70 Hz were measured clean on 2026-09-28. BLE was chosen long ago |
+| Saying the link was tested only at 10 Hz, or that the Bluetooth approach is not decided | The 50 Hz and 70 Hz settings were measured clean on 2026-09-28 with the 32-byte dummy packet (70 Hz setting: about 66 packets/s). BLE was chosen long ago |
 | Slipping opinions on the quality of teammates' components into messages (model accuracy, gyro range, a path bug, and so on) | Talk only about interfaces and delivery dates |
 | Asking teammates questions the code already answers | Read the code first. Ask only what the code cannot answer (physical state, intent, plans) |
 | Using a password the owner pasted | Never use, store or repeat it. The owner does the logins |
@@ -868,12 +924,17 @@ This section lets a new agent know where things are without re-reading the code.
 - Why the phone missed 109 results on 2026-09-21.
 - The three teammates' replies about the interfaces in section 7.
 
-Needs the owner's decision:
+Decided on 2026-10-14 (recorded in 3.1, 7 and 8):
 
-- When the game gets results through the three C functions, is it enough for V1 to get only the latest result and the four lines of text (the message to Jie Ling is written this way), or must Communications add per-result delivery and real confidence to the bridge (end of 7.3)?
-- Are the `values` handed to the model physical floats (the current default, written as "my plan" in the message) or raw int16?
-- The message says the owner links `CommsNative` into Jie Ling's newly exported Xcode project. Does that fit the decision that Jie Ling adds the client into the game in the Unity project?
-- The version number of the 38-byte packet, and what happens when a value exceeds the int16 range (saturate or drop).
+- The model gets the 11 values as physical floats. Transport stays int16.
+- The game gets results one at a time through a structured per-result function, `CommsNextResult`, not by parsing the display text. It hands out one compact JSON object per call (bytes written or 0; 512-byte buffer; called in a loop each frame).
+- Jie Ling writes the Unity C# calls and the game logic; olsonwangyj links `CommsNative` into the Xcode export the first time and writes the integration notes.
+- The 38-byte packet is a new protocol version (3), and the scales are checked against Siqiang's real output before they are fixed.
+
+Still for the owner to confirm:
+
+- Out-of-range values: clamp to the int16 limit and count (recommended), or drop that one sample and count. Either way it is counted, reported, and Wen Ree is told; it never drops a connection or a whole gesture.
+- The `CommsNextResult` queue limits (proposed: at most 32 waiting, oldest dropped when full, dropped 2 s after the phone received it, all drops counted). The message to Jie Ling calls them planned limits.
 
 ---
 
@@ -885,4 +946,8 @@ Needs the owner's decision:
 | 2026-10-14 | The six detail chapters were finalised against the current code after two fact-checks and a completeness review |
 | 2026-10-14 | The teammate messages were rewritten with explicit functions and fields, reviewed for accuracy, role boundary and clarity, and handed to the owner. Section 7 was updated to match |
 | 2026-10-14 | The owner set two rules: the documents are updated with every code or deployment change, and formal documents are written in English (`AGENTS.md` rules 7 and 8; section 0, point 3). The hand-off document and the detail chapters were rewritten in English, and the Chinese versions were removed from the repository (an unmaintained snapshot is in `D:\LetThemCook-attic\2026-10-14\handoff-zh-CN\`). `docs/integration-handoff.md` (8 October) moved to `docs/archive/design/integration-handoff-2026-10-08.md`, because section 7 supersedes it |
+| 2026-10-14 | After a review forwarded by the owner: the 2 s rule is described as a limit on waiting on the board, not an end-to-end guarantee (7.2); `Subscribed` means only that the subscription handshake succeeded; reconnects can leave `seq` gaps; the 70 Hz result is a setting (about 66 packets/s) measured with the 32-byte dummy packet; every interface in section 7 is marked as planned, not built; section 1 separates finished documents from unfinished integration; the latest-only display text is described as unable to carry every result |
+| 2026-10-14 | The owner decided: physical floats to the model; a structured per-result function `CommsNextResult` for the game; Jie Ling writes the Unity calls while olsonwangyj links `CommsNative` into the Xcode export; the 38-byte packet is version 3 with scales checked against real data. Added the division-of-work table (3.1). Clamp-and-count for out-of-range values and the queue defaults await the owner's confirmation (13). The teammate messages were revised to match |
+| 2026-10-14 | A check of the documents and the messages together: the schedule now secures the gloves for the Monday dry run, splits the label checks (three on Friday, the Swift one on Saturday), adds a Saturday rebuild of the Week 7 export so the phone can subscribe after the redeploy, and redefines `Phone expected increase` before the dry run; the delivery form of each teammate deliverable is stated; a failed result write ends the phone subscription (7.2); version 3 must be handled on the result path (8); the IDLE/MOVING question goes to both Siqiang and Wen Ree; phone retry timing corrected (9.2); `CommsNextResult` returns one JSON object per call (decided) with proposed queue limits (13) |
+| 2026-10-14 | Schedule set up to the in-person integration session on Tue 10-20 (6.4): teammate deliverables by date, and the owner's own plan with priorities. The messages were reordered to list what is needed by which date first |
 | 2026-10-14 | Cross-check corrections applied: how the board service was started and what keeps it alive (4.5, 6.3, 9.2, 12.4); the path of the iOS patch scripts (6.3 step 4); the server certificate expiry checked only on the laptop's copy (1, 2.4, 4.8, 6.3); only `ios-visualizer/reference/TlsDataReceiver.cs` is fork-only (12.4); where the sensor and control MTU floors live (12.2); four PlatformIO environments, including the default `firebeetle32` with ID 1 (4.3, 6.3, 12.2); host tests use `g++` or `clang++` and are skipped without either (4.3, 12.2); `demo.py live` runs 120 s and needs an interactive terminal (4.4); what the BLE callback does (4.4); `received` versus `callback_received` (4.7); which failures increment `ack_errors` and `transport_errors` (9.2); the locations of the `DUMMY` texts and the `Protocol.swift` line range (8 step 5); `laptop/goodput.py` follows `PACKET_SIZE` (8 step 1); the phone holds the session in two places (12.2, 12.6); 3 fixture files but 2 golden vectors (12.2); `src/live_inference.py` hard-codes `COM3`/`COM4` at 115200 baud, with no evidence they are Bluetooth ports (2.3) |

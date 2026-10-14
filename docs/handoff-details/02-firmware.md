@@ -1,14 +1,14 @@
 # Detail chapter 2: ESP32 firmware (BLE peripheral)
 
-> This is a detail chapter of [`../communications-handoff.md`](../communications-handoff.md). It was checked against local `main` (commit `25fe4e4`) on 2026-10-14. The code is the source of truth: where this chapter and the code disagree, trust the code.
+> This is a detail chapter of [`../communications-handoff.md`](../communications-handoff.md). It was checked against local `main` (commit `25fe4e4`) on 2026-10-14, and updated later that day for the owner's decisions and the schedule in hand-off document sections 3.1, 6.4, 8 and 13 (no code under the paths this chapter covers changed in between). The code is the source of truth: where this chapter and the code disagree, trust the code.
 
 ## Role and boundaries
 
 - Each glove has one FireBeetle ESP32. The firmware makes the board a BLE peripheral and GATT server. The laptop is the central.
 - The firmware does four things. It produces one sample at the configured rate. It packs the sample into a fixed-length, little-endian binary packet. It hands the packet to the one authenticated laptop through protected BLE notifications. It provides source-side counters and a control channel, which the laptop uses for reconciliation, rate changes and file transfer.
-- Upstream boundary: the source of the samples. Today the source is a dummy data table compiled into the firmware (8 `int16` per row). `main.cpp` has no I2C or ADC code. Siqiang provides the real sensor module, and the Communications firmware calls it. This step is not done yet. The interface requirements are in section 7.1 of the hand-off document. The firmware-side technical constraints are in "Extension point: connecting the real sensor module" in this chapter.
+- Upstream boundary: the source of the samples. Today the source is a dummy data table compiled into the firmware (8 `int16` per row). `main.cpp` has no I2C or ADC code. Siqiang provides the real sensor module, and the Communications firmware calls it. This is planned, not built: the firmware calls no sensor module yet, and the 38-byte real-data packet does not exist either (hand-off document section 7 says the same of every teammate interface). The interface requirements are in section 7.1 of the hand-off document, and who does what at this hand-over is in its section 3.1. Siqiang's module and a short log of real samples are due Fri 2026-10-16 (section 6.4). The firmware-side technical constraints are in "Extension point: connecting the real sensor module" in this chapter.
 - Downstream boundary: when `esp_ble_gatts_send_indicate` returns `ESP_OK`, the packet counts as "submitted". This is evidence level 1 (source statistics field `submitted`, hand-off document section 4.7). Submission is not delivery. The laptop proves delivery by reconciliation against the source statistics ([detail chapter 3](03-laptop-relay-and-tools.md)).
-- Pairing left and right samples, building model windows, deciding gesture or idle, and labels belong neither to the firmware nor to Communications. They are Wen Ree's work on the model side (hand-off document section 3). The two boards do not know about each other.
+- Pairing left and right samples, building model windows, deciding gesture or idle, and producing labels belong neither to the firmware nor to Communications. They are Wen Ree's work on the model side. Label names, how often a label fires, and whether several identical labels in a row mean one action or several are agreed between Wen Ree and Jie Ling; Communications passes every result through unchanged and never merges, splits, filters or reinterprets results (hand-off document sections 3 and 3.1). The two boards do not know about each other.
 - The firmware has no network: no Wi-Fi, no SSH, no TLS, and no session ID. The VPN, `stujump`, and the Ultra96's ingest port 8888 and gateway port 9999 have nothing to do with the firmware.
 - This chapter also covers the host-side `flash.py`, `tools/demo_boards.py`, `tools/generate_dummy_fixtures.py`, `common/dummy_fixtures.json` and their tests.
 
@@ -90,7 +90,7 @@ Each parameter is set with its own call to `esp_ble_gap_set_security_param`, and
 | Offset | Length | Type | Field | Values |
 |---|---|---|---|---|
 | 0 | 2 | ASCII | Packet magic | `LC` (`4C 43`) |
-| 2 | 1 | `uint8` | Version | 2 means table dummy data (default); 1 means formula dummy data (`COMMS_LEGACY_DUMMY=1`) |
+| 2 | 1 | `uint8` | Version | 2 means table dummy data (default); 1 means formula dummy data (`COMMS_LEGACY_DUMMY=1`). Version 3 is decided for the planned 38-byte real-data packet and is not in the code (see "Planned, not built: real glove data packet") |
 | 3 | 1 | `uint8` | `device_id` | 1 means left, 2 means right; any other value makes serialization fail |
 | 4 | 4 | `uint32` | `boot_id` | Taken once per power-up with `esp_random()` |
 | 8 | 4 | `uint32` | `seq` | Starts at 0, increases by 1 for each generated sample, wraps modulo 2^32 |
@@ -245,22 +245,25 @@ Exit codes are handled in `flash.py:166-177`.
 
 Mapping file: `.comms-local/boards.json` (`tools/demo_boards.py:9`). Its content is `{"version": 1, "status": "ready" or "incomplete", "left": address, "right": address}`; with `incomplete`, `right` is `null`. It is written as a temporary file in the same folder followed by `os.replace` (`tools/demo_boards.py:41-58`), so a failed write leaves the old file unchanged. On read (`tools/demo_boards.py:21-38`): if the file does not exist, the built-in `DEFAULT_BOARDS` is returned (`tools/demo_boards.py:10`, the original operator's two boards). `incomplete` raises `Board setup is incomplete; finish python flash.py before pairing or capture.`. A wrong version, status or address format, or identical left and right addresses, raise an error. An address must be a non-zero unicast address.
 
-### To implement: real glove data packet (38 bytes)
+### Planned, not built: real glove data packet (38 bytes, version 3)
 
-olsonwangyj, the Communications owner, has decided that the 11 values are sent as 11 `int16` with fixed scale factors. The table below is the layout that follows from this decision. It is not in the code yet.
+olsonwangyj, the Communications owner, has decided that the 11 values are sent as 11 `int16` with fixed scale factors, and on 2026-10-14 that this packet is a new protocol version, version 3 (hand-off document sections 4.2, 8 step 1 and 13). The table below is the layout that follows from these decisions. It is not in the code yet: today `kPacketSize` is 32, and the laptop's `decode_packet` rejects any packet that is not exactly 32 bytes or whose version is not 1 or 2 (`common/sensor.py:74-80`).
 
 | Offset | Length | Field | Wire value = physical value × | Representable range |
 |---|---|---|---|---|
-| 0 | 16 | Header | Same length as the current 16-byte header; version number not decided | — |
+| 0 | 16 | Header | The current 16-byte header layout, with the version byte set to 3 | — |
 | 16, 18, 20 | 2 each | `ax` `ay` `az` | g × 10000 | ±3.2767 g |
 | 22, 24, 26 | 2 each | `gx` `gy` `gz` | °/s × 100 | ±327.67 °/s |
 | 28, 30, 32 | 2 each | `yaw` `pitch` `roll` | degrees × 100 | ±327.67° |
 | 34, 36 | 2 each | `flex1` `flex2` | normalized value × 10000 | ±3.2767 |
 
 - A 38-byte notification needs an ATT MTU of at least 41.
-- Application-level byte rate: 38 bytes × 50 Hz × 2 boards = 30.4 kbps. The 32-byte packet was measured clean at 33.8 kbps combined. The 38-byte packet has not been measured at all.
-- The version number, and whether values outside the `int16` range saturate or are dropped, are not decided (hand-off document section 13). Real data cannot use version 1.
-- Ranges that can be read from the reference sketch `hardware/gloves/29_sept/imu_v7.ino`: the accelerometer is set to ±2 g and the gyroscope to ±250 °/s; the flex value is the 12-bit ADC reading divided by 4095; `getEulerAngles` computes the angles with `atan2f` and `asinf`, so yaw and roll are within ±180° and pitch within ±90°. Acceleration has gravity removed, so one axis can in theory reach about ±3 g, still within ±3.2767 g (this is an inference). Which sketch is authoritative, and the actual range of each value, are settled by Siqiang's answer to hand-off document section 7.1.
+- Application-level byte rate: 38 bytes × 50 Hz × 2 boards = 30.4 kbps. The 32-byte dummy packet was measured clean at 33.8 kbps combined (the 70 Hz setting, which delivered about 66 packets/s per board). The 38-byte packet has not been measured at all (hand-off document section 13).
+- **Version 3 (decided 2026-10-14).** A new version number means no receiver reads the new layout with the old 8-value one. Firmware, laptop and Ultra96 parsers change together; the laptop also carries the packet version into the `v` field of `SENSOR_BATCH` (`common/sensor.py:50`). Real data cannot use version 1, because version 1 requires the values to equal the dummy formula.
+- **The scales are checked before they are fixed (decided 2026-10-14).** The factors in the table are checked against the log of real samples that Siqiang sends (due Fri 2026-10-16, hand-off document section 6.4) before they are fixed.
+- **Values outside the `int16` range (recommended rule, awaiting the owner's confirmation).** Clamp the value to the `int16` limit and count it; never clamp silently. A clamped value shows up as exactly the limit (for example 3.2767 g), the count is reported, and Wen Ree is told. This keeps the sample stream free of gaps and never drops a connection. The alternative the owner is still weighing is to drop that one sample and count it (hand-off document sections 8 step 1 and 13). The firmware has no such counter yet.
+- **The model gets physical floats (decided 2026-10-14).** The transport stays `int16`. On the Ultra96, Communications decodes each value and divides it by the same factor, so the model receives the 11 values in the agreed physical units; any normalisation is Wen Ree's (hand-off document section 7.2). The factors in this table and in the Ultra96 decoder must therefore stay identical. Restoring cannot recover precision lost when packing: acceleration and flex keep 4 decimal places, angular rate and angles 2.
+- Ranges that can be read from the reference sketch `hardware/gloves/29_sept/imu_v7.ino`: the accelerometer is set to ±2 g and the gyroscope to ±250 °/s; the flex value is the 12-bit ADC reading divided by 4095; `getEulerAngles` computes the angles with `atan2f` and `asinf`, so yaw and roll are within ±180° and pitch within ±90°. Acceleration has gravity removed, so one axis can in theory reach about ±3 g, still within ±3.2767 g, with a margin of only about 0.28 g (this is an inference). Which sketch is authoritative, and the actual range of each value, are settled by Siqiang's answer to hand-off document section 7.1 and by the real sample log.
 
 ## Workflows
 
@@ -332,6 +335,7 @@ olsonwangyj, the Communications owner, has decided that the 11 values are sent a
 1. `onDisconnect` (only for the current connection ID, `main.cpp:154-168`) clears authentication, the subscriptions, the control queue, the command cache and the highest handled `id`, and the file. It resets the MTU to 23, marks advertising for restart when no bond erase is in progress, and prints `ble_disconnected`.
 2. The next main-loop pass restarts advertising and prints `ble_advertising_restarted`.
 3. No samples are produced while disconnected, `seq` does not advance, and there is no offline buffer. `boot_id` does not change; after reconnecting, sequence numbers continue from where they stopped. The rate keeps its pre-disconnect value until a restart or another rate change.
+4. Seen downstream, a reconnect can still leave gaps in `seq`. On a BLE disconnect the laptop discards that glove's queued samples (`laptop/bridge.py:910`, `113-119`), and on a TLS reconnect samples already written but not acknowledged count as ambiguous drops and are not resent ([detail chapter 3](03-laptop-relay-and-tools.md)). The disconnected time itself shows only as a jump in `uptime_ms`, because the board makes no samples then (hand-off document section 7.2).
 
 **I. Bond erase (type `erase-bonds` plus Enter on serial, `main.cpp:338-371`, `461-470`)**
 
@@ -343,7 +347,7 @@ olsonwangyj, the Communications owner, has decided that the 11 values are sent a
 
 ## Why it is designed this way
 
-1. **A fixed 32 bytes, written byte by byte in little-endian order.** C++ and Python then get the same result from the same bytes, independent of struct alignment and host byte order. A fixed length plus a version number exposes a format mismatch. Rejected: application-level fragmentation, CRC and compression, because BLE already provides link integrity. Source: `docs/archive/design/week7-selected-design-2026-09-06.md` item 3; `docs/archive/test-evidence/week7-packet-firmware-evidence.md`.
+1. **A fixed 32 bytes, written byte by byte in little-endian order.** C++ and Python then get the same result from the same bytes, independent of struct alignment and host byte order. A fixed length plus a version number exposes a format mismatch; for the same reason the planned 38-byte packet is a new version, 3. Rejected: application-level fragmentation, CRC and compression, because BLE already provides link integrity. Source: `docs/archive/design/week7-selected-design-2026-09-06.md` item 3; `docs/archive/test-evidence/week7-packet-firmware-evidence.md`.
 2. **If the MTU is too small, nothing is sent, and this is counted separately (`mtu_suppressed`).** The notification payload limit is MTU − 3, and a truncated packet is meaningless. Rejected: silent truncation, or fragmentation by the firmware itself. Source: selected design item 3.
 3. **No offline backlog; no samples are generated while disconnected.** An old gesture sent late would be treated as a new live action. Rejected: buffering on the ESP and sending later. Source: selected design item 4; "Scope and acceptance" in `docs/archive/design/specs/2026-09-17-dual-esp-reception.md` ("No offline history or retransmission protocol").
 4. **Allocate the sequence number first, then try to submit.** A sample whose submission fails still uses up a sequence number, so a loss cannot be hidden by reusing the number. Rejected: incrementing the sequence only after a successful submission. That was the old rule in selected design item 4, and the dual-board specification replaced it. Source: dual-board specification "Scope and acceptance".
@@ -370,7 +374,7 @@ olsonwangyj, the Communications owner, has decided that the 11 values are sent a
 - **A successful submission is not delivery.** `submitted` only means the stack accepted the submission. It is evidence level 1.
 - **The two failure counters count different things.** The serial `submission_errors` counts failed submissions on every characteristic (counter, sensor, probe, control response). The source statistics `failures` counts sensor packets only. Use the source statistics for reconciliation.
 - **The rate is not reset on disconnect.** `ControlEngine::disconnect()` does not change `rateHz_`. Only a restart or another rate-change command changes it.
-- **At high rates the actual packet rate is below the setting.** When the send tick check passes, "last send" is set to the current time, and each pass also has `delay(1)`, so the period is rounded up. A 70 Hz setting measured about 66 packets/s per board, which matches the code (this is an inference). A 50 Hz setting measured about 49.98 packets/s. The highest clean setting measured is 70 Hz. 75 Hz failed because the right board had 260 source submissions rejected by the stack, not because of downstream loss. 100 Hz also failed (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md`).
+- **At high rates the actual packet rate is below the setting.** When the send tick check passes, "last send" is set to the current time, and each pass also has `delay(1)`, so the period is rounded up. A 70 Hz setting measured about 66 packets/s per board, which matches the code (this is an inference). A 50 Hz setting measured about 49.98 packets/s. The highest clean setting measured is 70 Hz (about 66 packets/s delivered), with the 32-byte dummy packet; real 38-byte data has not been measured. 75 Hz failed because the right board had 260 source submissions rejected by the stack, not because of downstream loss. 100 Hz also failed (`docs/archive/test-evidence/co-live-deployment-2026-09-28.md`).
 - **The mutex is held over a wide range.** `connectionStateMutex` is held for all of `main.cpp:483-549`, and the BLE callbacks also need it. A slow operation added in this range in future (for example an I2C read) will block the callbacks.
 - **A received file stays in memory** until the next file begin, an abort or a disconnect. The firmware does not use the file content; it only checks the digest. After a digest mismatch (status 4), the incomplete file still holds the slot. Abort it, wait 30 seconds or disconnect before starting another file.
 - **A changed GATT table needs re-pairing.** After the control characteristics were added on 28 September, a targeted bond recovery was done on the Windows side (deployment record).
@@ -390,43 +394,58 @@ olsonwangyj, the Communications owner, has decided that the 11 values are sent a
 | Item | Status |
 |---|---|
 | Left board | Flashed with the current firmware on 2026-10-14 and verified: local loopback 100/100 packets; another run of 349 packets with source statistics reconciliation passing, a rate change to 20 Hz confirmed, and all 3 commands round-tripped (hand-off document section 6.1). |
-| Right board | Still runs the Week 7 firmware and sends `W7` packets and `W7S1` statistics. The current laptop program rejects it when it reads the source statistics, reporting `invalid source statistics magic; flash this board with the current firmware`. This board is not subscribed, and start-up times out after 30 seconds (hand-off document section 9.2). See "How to run and verify" for how to flash it. |
-| `.comms-local/boards.json` (ignored by Git) | Exists; written 2026-10-14 03:05; `version` is 1 and `status` is `ready`. The left and right addresses are the same as the built-in `DEFAULT_BOARDS` and the old `.week7-local/boards.json`. So there is no need to rerun `python flash.py` for the mapping. There is no capture folder under `.comms-local/` yet. |
+| Right board | Still runs the Week 7 firmware and sends `W7` packets and `W7S1` statistics. The current laptop program rejects it when it reads the source statistics, reporting `invalid source statistics magic; flash this board with the current firmware`. This board is not subscribed, and start-up times out after 30 seconds (hand-off document section 9.2). See "How to run and verify" for how to flash it. Flashing it is in the owner's plan for Thu 2026-10-15 (hand-off document section 6.4). |
+| `.comms-local/boards.json` (ignored by Git) | Exists; written 2026-10-14 03:05; `version` is 1 and `status` is `ready`. The left and right addresses are the same as the built-in `DEFAULT_BOARDS` and the old `.week7-local/boards.json`. So there is no need to rerun `python flash.py` for the mapping. There is no capture folder under `.comms-local/` yet. This holds for the owner's two boards only. Siqiang's gloves are other boards (flashing them is planned for Sat 10-17 or Sun 10-18, Mon 10-19 at the latest; hand-off document section 6.4): flash them with the full `python flash.py`, which records their addresses and replaces this mapping. The owner's boards can still be captured afterwards by giving both `--left-address` and `--right-address` to `demo.py run` or `live`. Once a glove runs the Communications firmware, Siqiang's own Bluetooth recording script can no longer connect to it (hand-off document section 7.1). |
 | `.week7-local/boards.json` | Still present, but the code no longer reads it. |
 | `.week7-local/flashed-firmware-2026-09-29/left/firmware.bin`, `right/firmware.bin` | Archive copies of the firmware flashed on 29 September. They have the same SHA-256 as the `firmware.bin` files under `firmware/esp32/.pio/build/firebeetle32-left/` and `firebeetle32-right/` in the main working copy (built 2026-09-29). Keep them; do not delete them (hand-off document section 9.1, item 6). |
 | `firmware/esp32/.pio/` (main working copy, ignored by Git) | Old build products from 29 September; the symbols are still in the old `week7` namespace. Do not flash the `firmware.bin` here directly. `platformio run` and `python flash.py` rebuild from the current source. |
 | `firmware/esp32/.pio/build/firebeetle32-left/` in the worktree `D:\LetThemCook-worktrees\comms-cleanup` | Built 2026-10-14 02:51. Judging by the time, this is the build used for this flash of the left board. The `firmware/` folder at that worktree's current commit is the same as in local `main`; after `d2fff21`, the only change under `firmware/` was to the test file `host_control.cpp`. |
 
-### Extension point: connecting the real sensor module (not implemented)
+### Extension point: connecting the real sensor module (planned, not built)
 
-The division of work is settled (hand-off document section 7.1). Siqiang delivers a working sensor module (initialization, read one sample, a description of the data format). olsonwangyj, the Communications owner, calls it from the Communications firmware and is responsible for scaling to `int16`, packing, BLE sending and connection management. Capture algorithms, calibration and sensor problems belong to Siqiang.
+The division of work is settled (hand-off document sections 3.1 and 7.1). Siqiang delivers a working sensor module (initialization, read one sample, a description of the data format). olsonwangyj, the Communications owner, calls it from the Communications firmware and is responsible for scaling to `int16`, packing, BLE sending and connection management. Capture algorithms, calibration and sensor problems belong to Siqiang.
 
-The interface requirements (functions, shapes, and what the other side must state) are maintained only in hand-off document section 7.1: initialization `bool gloveBegin()`, an optional periodic update `void gloveUpdate()`, and read one sample `bool gloveRead(float out[11])`. Siqiang chooses the names. This section records only the technical constraints that come from the Communications firmware code itself, and their reasons.
+The interface requirements (functions, shapes, and what the other side must state) are maintained only in hand-off document section 7.1: initialization `bool gloveBegin()`, an optional periodic update `void gloveUpdate()`, and read one sample `bool gloveRead(float out[11])`. These are suggested shapes; Siqiang chooses the names. None of these functions exists yet, and the firmware calls none of them. This section records only the technical constraints that come from the Communications firmware code itself, and their reasons.
 
 1. **Initialization must return on failure.** Initialization is called in `setup()`. If any step in `setup()` does not return before `advertising->start()` and `bleReady = true` are reached, the board never advertises and the main loop only idles (`main.cpp:404-453`, `457`).
 2. **Reading a sample must not block or call `delay()`.** The code that takes the sample today runs while `connectionStateMutex` is held (`main.cpp:483-549`). The BLE callbacks for connect, disconnect, MTU change, authentication complete, CCCD write, source statistics read, control write and MTU probe write all wait for this lock with `portMAX_DELAY`. A slow sample read stalls all of these callbacks.
-3. **Time spent reading a sample directly lengthens the send period.** When the send tick check passes, "last send" is set to the current time (`main.cpp:487-488`), and each pass also ends with `delay(1)`. So any extra time spent reading a sample is added to every period, and the actual packet rate falls below the setting; today a 70 Hz setting gives only about 66 packets/s.
+3. **Time spent per loop pass lowers the actual rate.** The send tick is checked once per pass, the period counts from the start of the pass that sent (`main.cpp:485-488`), and each pass ends with `delay(1)`. So the period rounds up to whole passes: a longer pass (for example a `gloveUpdate()` on every pass) increases the rounding, and a read longer than the interval delays the next packet. Today a 70 Hz setting gives about 66 packets/s.
 4. **How often the periodic update is called.** If `gloveUpdate()` is needed, the main loop calls it once per pass. A pass takes about 1 ms plus that pass's work. When `bleReady` is false, the main loop does nothing.
 5. **The serial port belongs to the Communications firmware.** The firmware calls `Serial.begin(115200)` itself, the main loop reads serial input to find `erase-bonds`, and the passkey is printed only on serial. So the module must not call `Serial.begin` again, must not read serial input, and must not print per sample.
 6. **The radio belongs to the Communications firmware.** The firmware uses `BLEDevice` (BLE). The reference sketch `hardware/gloves/29_sept/imu_v7.ino` sends CSV text over Bluetooth Classic `BluetoothSerial` and has its own `setup()` and `loop()`, so the two cannot be linked together as they are.
 7. **Identity and time are filled in by the Communications firmware.** Left and right identity comes from `COMMS_DEVICE_ID`, `seq` from `allocateSampleSequence`, and `uptime_ms` is `millis()` at the start of the pass. The module does not provide these.
-8. **Scaling is done in the Communications firmware.** The 11 floats are converted to `int16` with the factors in the 38-byte table above. What happens to out-of-range values is not decided yet.
+8. **Scaling is done in the Communications firmware.** The 11 floats are converted to `int16` with the factors in the 38-byte table above. For a value outside the `int16` range the recommended rule is clamp to the limit and count, awaiting the owner's confirmation against dropping that one sample (see the 38-byte section). The planned module contract says `out[]` must not contain NaN (hand-off document section 7.1). On the Ultra96, Communications divides by the same factors to give the model physical floats (hand-off document section 7.2).
 
-**Places the Communications firmware itself must change (when the 38-byte packet is implemented):**
+**Places the Communications firmware itself must change (when the 38-byte version-3 packet is implemented; planned):**
 
 | Location | Today | Why it must change |
 |---|---|---|
-| `comms_packet.h:9`, `34-38` | `kPacketSize = 32`; a loop writes 8 channels | New length 38, 11 channels |
+| `comms_packet.h:9`, `29`, `34-38`, `60` | `kPacketSize = 32`; the version byte is written as 1 (line 29) or 2 (line 60); a loop writes 8 channels | New length 38, version 3, 11 channels |
 | `comms_security.h:19` | `sensorFitsMtu` checks for at least 35 | 38 bytes need at least 41 |
-| `main.cpp:503-510` | Takes dummy data | Call the sensor module to read a sample, scale it, then pack it |
+| `main.cpp:503-510` | Takes dummy data | Call the sensor module to read a sample, scale it (with the out-of-range rule once the owner confirms it, and its counter), then pack it |
 | `setup()` from `main.cpp:404` | No sensor initialization | Call the sensor module's initialization |
-| `main.cpp:450` | `packet_bytes=32` is hard-coded | Print the real length |
+| `main.cpp:450-451` | `packet_bytes=32` is hard-coded; `packet_version` is printed as 1 or 2 | Print the real length and version 3 |
 | `comms_control.h:62`, `102-103`, `123`, `126`, `140-149` | The command payload is handled as 32 bytes, version 2, 8 channels; the output buffer must be at least 50 | Whether a command still embeds a whole packet must be decided first; with an embedded 38-byte packet the response is 52 bytes |
 | `common/dummy_fixtures.json`, `tools/generate_dummy_fixtures.py:11`, `comms_fixtures.h` | 8 values per row | If the dummy data mode is kept, these change to 11 values as well |
 | `platformio.ini` | Default 10 Hz | For 50 Hz, use `-DCOMMS_INITIAL_RATE_HZ=50` or a rate-change command at run time |
-| Host tests and `tests/fixtures/` | 32-byte vectors | Add 38-byte golden vectors |
+| Host tests and `tests/fixtures/` | 32-byte vectors | Add 38-byte version-3 golden vectors, written before the code (hand-off document section 8) |
 
-The places in the laptop, Ultra96 and phone code that must change at the same time are in hand-off document section 8, step 1. The firmware does not depend directly on any interface of Wen Ree's or Jie Ling's.
+The places in the laptop, Ultra96 and phone code that must change at the same time are in hand-off document section 8, step 1. The firmware does not depend directly on any interface of Wen Ree's or Jie Ling's. Its scale factors are shared with the Ultra96 decoder, which restores physical floats for the model (see the 38-byte section).
+
+**Planned dates for the firmware part.** These come from hand-off document section 6.4 (teammate dates as asked in the messages; the owner's own plan is proposed). The team meets in person on Tue 2026-10-20 to integrate.
+
+| Date | Who | What |
+|---|---|---|
+| Thu 10-15 | Siqiang | Answers to the questions in the message (hand-off document section 7.1) |
+| Thu 10-15 | olsonwangyj | Flash the right board with the current firmware; start the version-3 38-byte packet in firmware, laptop and Ultra96, with golden vectors and tests |
+| Fri 10-16 | Siqiang | The sensor module (`gloveBegin` / `gloveUpdate` / `gloveRead`, suggested names) and a short log of real samples |
+| Fri 10-16 | olsonwangyj | Build the firmware with the module. The owner's boards have no IMU or flex sensors, so on them check only that it compiles, that `gloveBegin()` returns false without blocking, and that the board still advertises; check the scales against the sample log before fixing them. Real readings are first tested on the gloves (Sat 10-17 or Sun 10-18) |
+| Sat 10-17 or Sun 10-18 (Mon 10-19 at the latest) | Siqiang | About an hour with both gloves, so the owner can flash and test |
+| Sun 10-18 | olsonwangyj | Flash both gloves (full `python flash.py`) and test with Siqiang |
+| Mon 10-19 | olsonwangyj | Full dry run from the gloves to the game; keep the evidence and list the problems for Tuesday |
+| Tue 10-20 | Siqiang | Both gloves, charged, with USB cables, for the in-person session |
+
+If time runs short, the 38-byte packet and Siqiang's module come second, after renewing the certificate and redeploying the Ultra96 service (hand-off document section 6.4). If the module is late, the rest of the chain can still be tested with dummy data; with a version-3 packet the dummy table then needs 11 values per row (the `common/dummy_fixtures.json` row above).
 
 ### History and removed items
 

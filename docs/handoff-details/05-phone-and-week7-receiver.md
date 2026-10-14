@@ -1,6 +1,6 @@
 # Detail chapter 5: Phone client and the Week 7 receiver
 
-> This is a detail chapter of the hand-off document [`../communications-handoff.md`](../communications-handoff.md). It was checked against local `main` (commit `25fe4e4`) on 2026-10-14. The code is the source of truth: where this chapter and the code disagree, follow the code.
+> This is a detail chapter of the hand-off document [`../communications-handoff.md`](../communications-handoff.md). It was checked against local `main` (commit `25fe4e4`) on 2026-10-14, and updated the same day for the owner's decisions recorded in hand-off sections 3.1, 7 and 13 (the phone and board code has not changed since that commit). The code is the source of truth: where this chapter and the code disagree, follow the code.
 
 ## Purpose and boundaries
 
@@ -12,8 +12,8 @@
   ```
 
 - The phone does not get results from the laptop. The `INGEST_ACK` the laptop receives shows only that the board accepted the input. It does not show that the phone received a result. Right after `demo.py` prints `CAPTURE PASSED`, it states that phone receipt is not checked there (`demo.py:210-212`).
-- Communications delivers three things here: the connection status, the latest result (`gesture` and `result_id`), and the number of distinct results accepted in the current session. It delivers them through three C functions that the Unity main thread polls every frame.
-- Communications ends at these three functions. Mapping labels to game actions, cooldowns, repeated firing, handling of low confidence, and every script in `vis/` are Jie Ling's work.
+- Communications delivers three things here today: the connection status, the latest result (`gesture` and `result_id`), and the number of distinct results accepted in the current session. It delivers them through three C functions that the Unity main thread polls every frame. This text is a status display: it holds only the latest result, so results that arrive between two polls can be lost. Handing the game every result once is planned as a fourth function, `CommsNextResult` (decided 2026-10-14, not built; see "Planned: per-result function `CommsNextResult`" below and hand-off document section 7.3).
+- Communications ends at these bridge functions. It passes every result through as it is and does not merge, split, filter or reinterpret results (hand-off document section 3.1). Mapping labels to game actions, cooldowns, repeated firing, handling of low confidence, and every script in `vis/` are Jie Ling's work. The label names, how often a label is produced, and whether several identical labels in a row mean one action or several are for Wen Ree and Jie Ling to agree between themselves.
 - "Week 7 receiver" means the combination of two things: the `CommsNative` Swift client on the iPhone, and the bridge in the Unity export project `ios-visualizer/xcode-export/` that calls `Week7Start`, `Week7CopyDisplay` and `Week7Stop`. A patch script produced that bridge by rewriting four methods in the generated code. The bridge only writes four lines of text into a TextMeshPro label. It never triggers a game action. Names in it that contain `week7` stay unchanged.
 - `phone/receiver.py`, `phone/unity/*.cs` and `laptop/phone_simulator.py` are reference and diagnostic subscribers. Each needs a separate SSH local forward on the same machine (default `127.0.0.1:19999`). None of them is the receiver deployed on the iPhone.
 - `phone/ish_control.py` is a maintenance script for the iSH route. That route is abandoned (the `archive/runbooks/` row of the Archive table in `docs/README.md`).
@@ -21,12 +21,15 @@
 
 ### Interfaces with teammates
 
-This chapter does not repeat the interface list. For the model entry and exit points requested from Wen Ree, and for the calling method given to Jie Ling, section 7 of the hand-off document (7.2 and 7.3) is authoritative. Communications needs no API from the game. The game calls the three C functions `CommsStart`, `CommsCopyDisplay` and `CommsStop`, and can follow the Week 7 receiver as an example.
+This chapter does not repeat the interface list. For the model entry and exit points requested from Wen Ree, and for the calling method given to Jie Ling, section 7 of the hand-off document (7.2 and 7.3) is authoritative; who does what at each hand-over is the table in hand-off section 3.1. Communications needs no API from the game. Today the game can call the three existing C functions `CommsStart`, `CommsCopyDisplay` and `CommsStop`, and can follow the Week 7 receiver as an example. Everything else the game will need from Communications is planned, not built: the per-result function `CommsNextResult`, the real `confidence` value, and accepting real model labels.
+
+Division of work at the phone-to-game hand-over (decided 2026-10-14, hand-off 3.1 and 7.3): Jie Ling writes the Unity C# that calls the Communications functions and connects the results to the game logic, and delivers an Xcode project exported from the current `vis/` that already calls the functions. olsonwangyj links `CommsNative` into `UnityFramework` of that exported Xcode project the first time, and writes short integration notes. Patching the generated code of an export, as the Week 7 receiver did, is no longer used.
 
 This chapter keeps only the technical facts tied directly to the phone code:
 
 - The rules a caller of the three functions must follow: see "Caller rules" under "Cautions and known limits".
-- The fields available from the four lines of text: see "Display text" under "Data formats and constants".
+- The fields available from the four lines of text: see "Display text" under "Data formats and constants". The text is for status and testing, not game input.
+- The planned per-result function: see "Planned: per-result function `CommsNextResult`" under "Data formats and constants".
 - The phone currently accepts only the 4 dummy labels and requires confidence equal to 1. A real model label makes the phone disconnect with a terminal error. See "Extension point: accept model labels and real confidence".
 - A search of `vis/Assets/Scripts` currently finds no `CommsStart`, `Week7Start` or `DllImport`. The Week 7 call sites come from editing the C++ that IL2CPP generated, and they apply only to that one export.
 
@@ -208,7 +211,7 @@ After a terminal error, `IntegrationController` still holds the deactivated clie
 | `iPhone setup required` | `CommsStart` called on a non-iOS platform (macOS tests) | `DisplayMailbox.swift:39` |
 | `Tap Communications Connect to configure this iPhone` | `CommsStart` has finished installing; not connected yet | `IntegrationController.swift:25` |
 | `Connecting` | After tapping Connect; at the start of every reconnect | `IntegrationController.swift:67-68`, `CommsClient.swift:80` |
-| `Subscribed` | A valid SUBSCRIBED arrived | `CommsClient.swift:146` |
+| `Subscribed` | A valid SUBSCRIBED arrived. It means only that the subscription handshake with the Ultra96 succeeded; it does not prove that results are flowing (that shows only as `Received` rising). The status stays `Subscribed` while no results arrive | `CommsClient.swift:146` |
 | `Disconnected: <reason>; retrying` | Retryable error | `CommsClient.swift:208` |
 | `Disconnected: <reason>; correct setup and reconnect` | Terminal error | `CommsClient.swift:202` |
 | `Paused — return and connect again` | The app resigns active (screen lock, switch to another app, and so on) | `IntegrationController.swift:28` |
@@ -267,10 +270,12 @@ Fields available from these four lines:
 |---|---|---|
 | `gesture` | line 3, segment 1 | Currently always one of `REST`, `FIST`, `OPEN`, `POINT` |
 | `result_id` | line 3, segment 2 | `<device_id>:<boot_id>:<seq>`; a command result is `cmd:<device_id>:<boot_id>:<seq>` |
-| confidence | line 3, segment 3 | The hard-coded `confidence 1.0`, not the received value. The `GestureResult` struct has no confidence field (`Protocol.swift:7-15`) |
+| confidence | line 3, segment 3 | The hard-coded `confidence 1.0`, not the received value. The `GestureResult` struct has no confidence field (`Protocol.swift:7-15`). A `confidence` field is planned (hand-off section 8, item 5) |
 | `device_id` | only by parsing `result_id` | For an ordinary result, take the first segment. For a command result, drop the `cmd:` prefix first, then take the first segment (`Protocol.swift:54`) |
-| status | line 2 | See "All status strings" |
+| status | line 2 | See "All status strings". `Subscribed` does not prove that results are flowing |
 | `Received` | line 4 | Number of distinct results accepted since this Connect |
+
+These four lines are a status display. Line 3 holds only the latest result and the next result overwrites it, so results that arrive between two polls can be lost: if `CHOP` and then `PLACEDOWN` arrive between two frames, the poller sees only `PLACEDOWN`, while `Received` still counts both. Comparing `result_id` stops a caller acting twice on one result, but it cannot recover an overwritten one. The game's actions are one-shot, so the decided game input is the planned `CommsNextResult`, not this text (hand-off 4.6 and 7.3).
 
 ### C bridge
 
@@ -283,13 +288,44 @@ Fields available from these four lines:
 
 Basis: `DisplayMailbox.swift:10-67`, `IntegrationController.swift:21-34,101-108`.
 
-The symbols come from the static library `CommsNative`, which must be linked into `UnityFramework`. The caller allocates the buffer; Week 7 uses 2,048 bytes. The C# declarations of the three functions are the same as in hand-off document section 7.3. They were derived from the `@_cdecl` signatures and have not yet been compiled in Unity. The symbols exist only in the iOS build. A call in the Unity Editor or on another platform throws, so call sites go inside `#if UNITY_IOS && !UNITY_EDITOR`. Hand-off document section 7.3 settles this; it is not a question for Jie Ling.
+The symbols come from the static library `CommsNative`, which must be linked into `UnityFramework`. In an export whose C# already calls these functions but which is not yet linked with `CommsNative`, the Xcode build reports `Undefined symbol: _CommsStart` and similar; that is expected until the owner links it (hand-off 7.3). The caller allocates the buffer; Week 7 uses 2,048 bytes. The C# declarations of the three functions are the same as in hand-off document section 7.3. They were derived from the `@_cdecl` signatures and have not yet been compiled in Unity. The symbols exist only in the iOS build. A call in the Unity Editor or on another platform throws, so call sites go inside `#if UNITY_IOS && !UNITY_EDITOR`. Hand-off document section 7.3 settles this; it is not a question for Jie Ling.
 
 ```csharp
 [DllImport("__Internal")] static extern void CommsStart();
 [DllImport("__Internal")] static extern int  CommsCopyDisplay(byte[] buffer, int capacity);   // returns the UTF-8 byte count, excluding the trailing 0; 0 means no change
 [DllImport("__Internal")] static extern void CommsStop();
 ```
+
+### Planned: per-result function `CommsNextResult` (not built)
+
+Decided by the owner on 2026-10-14 (hand-off 7.3 and 13). Nothing below exists in the code yet: a search of `ios-visualizer/CommsNative` finds no `CommsNextResult`, and `GestureResult` has no confidence field. The owner plans to add it, with the `confidence` field, to the Swift client on Sat 10-17 (needs the Mac) and to tell Jie Ling it is ready on Sun 10-18 (hand-off 6.4). Jie Ling can write the C# against the declaration before then. The exact shape and limits below are proposals; the details still await the owner's confirmation (hand-off 13).
+
+```c
+int32_t CommsNextResult(char* buffer, int32_t capacity);
+```
+
+```csharp
+[DllImport("__Internal")] static extern int CommsNextResult(byte[] buffer, int capacity);
+```
+
+| Item | Proposed rule |
+|---|---|
+| What one call does | Removes the oldest result not yet handed out and writes it into the buffer as one compact UTF-8 JSON object with a trailing 0, for example `{"result_id":"1:305419896:42","gesture":"CHOP","confidence":0.93,"device_id":1}` |
+| Return value | Bytes written, not counting the trailing 0. 0 when no result is waiting |
+| Buffer | 512 bytes is enough |
+| How to call | In a loop each frame until it returns 0, on the main thread, from the same single object that polls `CommsCopyDisplay`, inside `#if UNITY_IOS && !UNITY_EDITOR` |
+| Delivery | Each result once, in arrival order, de-duplicated by `result_id` |
+| Content | Every result exactly as the board sent it. No merging, splitting, filtering or reinterpreting (hand-off 3.1) |
+| Limits | Up to 32 results waiting; when full, the oldest is dropped; a result is dropped 2 s after the phone received it; both kinds of drop are counted |
+
+What it does not change:
+
+- It is a bounded queue, not replay. A result the board dropped, a result lost with a connection, and a result produced while the phone was not subscribed are not recovered.
+- `CommsCopyDisplay` stays as the status display. Its latest-only text can still lose results between polls.
+- Gaps in the `seq` part of `result_id` are normal (see "Known limits").
+- Whether several identical labels in a row (for example several `CHOP`) mean one action or several is for Wen Ree and Jie Ling to agree. What the game does with each result is Jie Ling's.
+
+Precedent in the code: the Android reference receiver already drains a queue with the same limits on the Unity main thread. `FreshResultQueue` holds 32 entries, drops the oldest when full, drops entries older than 2 s on dequeue, and counts both (`phone/unity/CommsPhoneCore.cs:315-353`). `CommsPhoneReceiver.cs` creates it with `(32, 2 s)` and dequeues in a loop each frame, firing one event per result (`CommsPhoneReceiver.cs:44,60-65`). It also clears the queue on each new connection (`CommsPhoneCore.cs:330`).
 
 ### Setup screen
 
@@ -413,8 +449,8 @@ Normal path (using the Week 7 receiver app on the iPhone as the example):
 13. A direct-tcpip channel opens over the second SSH layer to `127.0.0.1:9999`, and a TLS handshake runs inside it: verify the certificate chain, the host name `ultra96.week7.internal` and the validity period.
 14. After the TLS handshake completes, the phone sends the SUBSCRIBE frame and starts the 5 s frame timer.
 15. The board validates the session ID, displaces the old subscriber (if there is one) and replies SUBSCRIBED (`ultra96/server.py:309-331`).
-16. The phone receives and validates SUBSCRIBED, cancels the 10 s overall deadline and the frame timer, and the status becomes `Subscribed`.
-17. The board pushes one frame for each result it produces. The phone decodes and validates the frame, resets the retry wait to 0.5 s, then passes the result to `DisplayState.accept`: deduplicate, `Received` +1, keep only the latest result.
+16. The phone receives and validates SUBSCRIBED, cancels the 10 s overall deadline and the frame timer, and the status becomes `Subscribed`. This shows only that the subscription handshake succeeded. Whether results flow shows only as `Received` rising and line 3 changing.
+17. The board pushes one frame for each result it produces, unless the board drops that result first (failure path 11). The phone decodes and validates the frame, resets the retry wait to 0.5 s, then passes the result to `DisplayState.accept`: deduplicate, `Received` +1, keep only the latest result.
 18. On the next Unity poll, the new text arrives and the label shows four lines.
 19. If no new result arrives within 2 s, line 3 becomes `No live result`. `Received` does not change, and the status stays `Subscribed`.
 20. After that, the connection does not drop when there is no input, because idle after subscribing has no deadline.
@@ -431,15 +467,15 @@ Failure paths:
 8. The user taps `Disconnect`: the status becomes `Disconnected`; the client stops; the passwords are cleared.
 9. The Unity object is destroyed: `OnDestroy` calls `Week7Stop()`. The status becomes `Stopped` at once. The button, form, notification observers and client are all removed.
 10. Another subscriber connects to the same session (for example `laptop.phone_simulator` running at the same time): the board closes the phone's connection. The phone treats this as a closed connection and retries. Once it subscribes again it displaces the other subscriber, and the two keep displacing each other.
-11. Results the board produces while there is no subscriber: the board counts them and drops them (`ultra96/server.py:268-270`). The phone cannot get them by connecting later.
+11. Results the board produces while there is no subscriber: the board counts them and drops them (`ultra96/server.py:268-270`). The phone cannot get them by connecting later. With a subscriber, the board also drops results from its queue: the oldest when the 32-entry queue is full, and any result that has waited 2 s or more on the board or cannot be written to the phone's connection in what is left of those 2 s (`ultra96/server.py:32-77,366-387`, `get_timed` and `_send_results`). A write that does not finish in that time also ends that phone connection on the board, and the phone reconnects as after any retryable error. That rule limits only how long a result waits on the board (queue plus write). It does not promise that the phone receives the result: bytes already handed to TCP/TLS cannot be recalled. It is not an end-to-end latency bound either. The phone's own 2 s display window counts from when the phone received the result (hand-off 7.2 and 9.2).
 12. The polling buffer is too small or null: `CommsCopyDisplay` returns 0 and does not write to the buffer. The next poll tries again.
 
 ## Why it is designed this way
 
 1. The phone dials out over SSH itself, and TLS runs inside a direct-tcpip channel. Reason: the campus firewall lets through only SSH on port 22 to the Ultra96; neither the phone nor the laptop can accept incoming connections; 8888 and 9999 bind only to the board loopback. Rejected at the time: the phone as a TLS server listening on 5005 (the approach in Jie Ling's original export; both the direction and the frame format were wrong); the laptop forwarding results to the phone; a separate local listener on 19999 on the phone (an iSH or Termux forward). Sources: `docs/archive/design/architecture-and-interface-draft-v0.1.md:137,230,253`; decisions 7 and 12 in `docs/archive/design/week7-selected-design-2026-09-06.md`; IOS-08, IOS-16 and IOS-17 in `docs/archive/reports/week7-continuation-report-2026-09-14.md`; `docs/archive/design/specs/2026-09-14-ios-visualizer-design.md:23-29`.
-2. Link the Swift package into the Unity export, and replace only method bodies in the generated code. Reason: the Unity source project was not available at the time, and editing a loose C# file would not change that app. Rejected at the time: exporting again from the Unity source project; editing only `reference/TlsDataReceiver.cs`. Sources: lines 13-21 of the same design specification; IOS-10, IOS-15.
+2. Link the Swift package into the Unity export, and replace only method bodies in the generated code. Reason: the Unity source project was not available at the time, and editing a loose C# file would not change that app. Rejected at the time: exporting again from the Unity source project; editing only `reference/TlsDataReceiver.cs`. Sources: lines 13-21 of the same design specification; IOS-10, IOS-15. No longer used for the next export: Jie Ling now calls the functions from C# in the Unity project, and the owner only links `CommsNative` into the exported Xcode project (decided 2026-10-14, hand-off 7.3).
 3. Unity polls a C function, and the native side holds no managed pointer. Reason: network callbacks run on the NIO thread, and Unity APIs can be used only on the main thread. Polling confines the thread boundary to one locked snapshot. Rejected at the time: native callbacks modifying Unity objects directly. Sources: lines 18-19 of the design specification; `docs/archive/reports/week7-system-technical-report.md:371-373`.
-4. Keep only the latest result, 2 s freshness, deduplication of 4,096. Reason: memory is bounded; queued old data is not shown; the count represents only the distinct results within this Connect. Rejected at the time: a result queue and replay on the phone. Sources: IOS-21; selected design decision 9 (the board keeps no history).
+4. Keep only the latest result, 2 s freshness, deduplication of 4,096. Reason: memory is bounded; queued old data is not shown; the count represents only the distinct results within this Connect. Rejected at the time: a result queue and replay on the phone. Sources: IOS-21; selected design decision 9 (the board keeps no history). Changed for the game on 2026-10-14 (planned, not built): the latest-only text stays as a status display, and a bounded per-result queue, `CommsNextResult`, is added because the game's actions are one-shot and need every result once. It keeps the same principles: bounded memory, no stale results (2 s after the phone received them), drops counted, and still no replay (hand-off 7.3).
 5. Both SSH host keys are hard-coded, and only one CA is accepted, identified by its SHA-256 fingerprint. Reason: no trust on first use; importing a valid but unrelated certificate is also rejected. Rejected at the time: trusting the key on first connection; accepting any CA; skipping host name verification; a plaintext fallback. Sources: lines 33-47 of the design specification; IOS-18.
 6. Passwords live only in memory, and the session stops when the app leaves the foreground. Reason: the on-site route uses password authentication; this avoids depending on unverified iOS background execution; nothing is written to disk, so there is no credential file to manage. Rejected at the time: saving passwords; enrolling key files; background reception. Sources: lines 35-39 and 63-64 of the design specification; IOS-19, IOS-20.
 7. Authentication, trust and protocol errors terminate at once; network errors back off and retry. Reason: do not keep trying an account with a wrong password; do not accept an untrusted peer; network glitches recover on their own. Rejected at the time: retrying every error. Source: IOS-23.
@@ -460,7 +496,7 @@ These constraints come from the three C functions themselves. A game that reuses
 2. The text is UTF-8 and ends with 0. The return value is a byte count, not a character count. Decode the bytes as UTF-8.
 3. The buffer capacity must be greater than the text's byte count. Week 7 uses 2,048 bytes. A return of 0 means "no change, does not fit, or null pointer"; keep the previous text in that case.
 4. Use `result_id` to decide whether a result is new, not the label text. The same label twice in a row is two different results.
-5. The bridge gives only the latest result. If several results arrive between two polls, only the last is visible; `Received` still counts all of them. Poll every frame, and do not assume every result is seen. Measured against "make sure the next module receives it accurately", this is not per-result delivery. olsonwangyj must decide whether the latest result plus the text is enough, or whether the bridge needs per-result delivery and the real confidence (end of hand-off document section 7.3, and section 13).
+5. The bridge gives only the latest result. If several results arrive between two polls, only the last is visible; `Received` still counts all of them. Poll every frame, and do not assume every result is seen. Measured against "make sure the next module receives it accurately", this is not per-result delivery. Decided 2026-10-14: the text stays a status display, and per-result delivery with the real confidence comes from the planned `CommsNextResult` (see "Planned: per-result function `CommsNextResult`"; hand-off 7.3 and 13). Until it exists, the game can show the text and test the connection, but it cannot drive actions reliably from it.
 6. The calling component must survive scene changes. `CommsStop` removes everything and clears the passwords. After it, `CommsStart` must be called again and the user must enter the passwords again. The Week 7 export calls `Week7Stop` when its object is destroyed only because that object lives until the app ends.
 7. Call `CommsStop` only when the app truly stops using Communications. Do not call it on a scene change, do not use it as a "reset", and do not call it on entering the background. The native layer handles foreground and background itself.
 8. One call to `CommsStart` is enough. It does not connect automatically. Only the user can start a connection, by tapping the button and entering the passwords.
@@ -471,7 +507,9 @@ These constraints come from the three C functions themselves. A game that reuses
 
 ### Extension point: accept model labels and real confidence
 
-olsonwangyj has stated that Communications itself must support this, and that the owner will make the change (hand-off document section 8, item 5). Today the places below restrict the label to 4 values and the confidence to 1. When the first real model label arrives, the phone disconnects with a terminal error on that result.
+olsonwangyj has stated that Communications itself must support this, and that the owner will make the change (hand-off document section 8, item 5). It is planned, not built. Today the places below restrict the label to 4 values and the confidence to 1. When the first real model label arrives, the phone disconnects with a terminal error on that result.
+
+Planned in the same step (hand-off section 8, item 5, and the owner's plan in 6.4): accept model labels and real confidence in the three Python and C# checks (Fri 10-16) and in `Protocol.swift` (Sat 10-17); add a `confidence` field to the Swift `GestureResult` and the per-result function `CommsNextResult` (Sat 10-17, needs the Mac; see "Planned: per-result function `CommsNextResult`"). The board, the iPhone and the two reference receivers change together, then the phone app is rebuilt and reinstalled.
 
 | Location | Current restriction |
 |---|---|
@@ -484,7 +522,7 @@ olsonwangyj has stated that Communications itself must support this, and that th
 | `ultra96/protocol.py:4,78-83` | The same check on the board side (see [detail chapter 4](04-ultra96-service-and-certificates.md)) |
 | Result samples in the test files | All samples use the 4 labels and 1.0 |
 
-For reference: the model's current classes are in `models/class_names.json`. There are six: `PICKUPHOLD`, `PLACEDOWN`, `CHOP`, `WASH`, `THROW`, `FIREEXT`. The final label set, and whether the model outputs anything while idle, must be confirmed with Wen Ree as described in hand-off document section 7.2.
+For reference: the model's current classes are in `models/class_names.json`. There are six: `PICKUPHOLD`, `PLACEDOWN`, `CHOP`, `WASH`, `THROW`, `FIREEXT`. The final label set, and whether the model outputs anything while idle, are asked of Wen Ree in the message described in hand-off document section 7.2. The label names, how often a label is produced, and whether several identical labels in a row mean one action or several are for Wen Ree and Jie Ling to agree between themselves (hand-off 3.1). Communications forwards each label and confidence as they are, without filtering or renaming (hand-off 7.2).
 
 Hidden constraint: `GESTURE_RESULT` cannot freely gain fields. All four existing validators match the field set exactly:
 
@@ -506,10 +544,11 @@ So the only correlation information a result message can carry is the identity o
 - The board has only one subscriber slot. A second subscriber running at the same time leads to mutual displacement. Do not run `laptop/phone_simulator.py` or `tools/rehearse_remote_comms.py` during a demo or integration test.
 - Retryable errors make the phone log in to both SSH hops with passwords again and again, with no limit (see failure path 4).
 - `Received` is an aggregate count. The phone keeps no per-result record and no timestamps. It is evidence level 5 and must be read by a person. `CAPTURE PASSED` from `demo.py` is level 3 (hand-off document section 4.7).
-- The 2 s freshness means "recently received locally". It is not end-to-end latency.
+- The 2 s freshness means "recently received locally": the phone's display window counts from when the phone received the result. It is not end-to-end latency. The board has its own, separate 2 s limit on how long a result may wait there (failure path 11). There is no end-to-end timestamp and no end-to-end latency bound (hand-off 9.2).
+- Gaps in the `seq` part of `result_id` are normal. The `seq` is a sample sequence number, and samples can be missing: lost over the radio, dropped after waiting more than 2 s on the laptop, discarded from the laptop's queue on a BLE disconnect, or counted as ambiguous drops on a TLS reconnect (not resent). While a glove is disconnected it produces no samples, so that time shows only as a jump in `uptime_ms`, not in `seq` (hand-off 7.2). A gap on its own does not show that the phone lost a result.
 - On 2026-09-21, one 60 s run left the phone 109 results short. The cause is still unknown (`docs/archive/test-evidence/dual-esp-iphone-test-2026-09-21.md:41-49`).
-- `patch_export.py` accepts only known hashes. After a fresh export from `vis/` it refuses, with `Unknown receiver source; expected the verified sanitized import.`.
-- `configure_xcode.py` depends on fixed Xcode object IDs. It also has three hard conditions for a new export: `UIRequiredDeviceCapabilities` in `Info.plist` must include `arm64`, `metal` and `arkit`, otherwise it reports `Unknown Unity app Info.plist` (`configure_xcode.py:158-159`); `process_symbols.sh` must start with `#!/bin/sh` (`configure_xcode.py:152-153`); each of the five anchors in the project file must appear exactly once, including the line `00000000008063A1000160D3 /* UnityRuntime.framework in Frameworks */` (`configure_xcode.py:121-148`). Whether these hold for a new export has not been verified.
+- `patch_export.py` accepts only known hashes. After a fresh export from `vis/` it refuses, with `Unknown receiver source; expected the verified sanitized import.`. It is no longer needed for a new export: Jie Ling calls the functions from C# in the Unity project, so the new export needs only the link (hand-off 7.3 and section 8, item 7).
+- `configure_xcode.py` depends on fixed Xcode object IDs. It also has three hard conditions for a new export: `UIRequiredDeviceCapabilities` in `Info.plist` must include `arm64`, `metal` and `arkit`, otherwise it reports `Unknown Unity app Info.plist` (`configure_xcode.py:158-159`); `process_symbols.sh` must start with `#!/bin/sh` (`configure_xcode.py:152-153`); each of the five anchors in the project file must appear exactly once, including the line `00000000008063A1000160D3 /* UnityRuntime.framework in Frameworks */` (`configure_xcode.py:121-148`). Whether these hold for a new export has not been verified. The first real test is planned: Jie Ling's new export is due Sat 10-17, and the owner plans to link `CommsNative` into it and install it on the phone on Sun 10-18 (hand-off 6.4).
 - `verify-import.py` checks the import baseline and applies only to a freshly imported, unpatched project. In the current working copy, at least 4 files differ from the baseline on purpose: `Assembly-CSharp.cpp`, `project.pbxproj`, `Info.plist`, `process_symbols.sh`. Running it on the current `xcode-export/` therefore reports `Changed or incomplete` and ends with `IMPORT_CHECK_FAILED`. That is expected (`verify-import.py:32-33,41-43`).
 - Building, signing and installing need a Mac and Xcode. The Swift tests have not been verified on Windows.
 - `xcode-export/` has 275 Git LFS files. It cannot be built without pulling them.
@@ -523,6 +562,19 @@ The following comes from hand-off document section 6.3. The repository cannot re
 - The service on the Ultra96 should still be the code snapshot from 28 September, with session `week7-demo`. Nobody has logged in to check. That process was not started with `demo.py service --start`. The untracked `.week7-local/co_deploy.py` started it in the background (`subprocess.Popen` with `start_new_session=True`), with its output in `BOARD_ROOT/evidence/` and its PID in `BOARD_ROOT/evidence/server.pid`. It does not depend on an SSH session and may still be running. Look for it there when redeploying; the recorded PID is historical and must be verified before use ([detail chapter 4](04-ultra96-service-and-certificates.md)). The phone app and the board service must use the same session ID. If only one side changes, the phone keeps showing `Disconnected: connection closed; retrying`.
 - Only the laptop's copy of the server certificate was checked. It is the certificate deployed to the board in September, and it expired at 2026-10-06 15:11:29 UTC. Whether the board's certificate was replaced later has not been checked, so the board's certificate is not verified as expired. The CA is valid until 2027-09-06, and its SHA-256 matches `EnrolledTrust.caSHA256` in `Configuration.swift`. After renewing with `--renew-server-from`, the phone source therefore does not need to change.
 - The existing `xcode-export/` is already patched and linked with `CommsNative`. `patch_export.py` and `configure_xcode.py` can be run again safely.
+
+Planned phone-side steps up to the in-person integration session on Tue 2026-10-20 (from the owner's plan in hand-off 6.4; none done yet):
+
+| Date | Phone-side step |
+|---|---|
+| Thu 10-15 | Board service redeployed from current source (session `ltc-comms`) with a renewed server certificate; Jie Ling answers who holds the phone on Tuesday |
+| Fri 10-16 | The three Python and C# label and confidence checks accept model labels and real confidence (`Protocol.swift` follows on Sat 10-17) |
+| Sat 10-17 | On the Mac: `Protocol.swift` accepts model labels and real confidence; `CommsNextResult` and the `confidence` field added to the Swift client; the existing Week 7 export rebuilt from current source and installed, so the phone can subscribe to `ltc-comms`; Jie Ling delivers the Xcode export that calls the functions, with the 5005 listener removed |
+| Sun 10-18 | `CommsNative` linked into Jie Ling's export and installed on the phone; Jie Ling told that `CommsNextResult` is ready |
+| Mon 10-19 | Full dry run: gloves → laptop → Ultra96 → model → phone → game |
+| Tue 10-20 | In-person integration; Jie Ling brings the Unity project to rebuild if needed |
+
+Between the board redeploy and the new phone build, the installed Week 7 app (session `week7-demo`) cannot subscribe to a service that uses `ltc-comms`; it keeps showing `Disconnected: connection closed; retrying`. Rebuilding the Week 7 export from current source (hand-off 6.3, step 4) closes that gap.
 
 ### Week 7 names that stay unchanged
 
@@ -610,7 +662,7 @@ On-device acceptance steps (preconditions: the board service runs with session `
 1. The phone connects to the campus VPN itself. The laptop's VPN does not provide a route for the phone.
 2. Open the app and tap `Communications Connect`. On first use, import the public CA first.
 3. Enter the board and jump host usernames and passwords, and tap `Connect`.
-4. Wait until the screen shows `Subscribed` and `Received: 0`. Only then start sending data. Without a subscriber, the board drops results.
+4. Wait until the screen shows `Subscribed` and `Received: 0`. Only then start sending data. Without a subscriber, the board drops results. `Subscribed` shows only that the subscription handshake succeeded; whether results flow is checked in steps 5 and 6.
 5. On the laptop, open the tunnel and start the capture (`python demo.py tunnel` and `python demo.py run`; see [detail chapter 3](03-laptop-relay-and-tools.md)). The screen should show changing labels and `result_id` values.
 6. After the capture, compare the increase in `Received` with `Phone expected increase` in the `demo.py` output. Equal values are an aggregate-level pass, which is evidence level 5.
 7. Lock and unlock the screen. `Paused — return and connect again` should appear. After entering the passwords again and connecting, `Received` starts from 0.
