@@ -461,19 +461,27 @@ async def _run(args):
             print(json.dumps({"event": "observation_stopped", "state": state}), flush=True)
 
 
+def _model_failed(spec, exc):
+    print(json.dumps({"event": "model_failed", "model": spec or "dummy",
+                      "error_type": type(exc.__cause__ or exc).__name__}), flush=True)
+
+
 async def _run_service(args, observer=None):
     spec = getattr(args, "model", None)
+    # Only loading the model and its start(emit) are model failures; a bad session,
+    # certificate or port is reported as itself.
     try:
         model = load_model(spec, getattr(args, "model_path", None))
-        service = CommsServer(server_context(args.cert, args.key), session_id=args.session_id,
-                              ingest_port=args.ingest_port, gateway_port=args.gateway_port,
-                              observer=observer, model=model)
-        await service.start()
     except Exception as exc:
-        if isinstance(exc, ModelStartError) or (spec is not None and isinstance(
-                exc, (ImportError, TypeError, ValueError))):
-            print(json.dumps({"event": "model_failed", "model": spec or "dummy",
-                              "error_type": type(exc.__cause__ or exc).__name__}), flush=True)
+        _model_failed(spec, exc)
+        raise
+    service = CommsServer(server_context(args.cert, args.key), session_id=args.session_id,
+                          ingest_port=args.ingest_port, gateway_port=args.gateway_port,
+                          observer=observer, model=model)
+    try:
+        await service.start()
+    except ModelStartError as exc:
+        _model_failed(spec, exc)
         raise
     print(json.dumps({"event": "model_ready", "model": service.model.name,
                       "seconds": round(service.model_start_seconds, 3)}), flush=True)

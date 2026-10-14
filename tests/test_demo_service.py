@@ -1,6 +1,7 @@
 """Exercise service controls locally; never contact SSH or real devices."""
 import importlib
 import importlib.util
+import json
 import os
 import shlex
 import shutil
@@ -10,9 +11,36 @@ import pytest
 
 
 @pytest.fixture
-def service():
+def service(monkeypatch, tmp_path):
     assert importlib.util.find_spec("tools.demo_service") is not None, "Service helper is missing"
-    return importlib.import_module("tools.demo_service")
+    module = importlib.import_module("tools.demo_service")
+    # Never depend on this machine's real deployment records.
+    monkeypatch.setattr(module, "DEPLOYMENTS", tmp_path / "no-deployments")
+    return module
+
+
+def write_record(folder, stamp, record):
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / ("deployment-" + stamp + ".json")).write_text(json.dumps(record), encoding="utf-8")
+
+
+def test_board_source_follows_the_newest_deployment_record(service, monkeypatch, tmp_path):
+    records = tmp_path / "deployments"
+    monkeypatch.setattr(service, "DEPLOYMENTS", records)
+    assert service.board_source() == service.BOARD_SOURCE
+    deployed = service.BOARD_ROOT + "/source-co-v3-20261015T010000Z"
+    write_record(records, "20261015T010000Z", {"status": "deployed", "current": {"cwd": deployed}})
+    assert service.board_source() == deployed
+    rollback = service.BOARD_ROOT + "/rollback-co-20261015T020000Z"
+    write_record(records, "20261015T020000Z", {"status": "rolled_back", "current": {"cwd": rollback}})
+    assert service.board_source() == rollback
+    # Nothing left running, unreadable, or outside the deployment root: use an older record.
+    write_record(records, "20261015T030000Z", {"status": "failed_nothing_running"})
+    (records / "deployment-20261015T040000Z.json").write_text("{", encoding="utf-8")
+    write_record(records, "20261015T050000Z", {"status": "deployed", "current": {"cwd": "/tmp/x"}})
+    assert service.board_source() == rollback
+    assert service.BOARD_ROOT + "/" in service.start_script("ltc-comms")
+    assert "cd " + rollback in service.start_script("ltc-comms")
 
 
 @pytest.fixture

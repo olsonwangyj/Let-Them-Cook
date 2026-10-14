@@ -280,3 +280,6 @@ ios-visualizer/*.json text eol=lf
 "ios-visualizer/xcode-export/Libraries/lib_burst_generated.a" filter=lfs diff=lfs merge=lfs -text
 "ios-visualizer/xcode-export/usymtool" filter=lfs diff=lfs merge=lfs -text
 "ios-visualizer/xcode-export/usymtoolarm64" filter=lfs diff=lfs merge=lfs -text
+
+# Run inside Linux/WSL bash, which rejects CRLF.
+tests/linux/*.sh text eol=lf

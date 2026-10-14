@@ -14,6 +14,7 @@ and it reports results by calling
 from any thread. values is a tuple of 11 floats in the agreed physical units.
 """
 import importlib
+import inspect
 import logging
 import numbers
 import random
@@ -58,8 +59,12 @@ def load_model(spec=None, path=None, rng=None):
         sys.path.insert(0, str(path))
     module = importlib.import_module(spec)
     for name in ("start", "on_sample"):
-        if not callable(getattr(module, name, None)):
+        function = getattr(module, name, None)
+        if not callable(function):
             raise TypeError("model module {} has no callable {}()".format(spec, name))
+        # The service calls both directly on its event loop; a coroutine would never run.
+        if inspect.iscoroutinefunction(function):
+            raise TypeError("model {}.{}() must be a plain function, not async def".format(spec, name))
     return module
 
 

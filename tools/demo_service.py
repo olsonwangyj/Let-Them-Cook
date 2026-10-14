@@ -1,4 +1,5 @@
 """Foreground Ultra96 status/start operations for the existing demo CLI."""
+import json
 from pathlib import Path
 import shlex
 import subprocess
@@ -9,7 +10,27 @@ from ultra96.protocol import validate_session
 
 ROOT = Path(__file__).resolve().parents[1]
 BOARD_ROOT = "/var/tmp/cg4002-week7-yanjie-20260907"
+# Fallback only: the 28 September snapshot. After python -m tools.deploy_service, the
+# folder it deployed (recorded locally in DEPLOYMENTS) is used instead.
 BOARD_SOURCE = BOARD_ROOT + "/source-co-v2-20260928T122047Z"
+DEPLOYMENTS = ROOT / ".comms-local" / "deployments"
+
+
+def board_source():
+    """The working folder of the service the newest local deployment record left running."""
+    try:
+        records = sorted(DEPLOYMENTS.glob("deployment-*.json"))
+    except OSError:
+        records = []
+    for path in reversed(records):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+            folder = record["current"]["cwd"]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue  # unreadable, or nothing was left running
+        if isinstance(folder, str) and folder.startswith(BOARD_ROOT + "/") and folder.isprintable():
+            return folder
+    return BOARD_SOURCE
 
 
 def ssh_command(script):
@@ -30,7 +51,7 @@ def start_script(session_id):
     validate_session(session_id)
     # A failed listener query is an error, never evidence that the ports are free.
     return f'''set -eu
-cd {shlex.quote(BOARD_SOURCE)}
+cd {shlex.quote(board_source())}
 command -v ss >/dev/null
 b07_listeners=$(ss -ltnH) || {{
   echo 'Could not inspect service ports. Nothing was started.' >&2
@@ -55,7 +76,7 @@ def main(start=False, session_id="ltc-comms") -> int:
     if start:
         script = start_script(session_id)
         print("Run 'python demo.py service' first. Reuse an existing healthy service.")
-        print("Confirm ESP, board and iPhone versions match this deployment: " + BOARD_SOURCE)
+        print("Confirm ESP, board and iPhone versions match this deployment: " + board_source())
         print("Session: " + session_id + " (the capture and the phone must use the same one)")
         if input("Press Enter to start only if absent, or type q to cancel: ").strip():
             return 130
