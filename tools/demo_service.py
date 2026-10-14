@@ -1,6 +1,7 @@
 """Foreground Ultra96 status/start operations for the existing demo CLI."""
 import json
 from pathlib import Path
+import re
 import shlex
 import subprocess
 
@@ -16,8 +17,16 @@ BOARD_SOURCE = BOARD_ROOT + "/source-co-v2-20260928T122047Z"
 DEPLOYMENTS = ROOT / ".comms-local" / "deployments"
 
 
-def board_source():
-    """The working folder of the service the newest local deployment record left running."""
+_MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
+
+
+def _option(argv, name):
+    return argv[argv.index(name) + 1] if name in argv[:-1] else None
+
+
+def newest_deployment():
+    """(folder, model, model_path) of the service the newest local deployment record left
+    running, read from that process's own arguments; (BOARD_SOURCE, None, None) without one."""
     try:
         records = sorted(DEPLOYMENTS.glob("deployment-*.json"))
     except OSError:
@@ -25,12 +34,25 @@ def board_source():
     for path in reversed(records):
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
-            folder = record["current"]["cwd"]
-        except (OSError, ValueError, KeyError, TypeError):
+            folder, argv = record["current"]["cwd"], record["current"]["argv"]
+            model, model_path = _option(argv, "--model"), _option(argv, "--model-path")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue  # unreadable, or nothing was left running
-        if isinstance(folder, str) and folder.startswith(BOARD_ROOT + "/") and folder.isprintable():
-            return folder
-    return BOARD_SOURCE
+        if not (isinstance(folder, str) and folder.startswith(BOARD_ROOT + "/")
+                and folder.isprintable()):
+            continue
+        if model is not None and not (isinstance(model, str) and _MODULE.fullmatch(model)):
+            continue
+        if model_path is not None and not (isinstance(model_path, str) and model_path.startswith("/")
+                                           and model_path.isprintable()):
+            continue
+        return folder, model, model_path
+    return BOARD_SOURCE, None, None
+
+
+def board_source():
+    """The working folder of the service the newest local deployment record left running."""
+    return newest_deployment()[0]
 
 
 def ssh_command(script):
@@ -49,9 +71,14 @@ def ssh_command(script):
 
 def start_script(session_id):
     validate_session(session_id)
+    folder, model, model_path = newest_deployment()
+    # Restart what was deployed: the same folder and the same model.
+    model_arguments = "".join(" " + flag + " " + shlex.quote(value)
+                              for flag, value in (("--model", model), ("--model-path", model_path))
+                              if value is not None)
     # A failed listener query is an error, never evidence that the ports are free.
     return f'''set -eu
-cd {shlex.quote(board_source())}
+cd {shlex.quote(folder)}
 command -v ss >/dev/null
 b07_listeners=$(ss -ltnH) || {{
   echo 'Could not inspect service ports. Nothing was started.' >&2
@@ -68,7 +95,7 @@ while read -r b07_state b07_recv_q b07_send_q b07_local b07_peer; do
 done <<EOF
 $b07_listeners
 EOF
-exec /usr/bin/python3 -u -m ultra96.server --cert {BOARD_ROOT}/tls/server-cert.pem --key {BOARD_ROOT}/tls/server-key.pem --session-id {shlex.quote(session_id)} --ingest-port 8888 --gateway-port 9999
+exec /usr/bin/python3 -u -m ultra96.server --cert {BOARD_ROOT}/tls/server-cert.pem --key {BOARD_ROOT}/tls/server-key.pem --session-id {shlex.quote(session_id)} --ingest-port 8888 --gateway-port 9999{model_arguments}
 '''
 
 
@@ -76,7 +103,9 @@ def main(start=False, session_id="ltc-comms") -> int:
     if start:
         script = start_script(session_id)
         print("Run 'python demo.py service' first. Reuse an existing healthy service.")
-        print("Confirm ESP, board and iPhone versions match this deployment: " + board_source())
+        folder, model, _ = newest_deployment()
+        print("Confirm ESP, board and iPhone versions match this deployment: " + folder)
+        print("Model: " + (model or "the built-in dummy model"))
         print("Session: " + session_id + " (the capture and the phone must use the same one)")
         if input("Press Enter to start only if absent, or type q to cancel: ").strip():
             return 130

@@ -114,6 +114,8 @@ async def check(address, device_id, pki, *, rate, duration, commands):
         if ble_task.done():
             ble_task.result()
             raise RuntimeError("BLE loop stopped early")
+        # Every command must have been submitted, not just the queue be empty for a moment.
+        await asyncio.wait({sender}, timeout=10 + commands * 15)
         await asyncio.wait_for(bridge.commands.join(), 10)
         stop.set()  # normal stop: remote notify off, final source statistics read
         await asyncio.wait_for(ble_task, 30)

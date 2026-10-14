@@ -14,7 +14,10 @@ import random
 import signal
 import socket
 import ssl
+import sys
+import threading
 import time
+import traceback
 
 from common.tls import server_context
 from common.wire import ProtocolError, STREAM_LIMIT, read_frame, write_frame
@@ -472,8 +475,10 @@ async def _run_service(args, observer=None):
     # certificate or port is reported as itself.
     try:
         model = load_model(spec, getattr(args, "model_path", None))
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:
         _model_failed(spec, exc)
+        if isinstance(exc, SystemExit):  # exit nonzero even for a bare sys.exit() in the model
+            raise ModelStartError("importing the model raised SystemExit") from exc
         raise
     service = CommsServer(server_context(args.cert, args.key), session_id=args.session_id,
                           ingest_port=args.ingest_port, gateway_port=args.gateway_port,
@@ -483,13 +488,13 @@ async def _run_service(args, observer=None):
     except ModelStartError as exc:
         _model_failed(spec, exc)
         raise
-    print(json.dumps({"event": "model_ready", "model": service.model.name,
-                      "seconds": round(service.model_start_seconds, 3)}), flush=True)
     loop = asyncio.get_running_loop()
     stopped = asyncio.Event()
     handles_sigterm = False
     waiters = ()
     try:
+        print(json.dumps({"event": "model_ready", "model": service.model.name,
+                          "seconds": round(service.model_start_seconds, 3)}), flush=True)
         try:
             loop.add_signal_handler(signal.SIGTERM, stopped.set)
             handles_sigterm = True
@@ -536,6 +541,27 @@ def main():
         asyncio.run(_run(args))
     except KeyboardInterrupt:
         pass
+    except BaseException as exc:
+        if _model_threads_left():
+            traceback.print_exc()
+            _exit_now(exc.code if isinstance(exc, SystemExit) and type(exc.code) is int else 1)
+        raise
+    if _model_threads_left():
+        _exit_now(0)
+
+
+def _model_threads_left():
+    """Non-daemon threads a model started; they would keep a stopped service alive."""
+    return [thread for thread in threading.enumerate()
+            if thread is not threading.main_thread() and not thread.daemon and thread.is_alive()]
+
+
+def _exit_now(code):
+    # The service has closed its ports and printed its metrics; nothing else may hold it.
+    print(json.dumps({"event": "exit_with_model_threads",
+                      "threads": len(_model_threads_left())}), flush=True)
+    sys.stderr.flush()
+    os._exit(code)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 from types import SimpleNamespace
 import uuid
 
@@ -221,6 +222,19 @@ def test_on_sample_exception_is_counted_rate_limited_and_never_stops_ingestion(c
     assert "private model detail" not in caplog.text
 
 
+def test_on_sample_system_exit_is_contained_like_any_model_error():
+    # Model scripts in this project report missing files with raise SystemExit(...).
+    def react(model, *args):
+        raise SystemExit("Missing models/gesture_cnn.pth")
+
+    async def check():
+        server = board(Recorder(react))
+        acks = await ingest(server, sensor(0), sensor(1))
+        assert [ack["status"] for ack in acks] == ["accepted"] * 2
+        assert server.metrics["model_errors"] == 2
+    asyncio.run(check())
+
+
 def test_slow_on_sample_is_counted_and_its_duration_tracked(monkeypatch):
     monkeypatch.setattr(model_module, "SLOW_CALL_SECONDS", 0.001)
 
@@ -244,12 +258,14 @@ def test_slow_on_sample_is_counted_and_its_duration_tracked(monkeypatch):
 
 def test_emit_from_a_worker_thread_reaches_the_subscriber():
     outcomes = []
+    workers = []
 
     def react(model, device_id, boot_id, seq, uptime_ms, values):
         def work():
             outcomes.append((threading.get_ident(),
                              model.emit("PICKUPHOLD", 0.75, device_id, boot_id, seq)))
-        threading.Thread(target=work).start()
+        workers.append(threading.Thread(target=work))
+        workers[-1].start()
 
     async def check():
         server = board(Recorder(react))
@@ -260,6 +276,9 @@ def test_emit_from_a_worker_thread_reaches_the_subscriber():
         assert result == dict(v=3, type="GESTURE_RESULT", session_id="ltc-comms", device_id=1,
                               boot_id=7, seq=3, request_id=None, result_id="1:7:3",
                               gesture="PICKUPHOLD", confidence=0.75)
+        # The result can arrive before the worker has recorded what emit returned.
+        workers[0].join(2)
+        assert not workers[0].is_alive()
         assert outcomes[0][0] != threading.get_ident() and outcomes[0][1] is True
         assert server.metrics["model_results"] == 1
     asyncio.run(check())
@@ -502,6 +521,51 @@ def test_start_that_raises_is_a_model_start_error_and_no_listener_opens():
     asyncio.run(check())
 
 
+def test_start_that_exits_is_a_model_start_error_too():
+    async def check():
+        class Exits(Recorder):
+            def start(self, emit):
+                raise SystemExit(0)
+
+        server = board(Exits(), ingest_port=0, gateway_port=0)
+        with pytest.raises(ModelStartError) as failure:
+            await server.start()
+        assert isinstance(failure.value.__cause__, SystemExit)
+        assert server._listeners == []
+        await server.close()
+    asyncio.run(check())
+
+
+def test_a_module_is_named_by_its_import_name_whatever_its_globals():
+    module = types.ModuleType("b07_named_model")
+    module.name = object()  # e.g. a logger or `from os import *`
+    assert model_module.model_name(module) == "b07_named_model"
+    assert model_module.model_name(DummyModel()) == "dummy"
+
+    class Unnamed:
+        pass
+    assert model_module.model_name(Unnamed()) == "Unnamed"
+
+
+def test_leftover_model_threads_cannot_keep_a_stopped_service_alive(monkeypatch, capsys):
+    from ultra96 import server as server_module
+    release = threading.Event()
+    worker = threading.Thread(target=release.wait, daemon=False)
+    worker.start()
+    try:
+        assert worker in server_module._model_threads_left()
+        exits = []
+        monkeypatch.setattr(server_module.os, "_exit", exits.append)
+        server_module._exit_now(0)
+        assert exits == [0]
+        event = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert event == {"event": "exit_with_model_threads", "threads": 1}
+    finally:
+        release.set()
+        worker.join(2)
+    assert worker not in server_module._model_threads_left()
+
+
 def write_model(folder, source, package=None):
     """Write a model module (optionally inside a package); return its import name."""
     name = "b07_model_" + uuid.uuid4().hex
@@ -687,13 +751,18 @@ def test_cli_loads_a_model_module_and_prints_model_ready(pki, tmp_path):
     assert lines[0]["model"] == "dummy"
 
 
-@pytest.mark.parametrize("case", ["start_raises", "import_raises", "missing", "no_on_sample"])
+@pytest.mark.parametrize("case", ["start_raises", "import_raises", "missing", "no_on_sample",
+                                  "import_exits", "start_exits"])
 def test_cli_model_failure_prints_model_failed_and_exits_nonzero(pki, tmp_path, case):
     sources = {
         "start_raises": "def start(emit):\n    raise RuntimeError('weights missing')\n"
                         "def on_sample(*args):\n    pass\n",
         "import_raises": "raise RuntimeError('cannot import model dependencies')\n",
         "no_on_sample": "def start(emit):\n    pass\n",
+        # A bare sys.exit() must still end in model_failed and a nonzero exit.
+        "import_exits": "raise SystemExit(0)\n",
+        "start_exits": "import sys\ndef start(emit):\n    sys.exit(0)\n"
+                       "def on_sample(*args):\n    pass\n",
     }
     spec = ("b07_missing_" + uuid.uuid4().hex if case == "missing"
             else write_model(tmp_path, sources[case]))
@@ -703,7 +772,8 @@ def test_cli_model_failure_prints_model_failed_and_exits_nonzero(pki, tmp_path, 
     assert lines[0]["model"] == spec
     assert lines[0]["error_type"] == {"start_raises": "RuntimeError", "import_raises": "RuntimeError",
                                       "missing": "ModuleNotFoundError",
-                                      "no_on_sample": "TypeError"}[case]
+                                      "no_on_sample": "TypeError", "import_exits": "SystemExit",
+                                      "start_exits": "SystemExit"}[case]
 
 
 def test_cli_does_not_blame_the_model_for_a_bad_session(pki, tmp_path):

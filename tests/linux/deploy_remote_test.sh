@@ -77,7 +77,7 @@ check "status rolled_back" 'grep -q "\"status\": \"rolled_back\"" "$BASE/out2.js
 RBPID=$(cat "$BASE/evidence/server.pid")
 check "previous service restarted from rollback copy" '[ "$(readlink /proc/$RBPID/cwd)" = "$BASE/rollback-co-T2" ]'
 check "certificate restored after rollback" 'cmp -s "$BASE/tls/server-cert.pem" "$SRC/pki-b/server-cert.pem"'
-check "rolled-back service listens on 8888 and 9999" 'ss -ltnp 2>/dev/null | grep -q "127.0.0.1:9999"'
+check "rolled-back service listens on 8888 and 9999" '[ "$(ss -ltnH 2>/dev/null | grep -c -E "127\.0\.0\.1:(8888|9999) ")" -eq 2 ]'
 
 # --- 5. mismatched certificate and key: refused before anything stops ---
 newsrc source-co-v3-T3; mkdir -p "$BASE/source-co-v3-T3/tls-incoming"
@@ -102,9 +102,34 @@ pkill -u "$(id -u)" -f '[h]ttp.server 8888'; sleep 0.5
 /usr/bin/python3 -c "$PROG" "$BASE" "$BASE/source-co-v3-T4" T5 "$OPTS" > "$BASE/out5.json" 2> "$BASE/err5.txt"; code=$?
 check "first start deployed" '[ $code -eq 0 ] && grep -q "\"status\": \"deployed\"" "$BASE/out5.json" && grep -q "\"previous\": null" "$BASE/out5.json"'
 
+# --- 8. an old service that closes its ports on SIGTERM but never exits: SIGKILL ---
+cleanup
+mkdir -p "$BASE/source-stubborn/ultra96" "$BASE/source-stubborn/common"
+touch "$BASE/source-stubborn/ultra96/__init__.py" "$BASE/source-stubborn/common/__init__.py"
+cat > "$BASE/source-stubborn/ultra96/server.py" <<'PY'
+import signal, socket, time
+listeners = []
+for port in (8888, 9999):
+    sock = socket.socket(); sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("127.0.0.1", port)); sock.listen(); listeners.append(sock)
+def term(*_):
+    for sock in listeners: sock.close()   # ports released, process lingers like a stuck model thread
+signal.signal(signal.SIGTERM, term)
+while True: time.sleep(1)
+PY
+(cd "$BASE/source-stubborn" && setsid /usr/bin/python3 -u -m ultra96.server --cert x --key y \
+   > "$BASE/evidence/stubborn.log" 2>&1 < /dev/null &)
+sleep 1.5
+STUBPID=$(pgrep -u "$(id -u)" -f '[u]ltra96.server' | head -1)
+newsrc source-co-v3-T6
+/usr/bin/python3 -c "$PROG" "$BASE" "$BASE/source-co-v3-T6" T6 "$OPTS" > "$BASE/out6.json" 2> "$BASE/err6.txt"; code=$?
+check "stubborn old service: deployed" '[ $code -eq 0 ] && grep -q "\"status\": \"deployed\"" "$BASE/out6.json"'
+check "stubborn old service: stopped with SIGKILL" 'grep -q "\"old_stop\": \"sigkill\"" "$BASE/out6.json"'
+check "stubborn old service: process gone" '! kill -0 "$STUBPID" 2>/dev/null'
+
 cleanup
 echo "RESULT pass=$pass fail=$fail"
-for f in err1 err2 err3 err4 err5; do echo "--- $f"; tail -3 "$BASE/$f.txt"; done
+for f in err1 err2 err3 err4 err5 err6; do echo "--- $f"; tail -3 "$BASE/$f.txt"; done
 echo "--- e2e"; cat "$BASE/e2e.txt"
 rm -rf "$BASE"
-[ "$fail" -eq 0 ] && [ "$pass" -eq 24 ]
+[ "$fail" -eq 0 ] && [ "$pass" -eq 27 ]

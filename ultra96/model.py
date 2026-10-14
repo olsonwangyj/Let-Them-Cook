@@ -21,6 +21,7 @@ import random
 import sys
 import threading
 import time
+import types
 
 from common.sensor import physical_values
 from ultra96.protocol import DUMMY_GESTURES, valid_confidence, valid_gesture
@@ -69,7 +70,10 @@ def load_model(spec=None, path=None, rng=None):
 
 
 def model_name(model):
-    return getattr(model, "name", None) or getattr(model, "__name__", None) or type(model).__name__
+    # A module's own globals (for example a stray `name`) must not rename it.
+    if isinstance(model, types.ModuleType):
+        return model.__name__
+    return str(getattr(model, "name", None) or type(model).__name__)
 
 
 def _uint32(value):
@@ -128,7 +132,7 @@ class ModelPort:
         started = time.perf_counter()
         try:
             self.model.start(self.emit)
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:  # a model's sys.exit() must not end the service
             self._closed = True
             raise ModelStartError("model start(emit) raised " + type(exc).__name__) from exc
         return time.perf_counter() - started
@@ -149,7 +153,7 @@ class ModelPort:
         started = time.perf_counter()
         try:
             self.model.on_sample(device_id, boot_id, seq, uptime_ms, physical_values(values))
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:  # a model's sys.exit() must not end the service
             self.metrics["model_errors"] += 1
             self.warn("error", "model on_sample raised %s", type(exc).__name__)
         finally:

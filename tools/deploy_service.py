@@ -5,13 +5,18 @@ common/ and ultra96/ into a new source folder under BOARD_ROOT, optionally
 installs a renewed server certificate, and then, on the board:
   1. compiles the new source and checks that the certificate and key match and
      have not expired;
-  2. stops this user's own running ultra96.server (only after checking that it
-     is this user's process under BOARD_ROOT and owns 127.0.0.1:8888 and :9999),
-     or, when none runs, checks that both ports are free;
-  3. starts the new service in its own session (it keeps running after SSH
-     closes), with its output in BOARD_ROOT/evidence/server-co-<stamp>.log;
-  4. waits until it listens on both ports; otherwise stops it, restores the
-     previous certificate files and restarts the previous service.
+  2. checks that the running ultra96.server is this user's process under
+     BOARD_ROOT and owns 127.0.0.1:8888 and :9999 (or, when none runs, that both
+     ports are free) and copies its code aside for rollback; nothing on the board
+     has changed up to here;
+  3. stops it with SIGTERM and waits until the process has exited; if it has not
+     within 10 s, sends SIGKILL after checking it is still the same process;
+  4. installs the uploaded certificate (backing up the old pair) and starts the
+     new service in its own session (it keeps running after SSH closes), with its
+     output in BOARD_ROOT/evidence/server-co-<stamp>.log;
+  5. waits until it listens on both ports. Any failure from step 3 on stops the
+     new service, restores the previous certificate files and restarts the
+     previous code; a final record is printed and saved in every case.
 It never uses sudo and never touches other users' processes.
 
     python -m tools.deploy_service --server-cert-dir <folder with server-cert.pem and server-key.pem>
@@ -24,6 +29,7 @@ import hashlib
 import json
 from pathlib import Path
 import shlex
+import socket
 import sys
 
 from tools.demo_service import BOARD_ROOT
@@ -138,32 +144,14 @@ if not compileall.compile_dir(str(source), quiet=1):
     raise RuntimeError("new source compile failed")
 record = dict(timestamp=stamp, previous=old, new_source=str(source), options=options)
 
-# Certificate: back up the current pair, then install the uploaded one (if any).
+# Every check that needs no change on the board comes first.
 incoming = source / "tls-incoming"
-backup = None
 if incoming.is_dir():
-    check_certificate(incoming / "server-cert.pem", incoming / "server-key.pem")
-    backup = tls / ("backup-" + stamp)
-    backup.mkdir(mode=0o700, parents=True)
-    for name in ("server-cert.pem", "server-key.pem"):
-        if (tls / name).exists():
-            shutil.copy2(str(tls / name), str(backup / name))
-    for name in ("server-cert.pem", "server-key.pem"):
-        shutil.copyfile(str(incoming / name), str(tls / (name + ".new")))
-        os.chmod(str(tls / (name + ".new")), 0o600 if name.endswith("key.pem") else 0o644)
-        os.replace(str(tls / (name + ".new")), str(tls / name))
-    shutil.rmtree(str(incoming))
-    record["certificate_backup"] = str(backup)
-record["certificate_not_after"] = check_certificate(tls / "server-cert.pem", tls / "server-key.pem")
-
-
-def restore_certificate():
-    if backup is not None:
-        for name in ("server-cert.pem", "server-key.pem"):
-            if (backup / name).exists():
-                shutil.copy2(str(backup / name), str(tls / name))
-
-
+    record["certificate_not_after"] = check_certificate(incoming / "server-cert.pem",
+                                                        incoming / "server-key.pem")
+else:
+    record["certificate_not_after"] = check_certificate(tls / "server-cert.pem",
+                                                        tls / "server-key.pem")
 rollback = None
 if old is not None:
     # An independent minimal copy of the running code, for rollback.
@@ -184,51 +172,115 @@ if options.get("model"):
 if options.get("model_path"):
     new_args += ["--model-path", options["model_path"]]
 
-if old is not None:
-    if info(old["pid"]) != old:
-        raise RuntimeError("the running service changed since it was checked")
-    os.kill(old["pid"], signal.SIGTERM)
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        try:
-            if not listeners(old["pid"]):
-                break
-        except FileNotFoundError:
-            break
-        time.sleep(0.1)
-    else:
-        raise RuntimeError("the old service did not release its ports")
 
+def alive(process):
+    """True while the recorded process (same PID and start time) exists and is not a zombie."""
+    try:
+        fields = (Path("/proc") / str(process["pid"]) / "stat").read_text().split()
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    return fields[21] == process["start_ticks"] and fields[2] != "Z"
+
+
+def wait_gone(process, seconds):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if not alive(process):
+            return True
+        time.sleep(0.1)
+    return not alive(process)
+
+
+def stop_old():
+    # Closing the ports is not enough: a model thread can keep the process alive.
+    os.kill(old["pid"], signal.SIGTERM)
+    if wait_gone(old, 10):
+        return "sigterm"
+    if info(old["pid"]) != old:  # never signal a reused PID
+        raise RuntimeError("the old service changed while stopping")
+    os.kill(old["pid"], signal.SIGKILL)
+    if wait_gone(old, 5):
+        return "sigkill"
+    raise RuntimeError("the old service did not exit after SIGKILL")
+
+
+backup = None
+
+
+def install_certificate():
+    global backup
+    backup = tls / ("backup-" + stamp)
+    backup.mkdir(mode=0o700, parents=True)
+    for name in ("server-cert.pem", "server-key.pem"):
+        if (tls / name).exists():
+            shutil.copy2(str(tls / name), str(backup / name))
+    for name in ("server-cert.pem", "server-key.pem"):
+        shutil.copyfile(str(incoming / name), str(tls / (name + ".new")))
+        os.chmod(str(tls / (name + ".new")), 0o600 if name.endswith("key.pem") else 0o644)
+        os.replace(str(tls / (name + ".new")), str(tls / name))
+    record["certificate_backup"] = str(backup)
+
+
+def restore_certificate():
+    if backup is not None:
+        for name in ("server-cert.pem", "server-key.pem"):
+            if (backup / name).exists():
+                shutil.copy2(str(backup / name), str(tls / name))
+        record["certificate_restored"] = True
+
+
+def finish(status, current=None):
+    record["status"] = status
+    if current is not None:
+        record["current"] = current
+        (evidence / "server.pid").write_text(str(current["pid"]) + "\n")
+    (evidence / "active-deployment.json").write_text(json.dumps(record, indent=2))
+    print(json.dumps(record), flush=True)
+
+
+# From the first change on the board, every failure ends in a restore and a final record.
+stopped = False
 new = None
 try:
+    if old is not None:
+        if info(old["pid"]) != old:
+            raise RuntimeError("the running service changed since it was checked")
+        stopped = True
+        record["old_stop"] = stop_old()
+    if incoming.is_dir():
+        install_certificate()
+        shutil.rmtree(str(incoming))
+    check_certificate(tls / "server-cert.pem", tls / "server-key.pem")
     new = launch(new_args, source, evidence / ("server-co-" + stamp + ".log"))
     healthy(new, options["start_timeout"])
-    record.update(status="deployed", current=info(new.pid), ports=sorted(listeners(new.pid)),
-                  log=str(evidence / ("server-co-" + stamp + ".log")))
-    (evidence / "server.pid").write_text(str(new.pid) + "\n")
-    (evidence / "active-deployment.json").write_text(json.dumps(record, indent=2))
-    (source / "deployment.json").write_text(json.dumps(record, indent=2))
-    print(json.dumps(record), flush=True)
-except BaseException:
+    record.update(ports=sorted(listeners(new.pid)), log=str(evidence / ("server-co-" + stamp + ".log")))
+    (source / "deployment.json").write_text(json.dumps(dict(record, status="deployed"), indent=2))
+    finish("deployed", info(new.pid))
+except BaseException as failure:
+    record["error"] = type(failure).__name__ + ": " + str(failure)
     if new is not None and new.poll() is None:
         new.terminate()
         try:
             new.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            raise RuntimeError("the failed new service did not stop; rollback paused")
+            new.kill()
+            new.wait(timeout=5)
     restore_certificate()
     if old is None:
-        record.update(status="failed_nothing_running")
+        finish("failed_nothing_running")
+    elif not stopped:
+        finish("failed_old_still_running", old)
     else:
-        args = list(old["argv"])
-        if "--event-log-dir" in args:
-            args[args.index("--event-log-dir") + 1] = str(evidence / ("rollback-observer-" + stamp))
-        previous = launch(args, rollback, evidence / ("rollback-server-" + stamp + ".log"))
-        healthy(previous, options["start_timeout"])
-        record.update(status="rolled_back", current=info(previous.pid))
-        (evidence / "server.pid").write_text(str(previous.pid) + "\n")
-    (evidence / "active-deployment.json").write_text(json.dumps(record, indent=2))
-    print(json.dumps(record), flush=True)
+        try:
+            args = list(old["argv"])
+            if "--event-log-dir" in args:
+                args[args.index("--event-log-dir") + 1] = str(evidence / ("rollback-observer-" + stamp))
+            previous = launch(args, rollback, evidence / ("rollback-server-" + stamp + ".log"))
+            healthy(previous, options["start_timeout"])
+            finish("rolled_back", info(previous.pid))
+        except BaseException as second:
+            record["rollback_error"] = type(second).__name__ + ": " + str(second)
+            finish("rollback_failed_nothing_running")
     raise
 '''
 
@@ -328,11 +380,20 @@ def deploy(args):
             for path in certificate:
                 sftp.put(str(path), source + "/tls-incoming/" + path.name)
             sftp.chmod(source + "/tls-incoming/server-key.pem", 0o600)
+        # The longest silent stretch on the board: stop (10 s, then up to 5 s after SIGKILL),
+        # the new service's start, its stop (up to 10 s) and the rollback's start.
+        wait = 2 * options["start_timeout"] + 120
         _, out, err = board.exec_command(remote_command(BOARD_ROOT, source, stamp, options),
-                                         timeout=options["start_timeout"] + 60)
-        result = out.read().decode()
-        errors = err.read().decode()
-        code = out.channel.recv_exit_status()
+                                         timeout=wait)
+        try:
+            result = out.read().decode()
+            errors = err.read().decode()
+            code = out.channel.recv_exit_status()
+        except socket.timeout:
+            print(f"FAILED: no answer from the board within {wait:.0f} s. The board may still be "
+                  "finishing or rolling back: run 'python demo.py service' and read "
+                  "BOARD_ROOT/evidence/active-deployment.json before trying again.", file=sys.stderr)
+            return 1
         print(result.strip())
         if errors:
             print(errors.strip(), file=sys.stderr)

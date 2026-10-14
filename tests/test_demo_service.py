@@ -24,23 +24,43 @@ def write_record(folder, stamp, record):
     (folder / ("deployment-" + stamp + ".json")).write_text(json.dumps(record), encoding="utf-8")
 
 
+def running(folder, *extra):
+    return {"cwd": folder, "argv": ["/usr/bin/python3", "-u", "-m", "ultra96.server", *extra]}
+
+
 def test_board_source_follows_the_newest_deployment_record(service, monkeypatch, tmp_path):
     records = tmp_path / "deployments"
     monkeypatch.setattr(service, "DEPLOYMENTS", records)
     assert service.board_source() == service.BOARD_SOURCE
     deployed = service.BOARD_ROOT + "/source-co-v3-20261015T010000Z"
-    write_record(records, "20261015T010000Z", {"status": "deployed", "current": {"cwd": deployed}})
+    write_record(records, "20261015T010000Z", {"status": "deployed", "current": running(deployed)})
     assert service.board_source() == deployed
     rollback = service.BOARD_ROOT + "/rollback-co-20261015T020000Z"
-    write_record(records, "20261015T020000Z", {"status": "rolled_back", "current": {"cwd": rollback}})
+    write_record(records, "20261015T020000Z", {"status": "rolled_back", "current": running(rollback)})
     assert service.board_source() == rollback
     # Nothing left running, unreadable, or outside the deployment root: use an older record.
     write_record(records, "20261015T030000Z", {"status": "failed_nothing_running"})
     (records / "deployment-20261015T040000Z.json").write_text("{", encoding="utf-8")
-    write_record(records, "20261015T050000Z", {"status": "deployed", "current": {"cwd": "/tmp/x"}})
+    write_record(records, "20261015T050000Z", {"status": "deployed", "current": running("/tmp/x")})
     assert service.board_source() == rollback
-    assert service.BOARD_ROOT + "/" in service.start_script("ltc-comms")
     assert "cd " + rollback in service.start_script("ltc-comms")
+    assert "--model" not in launch_arguments(service.start_script("ltc-comms"))
+
+
+def test_start_restarts_the_deployed_model_too(service, monkeypatch, tmp_path):
+    records = tmp_path / "deployments"
+    monkeypatch.setattr(service, "DEPLOYMENTS", records)
+    folder = service.BOARD_ROOT + "/source-co-v3-20261016T010000Z"
+    model_path = "/var/tmp/wen ree/model dir"
+    write_record(records, "20261016T010000Z", {"status": "deployed", "current": running(
+        folder, "--session-id", "ltc-comms", "--model", "wen_model.board", "--model-path", model_path)})
+    arguments = launch_arguments(service.start_script("ltc-comms"))
+    assert arguments[arguments.index("--model") + 1] == "wen_model.board"
+    assert arguments[arguments.index("--model-path") + 1] == model_path
+    # A record whose model cannot be a module name is not trusted: fall back to an older one.
+    write_record(records, "20261016T020000Z", {"status": "deployed", "current": running(
+        service.BOARD_ROOT + "/source-co-v3-20261016T020000Z", "--model", "x; rm -rf /")})
+    assert service.newest_deployment() == (folder, "wen_model.board", model_path)
 
 
 @pytest.fixture

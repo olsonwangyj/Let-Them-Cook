@@ -1,10 +1,12 @@
 import hashlib
+import io
 import os
 from pathlib import Path
 import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 
 import pytest
 
@@ -12,6 +14,7 @@ from tools import deploy_service
 from tools.generate_comms_pki import generate_pki, renew_server_identity
 
 ROOT = Path(__file__).resolve().parents[1]
+OLD_SERVICE_COMMIT = "c42b386"
 
 
 def test_source_files_are_exactly_what_the_board_runs():
@@ -113,14 +116,22 @@ def test_remote_program_on_linux(tmp_path):
                                                 newline="\n")
     generate_pki(material / "pki-a")
     renew_server_identity(material / "pki-a", material / "pki-b")
-    for copy in ("old", "new"):
-        for folder in ("common", "ultra96"):
-            shutil.copytree(ROOT / folder, material / copy / folder,
-                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for folder in ("common", "ultra96"):
+        shutil.copytree(ROOT / folder, material / "new" / folder,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    # The running service on the board is the version-2 code of 28 September; c42b386 is
+    # the last commit before version 3 (same service code as the team main 5a004c6).
+    archive = subprocess.run(["git", "-C", str(ROOT), "archive", OLD_SERVICE_COMMIT, "common", "ultra96"],
+                             capture_output=True, timeout=60)
+    if archive.returncode:
+        pytest.skip("needs the Git history with " + OLD_SERVICE_COMMIT)
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as bundle:
+        options = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+        bundle.extractall(material / "old", **options)
     script = ROOT / "tests" / "linux" / "deploy_remote_test.sh"
     environment = dict(os.environ, MSYS_NO_PATHCONV="1")
     result = subprocess.run(runner + [convert(script), convert(material)], capture_output=True,
                             timeout=600, env=environment)
     output = result.stdout.decode("utf-8", "replace").replace("\0", "")
     assert result.returncode == 0, output[-4000:]
-    assert "RESULT pass=24 fail=0" in output
+    assert "RESULT pass=27 fail=0" in output
