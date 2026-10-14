@@ -76,7 +76,7 @@ Since 2026-10-14 the source no longer accepts the Week 7 identifiers. Both board
 | BLE source statistics | `LCS1` | Week 7 firmware answers `W7S1`, which is refused. |
 | Network session | `ltc-comms` | Laptop, Ultra96 and phone must agree. The service started for Week 7 and the app installed for Week 7 use `week7-demo`; restart the service from this source and rebuild the app. |
 | TLS service identity | `ultra96.week7.internal` | Kept: it is written into the server certificate and checked by every client. Changing it needs a new certificate and a rebuilt app. |
-| Local capture and board mapping | `.comms-local/` | The old `.week7-local/` folder is no longer read. Captures recorded with Week 7 firmware hold `W7` packets and do not pass `demo.py report`; review them from commit `ec398b6`. |
+| Local capture and board mapping | `.comms-local/` | The old `.week7-local/` folder is no longer read. Captures recorded with Week 7 firmware hold `W7` packets and do not pass `demo.py report`; review them from commit `880abba`. |
 | Native C bridge | `CommsStart`, `CommsCopyDisplay`, `CommsStop` | The `Week7*` wrappers are kept for the Week 7 Unity export only. |
 
 The `CommsNative` UI names its button **Communications Connect**; the Unity app installed for Week 7 shows **Week 7 Connect**. The archived B07 live and video guides describe the Week 7 deployment and show its packet and session values; they are history and no longer match this checkout.
