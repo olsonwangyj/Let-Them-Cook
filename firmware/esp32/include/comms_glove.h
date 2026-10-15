@@ -21,6 +21,11 @@
 #ifndef COMMS_DUMMY_IDLE_MS
 #define COMMS_DUMMY_IDLE_MS 0
 #endif
+// External module only: 1 sends every sample, IDLE included (for recording
+// sessions); 0 (default) sends only while the module reports MOVING.
+#ifndef COMMS_GLOVE_SEND_ALL
+#define COMMS_GLOVE_SEND_ALL 0
+#endif
 
 namespace comms {
 constexpr bool fitsUint32(long long value) { return value >= 0 && value <= 4294967295LL; }
@@ -55,7 +60,8 @@ constexpr bool kGloveExternal = COMMS_GLOVE_MODULE == 1;
 constexpr const char* kGloveModuleName = kGloveExternal ? "external" : "dummy";
 // The source may skip ticks while IDLE; the laptop reads this from the source
 // statistics flags and then expects silence while the player is still.
-constexpr bool kGloveGated = COMMS_GLOVE_MODULE == 1 || COMMS_DUMMY_IDLE_MS > 0;
+constexpr bool kGloveGated = (COMMS_GLOVE_MODULE == 1 && COMMS_GLOVE_SEND_ALL == 0) ||
+                              (COMMS_GLOVE_MODULE == 0 && COMMS_DUMMY_IDLE_MS > 0);
 constexpr uint32_t kDummyMovingMs = static_cast<uint32_t>(COMMS_DUMMY_MOVING_MS);
 constexpr uint32_t kDummyIdleMs = static_cast<uint32_t>(COMMS_DUMMY_IDLE_MS);
 
