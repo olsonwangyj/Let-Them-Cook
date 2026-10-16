@@ -435,10 +435,19 @@ void setup() {
   Serial.begin(115200);
   // Before BLE: the glove module may calibrate for seconds (glove held still)
   // and the board advertises only after it returns. A glove that reports no
-  // sensor still advertises; its ticks then count as unread.
-  const bool gloveReady = gloveBegin();
-  Serial.printf("glove_begin ok=%u module=%s gated=%u\n", gloveReady, comms::kGloveModuleName,
-      comms::kGloveGated);
+  // sensor still advertises; its ticks then count as unread. A failed try is
+  // repeated (comms_glove.h), so one bad read at start-up is not fatal.
+  unsigned gloveAttempts = 0;
+  const bool gloveReady = comms::beginWithRetries(
+      gloveBegin,
+      [](unsigned failedAttempt) {
+        Serial.printf("glove_begin_failed attempt=%u retry_ms=%lu\n", failedAttempt,
+            static_cast<unsigned long>(comms::kGloveBeginRetryMs));
+        delay(comms::kGloveBeginRetryMs);
+      },
+      comms::kGloveBeginAttempts, gloveAttempts);
+  Serial.printf("glove_begin ok=%u module=%s gated=%u attempts=%u\n", gloveReady,
+      comms::kGloveModuleName, comms::kGloveGated, gloveAttempts);
   bootId = esp_random();
   sensorStats.bootId = bootId;
   lastReportMs = millis();
