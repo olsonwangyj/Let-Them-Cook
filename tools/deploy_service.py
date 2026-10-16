@@ -436,6 +436,11 @@ def main(argv=None):
         return 2
     except Exception as exc:  # paramiko's own errors: unknown host key, wrong password, ...
         print(f"FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+        allowed = getattr(exc, "allowed_types", None)
+        if isinstance(allowed, list) and "password" not in allowed:
+            # Seen 2026-10-16: off the NUS VPN, stujump offers only public-key login.
+            print("The server does not offer password login. Off the NUS VPN, stujump accepts "
+                  "only public keys: connect the NUS VPN and run this again.", file=sys.stderr)
         return 2
 
 

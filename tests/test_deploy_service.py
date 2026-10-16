@@ -148,3 +148,15 @@ def test_ssh_errors_end_in_a_failed_line(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(deploy_service, "_connect", refuse)
     assert deploy_service.main([]) == 2
     assert "FAILED: AuthenticationException: Authentication failed." in capsys.readouterr().err
+
+
+def test_a_jump_host_without_password_login_points_at_the_vpn(monkeypatch, capsys):
+    paramiko = pytest.importorskip("paramiko")
+
+    def refuse(*_args):
+        raise paramiko.BadAuthenticationType("Bad authentication type", ["publickey"])
+    monkeypatch.setattr(deploy_service, "_connect", refuse)
+    assert deploy_service.main([]) == 2
+    err = capsys.readouterr().err
+    assert "FAILED: BadAuthenticationType" in err
+    assert "connect the NUS VPN" in err
