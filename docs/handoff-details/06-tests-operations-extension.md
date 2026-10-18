@@ -860,7 +860,7 @@ python -m tools.comms_demo packet
 python -m tools.deploy_service --dry-run
 ```
 
-- The pytest run gave 848 passed, 4 skipped on 2026-10-16 after the firmware's boot retry of `gloveBegin()`, and 843 passed, 4 skipped earlier that day on the code of local `main` (`79ac1f4`) with that day's deploy-tool change (842 at `4c6ab4c`, 841 at `d582ce6`; section A step 5 lists the skips and the one timing-sensitive test). With `$env:B07_LINUX_DEPLOY_TEST = "1"` set first, and WSL available, it also runs the Linux deploy test; that was last run at `3b94990` (779 passed, 3 skipped).
+- The pytest run gave 848 passed, 4 skipped on 2026-10-16 after the firmware's boot retry of `gloveBegin()`, and again on 2026-10-18 on the fork's `main` at `029f079` (the draft pull request #3 after `f0885a6`: 860 passed, 6 skipped), and 843 passed, 4 skipped earlier that day on the code of local `main` (`79ac1f4`) with that day's deploy-tool change (842 at `4c6ab4c`, 841 at `d582ce6`; section A step 5 lists the skips and the one timing-sensitive test). With `$env:B07_LINUX_DEPLOY_TEST = "1"` set first, and WSL available, it also runs the Linux deploy test; that was last run at `3b94990` (779 passed, 3 skipped).
 - `run_core_tests.ps1` needs PowerShell 7. On this laptop it is `& "$HOME/.dotnet/tools/pwsh.exe"` (not on PATH); the last line is `PASS 113 C# contract/frame/freshness checks` (2026-10-15).
 - `tools.sync_glove_module --check` prints nothing and exits 0 while the copies of Siqiang's module are current.
 - `tools.comms_demo packet` uses no network. The `ble_hex` in its output should be `4c430301070000002a00000068100000b004d4feccdea00f30f8dc05e20448f4580270177c15`, 38 bytes (`tests/test_comms_demo.py:19-22`).
