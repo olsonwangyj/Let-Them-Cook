@@ -32,6 +32,9 @@ INSTALL=0
 LAUNCH=0
 SKIP_UNITY=0
 EXPORT="$WORK/xcode"
+# Xcode's output stays out of ~/Documents: there the file provider tags new
+# bundles with Finder info, which codesign refuses ("detritus not allowed").
+DERIVED="${COMMS_DERIVED_DATA:-$HOME/Library/Developer/Xcode/DerivedData/LetThemCook-game-ios}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -125,15 +128,17 @@ CS
 fi
 
 if [ "$EXPORT" != "$WORK/xcode" ]; then
-    # A zipped export can lose its quarantine-free state and executable bits.
-    xattr -dr com.apple.quarantine "$EXPORT" 2>/dev/null || true
+    # A zipped export carries extended attributes (quarantine, Finder info)
+    # that codesign rejects as "detritus", and can lose executable bits.
+    xattr -cr "$EXPORT" 2>/dev/null || true
+    find "$EXPORT" -name .DS_Store -delete
     find "$EXPORT" -maxdepth 1 \( -name '*.sh' -o -name 'usymtool*' \) -exec chmod +x {} +
     find "$EXPORT/Il2CppOutputProject" -type f ! -perm -u+x -size +1k -print0 2>/dev/null |
         xargs -0 file 2>/dev/null | sed -n 's/: *Mach-O.*//p' | while IFS= read -r binary; do chmod +x "$binary"; done
 fi
 python3 "$ROOT/ios-visualizer/tools/link_commsnative.py" --export "$EXPORT"
 XCODE=(xcodebuild -project "$EXPORT/Unity-iPhone.xcodeproj" -scheme Unity-iPhone -configuration Release
-       -derivedDataPath "$WORK/DerivedData" -clonedSourcePackagesDirPath "$WORK/SourcePackages")
+       -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$DERIVED/SourcePackages")
 resolve() {
     "${XCODE[@]}" -resolvePackageDependencies > "$WORK/resolve.log" 2>&1 ||
         { tail -20 "$WORK/resolve.log" >&2; echo "Package resolution failed; see $WORK/resolve.log" >&2; exit 1; }
@@ -150,8 +155,8 @@ echo "xcodebuild (log: $WORK/xcodebuild.log)"
     CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM" build > "$WORK/xcodebuild.log" 2>&1 ||
     { tail -30 "$WORK/xcodebuild.log" >&2; echo "xcodebuild failed; see $WORK/xcodebuild.log" >&2; exit 1; }
 
-APP="$WORK/DerivedData/Build/Products/Release-iphoneos/$(sed -n 's/^  productName: //p' "$ROOT/vis/ProjectSettings/ProjectSettings.asset").app"
-[ -d "$APP" ] || APP="$(find "$WORK/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' | head -1)"
+APP="$DERIVED/Build/Products/Release-iphoneos/$(sed -n 's/^  productName: //p' "$ROOT/vis/ProjectSettings/ProjectSettings.asset").app"
+[ -d "$APP" ] || APP="$(find "$DERIVED/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' | head -1)"
 echo "Built $APP"
 nm -gU "$APP/Frameworks/UnityFramework.framework/UnityFramework" > "$WORK/symbols.txt"
 if ! grep -q ' _CommsNextResult$' "$WORK/symbols.txt"; then

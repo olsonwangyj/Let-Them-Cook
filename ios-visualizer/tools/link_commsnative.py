@@ -123,25 +123,68 @@ def _insert_section(text, name, content):
     return text.replace(anchor, anchor + '\n\n' + begin + '\n' + content + finish, 1)
 
 
-def validate(text, relative):
+def validate(text, relative, ids=(BUILD_FILE, LOCAL_REF, PRODUCT_DEP)):
+    build_file, local_ref, product_dep = ids
     root, target, phase = _find(text)
     checks = [
-        LOCAL_REF in (_list_ids(_body(text, root), 'packageReferences') or []),
-        PRODUCT_DEP in (_list_ids(_body(text, target), 'packageProductDependencies') or []),
-        BUILD_FILE in (_list_ids(_body(text, phase), 'files') or []),
-        _scalar(_body(text, BUILD_FILE), 'productRef') == PRODUCT_DEP,
-        _scalar(_body(text, LOCAL_REF), 'isa') == 'XCLocalSwiftPackageReference',
-        _scalar(_body(text, LOCAL_REF), 'relativePath') == relative,
-        _scalar(_body(text, PRODUCT_DEP), 'productName') == PRODUCT,
+        local_ref in (_list_ids(_body(text, root), 'packageReferences') or []),
+        product_dep in (_list_ids(_body(text, target), 'packageProductDependencies') or []),
+        build_file in (_list_ids(_body(text, phase), 'files') or []),
+        _scalar(_body(text, build_file), 'productRef') == product_dep,
+        _scalar(_body(text, local_ref), 'isa') == 'XCLocalSwiftPackageReference',
+        _scalar(_body(text, local_ref), 'relativePath') == relative,
+        _scalar(_body(text, product_dep), 'productName') == PRODUCT,
     ]
     if not all(checks):
         raise ValueError('CommsNative link is incomplete or points elsewhere')
+
+
+def _objects(text, isa):
+    """IDs of every object of one isa."""
+    return [m.group(1) for m in re.finditer(r'^\s*([A-F0-9]{24})\s*(?:/\*[^\n]*?\*/\s*)?=\s*\{\s*isa\s*=\s*' + isa + r'\s*;', text, re.M)]
+
+
+def adopt(text, relative):
+    """Repair a CommsNative link someone added by hand in Xcode on another Mac.
+
+    Xcode stores the package as a path relative to the export, so an export
+    made elsewhere points at that Mac's checkout. Point it at this one and add
+    any edge of the chain Xcode left out; keep the existing object IDs.
+    """
+    refs = [r for r in _objects(text, 'XCLocalSwiftPackageReference')
+            if os.path.basename((_scalar(_body(text, r), 'relativePath') or '').rstrip('/')) == 'CommsNative']
+    deps = [d for d in _objects(text, 'XCSwiftPackageProductDependency') if _scalar(_body(text, d), 'productName') == PRODUCT]
+    if len(refs) != 1 or len(deps) != 1:
+        return None
+    ref, dep = refs[0], deps[0]
+    files = [b for b in _objects(text, 'PBXBuildFile') if _scalar(_body(text, b), 'productRef') == dep]
+    if len(files) > 1:
+        raise ValueError('Several build files for CommsNative; inspect the export first')
+    root, target, phase = _find(text)
+    start, end = _object_span(text, ref)
+    body = re.sub(r'(\brelativePath\s*=\s*)[^;]*;', lambda m: m.group(1) + '"' + relative + '";', text[start:end], count=1)
+    text = text[:start] + body + text[end:]
+    if not files:
+        files = [BUILD_FILE]
+        text = _insert_section(text, 'PBXBuildFile',
+            '\t\t%s /* %s in Frameworks */ = {isa = PBXBuildFile; productRef = %s /* %s */; };\n' % (BUILD_FILE, PRODUCT, dep, PRODUCT))
+    if files[0] not in (_list_ids(_body(text, phase), 'files') or []):
+        text = _append_to_list(text, phase, 'files', '%s /* %s in Frameworks */' % (files[0], PRODUCT))
+    if dep not in (_list_ids(_body(text, target), 'packageProductDependencies') or []):
+        text = _append_to_list(text, target, 'packageProductDependencies', '%s /* %s */' % (dep, PRODUCT))
+    if ref not in (_list_ids(_body(text, root), 'packageReferences') or []):
+        text = _append_to_list(text, root, 'packageReferences', '%s /* XCLocalSwiftPackageReference "%s" */' % (ref, relative))
+    validate(text, relative, (files[0], ref, dep))
+    return text
 
 
 def link(text, relative):
     if LOCAL_REF in text:
         validate(text, relative)
         return text
+    adopted = adopt(text, relative)
+    if adopted is not None:
+        return adopted
     if any(i in text for i in (BUILD_FILE, PRODUCT_DEP)) or 'XCLocalSwiftPackageReference' in text:
         raise ValueError('Export already has a different Swift package setup; inspect it first')
     root, target, phase = _find(text)
