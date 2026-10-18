@@ -3,8 +3,10 @@
 # install and launch it on a connected iPhone. Run on a Mac from anywhere.
 #
 #   ios-visualizer/tools/build_game_ios.sh --team <team ID> [--device <id>] [--install] [--launch]
-#       [--export <dir>]
+#       [--export <dir>] [--copy-setup]
 #
+# --copy-setup (with --install) copies the public Connect setup from the comms
+# test app with copy_phone_setup.sh, so only the passwords are typed.
 # --device takes the identifier or the UDID that `xcrun devicectl list devices`
 # reports. COMMS_CONTENT_PACKAGES=<dir> supplies local package tarballs that the
 # game's Packages/manifest.json names with "file:../ContentPackages/..." but
@@ -30,6 +32,7 @@ TEAM="${DEVELOPMENT_TEAM:-}"
 DEVICE=""
 INSTALL=0
 LAUNCH=0
+COPY_SETUP=0
 SKIP_UNITY=0
 EXPORT="$WORK/xcode"
 # Xcode's output stays out of ~/Documents: there the file provider tags new
@@ -42,6 +45,7 @@ while [ $# -gt 0 ]; do
         --device) DEVICE="$2"; shift 2 ;;
         --install) INSTALL=1; shift ;;
         --launch) INSTALL=1; LAUNCH=1; shift ;;
+        --copy-setup) COPY_SETUP=1; shift ;;
         --skip-unity) SKIP_UNITY=1; shift ;;  # relink and rebuild the last export only
         --export) EXPORT="$(cd "$2" && pwd -P)"; SKIP_UNITY=1; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
@@ -165,6 +169,10 @@ fi
 
 if [ "$INSTALL" = 1 ]; then
     xcrun devicectl device install app --device "$DEVICE" "$APP"
+fi
+if [ "$INSTALL" = 1 ] && [ "$COPY_SETUP" = 1 ]; then
+    BUNDLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+    "$ROOT/ios-visualizer/tools/copy_phone_setup.sh" --device "$DEVICE" --to "$BUNDLE"
 fi
 if [ "$LAUNCH" = 1 ]; then
     BUNDLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
