@@ -101,7 +101,9 @@ If the authors are not `olsonwangyj`, treat the path as a teammate's.
 - `upstream` is the team repo (`B07-CG4002/Let-Them-Cook`, public).
   `origin` is olsonwangyj's fork.
 - Local `main` tracks the fork. It carries files that are deliberately not in
-  the team repo: `docs/`, `ios-visualizer/xcode-export/`,
-  `ios-visualizer/tools/`, and these agent files. Never open a team pull
+  the team repo: `docs/`, `ios-visualizer/xcode-export/`, the Week 7
+  tools in `ios-visualizer/tools/` (`patch_export.py`, `configure_xcode.py`;
+  the three game scripts there are in the team repo since team pull request
+  #22), and these agent files. Never open a team pull
   request from local `main`. Branch from `upstream/main` instead.
 - Do not push to `upstream` unless the user asks for that specific push.
