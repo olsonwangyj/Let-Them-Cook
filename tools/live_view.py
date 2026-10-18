@@ -139,7 +139,8 @@ class Glove:
         self.board_base = None          # DEV counters at the run's first board update
         self.board_carry = dict.fromkeys(BOARD_COUNTERS, 0)  # counted before a restart
         self.connected_generation = None
-        self.rates = {step: Rate() for step in ("sent", "received", "acked", "results", "phone")}
+        self.failed_attempts = 0        # BLE attempts that ended without a connection
+        self.rates ={step: Rate() for step in ("sent", "received", "acked", "results", "phone")}
         self.last_counts_log = 0.0
 
     def board_delta(self, key):
@@ -249,8 +250,11 @@ class RunState:
         if kind == "status":
             return self._status(now, record)
         if kind == "log":
-            return self.note(when, "laptop", "{} {}".format(record.get("level", ""),
-                                                           record.get("message", "")).strip())
+            message = record.get("message", "")
+            if message.endswith("failed:") or message.endswith("failed: "):
+                # An exception without text, in practice a scan or connect that timed out.
+                message = message.rstrip() + " no detail (usually a scan or connect timeout)"
+            return self.note(when, "laptop", "{} {}".format(record.get("level", ""), message).strip())
         if kind == "finished":
             self.finished = record
             return self.note(when, "run", "capture finished: report {}, clean={}".format(
@@ -270,6 +274,14 @@ class RunState:
         if kind == "BLE_disconnected":
             if glove.connected_generation is None or \
                     glove.connected_generation != record.get("generation"):
+                glove.failed_attempts += 1
+                if glove.failed_attempts == 1 or glove.failed_attempts % 5 == 0:
+                    # Say where it looked: a wrong address in boards.json looks like a glove that is off.
+                    return self.note(when, glove.name, (
+                        "not found or not connected at {} (attempt {}): is the glove on, done "
+                        "calibrating (held still about 5 s after power-up) and advertising, and is "
+                        "this its address? It comes from .comms-local/boards.json; --{}-address "
+                        "overrides it").format(glove.address, glove.failed_attempts, glove.name.lower()))
                 return [(when, glove.name, "BLE connection attempt ended")]
             glove.connected_generation = None
             return self.note(when, glove.name, "BLE disconnected")

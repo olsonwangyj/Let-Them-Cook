@@ -299,3 +299,19 @@ def test_header_and_summary_name_every_step_and_the_phone_count():
     assert "Command echoes (Ultra96)" in text and "Model       errors 0" in text
     assert "wrote at least 598 results" in text  # 2 results were not written to the phone
     assert log_line(NOW, "LEFT", "x").endswith("  LEFT   x")
+
+
+def test_a_glove_that_is_not_found_is_named_with_the_address_scanned():
+    run = state()
+    failed = {"type": "BLE_disconnected", "timestamp_utc": stamp(NOW), "device_id": 1,
+              "direction": "ESP<->laptop", "generation": 1}
+    lines = apply(run, NOW, "capture", "record", record=failed)
+    assert "not found or not connected at 38:18:2B:19:82:AE (attempt 1)" in lines[0][2]
+    assert "--left-address overrides it" in lines[0][2]
+    for generation in range(2, 5):
+        lines = apply(run, NOW, "capture", "record", record=dict(failed, generation=generation))
+        assert lines[0][2] == "BLE connection attempt ended"  # not every attempt is a message
+    log = {"type": "log", "timestamp_utc": stamp(NOW), "level": "WARNING",
+           "logger": "laptop.bridge", "message": "BLE attempt failed: "}
+    assert apply(run, NOW, "capture", "record", record=log)[0][2].endswith(
+        "failed: no detail (usually a scan or connect timeout)")
