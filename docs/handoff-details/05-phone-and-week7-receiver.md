@@ -77,6 +77,8 @@ File by file:
 | `NativePreview/tools/generate_test_pki.py` | Generates 12 sets of throwaway test certificates (8 valid, 2 with host name `wrong-host.internal`, 2 expired) into the Git-ignored `.comms-local/CommsFixturePKI`. Calls only `/usr/bin/openssl`; runs on a Mac (ran on the owner's Mac on 2026-10-16) |
 | `ios-visualizer/tools/patch_export.py` | After hash checks, replaces the bodies of four `TlsDataReceiver` methods in the export project. Ran on the owner's Mac on 2026-10-16: `EXPORT_PATCH_OK: already applied`, no file changed |
 | `ios-visualizer/tools/configure_xcode.py` | Links the local package `../CommsNative` into `UnityFramework`; clears the inherited symbol upload token and the `DevelopmentTeam` target attributes (not a `DEVELOPMENT_TEAM` build setting); edits `Info.plist`; adds a switch for symbol upload. Ran on the owner's Mac on 2026-10-16: it printed its success line and changed no file, because the export was already configured |
+| `ios-visualizer/tools/link_commsnative.py` | Added 2026-10-18. Links `CommsNative` into `UnityFramework` of a fresh Unity iOS export; `--pin` sets the export's resolved package versions to the tested ones. Behaviour below |
+| `ios-visualizer/tools/build_game_ios.sh` | Added 2026-10-18. The whole game build: Unity batch build (or `--export`), link, pin, signed `xcodebuild`, `devicectl` install and launch. Behaviour below |
 | `ios-visualizer/verify-import.py` | Checks the size and SHA-256 of the import baseline against the manifest; on a Git LFS pointer, suggests `git lfs pull`. Applies only to a freshly imported, unpatched project |
 | `ios-visualizer/import-manifest.json` | Import baseline manifest from 2026-09-14: 3,480 files (including 2 under `reference/`), 1,470,729,976 bytes; also lists 19 files that need execute permission |
 | `ios-visualizer/reference/TlsDataReceiver.cs` | Archived copy of Jie Ling's original receiver script: the phone acts as a TLS server listening on 5005 and reads lines. The certificate passphrase in the script was replaced with a placeholder (IOS-05). Not part of any build |
@@ -485,6 +487,15 @@ The four replaced methods (`patch_export.py:55-136`):
 - It does not touch the export's `Package.resolved` (see the `ios-visualizer/xcode-export/` row under "Components and files").
 
 `patch_export.py` and `configure_xcode.py` both accept `--export <directory>`, default `ios-visualizer/xcode-export` (`patch_export.py:207-211`, `configure_xcode.py:175`).
+
+`link_commsnative.py` behaviour (for the game's export; `configure_xcode.py` stays for the Week 7 export):
+
+- `--export <dir>` is required. It finds the project root object, the one `PBXNativeTarget` named `UnityFramework` and that target's one Frameworks phase by reading the objects, so it does not depend on Unity's object IDs. It adds a `PBXBuildFile`, an `XCLocalSwiftPackageReference` whose `relativePath` points from the export to `ios-visualizer/CommsNative`, and an `XCSwiftPackageProductDependency` for `CommsNative`, with the fixed IDs `C0AA5E000000000000000001` to `…03`, then checks the whole chain.
+- Running it again changes nothing (`CommsNative already linked`). An export that already has another local Swift package, or these IDs pointing elsewhere, is refused. Failure output starts with `COMMSNATIVE_LINK_FAILED:` and it returns 1.
+- It changes only `project.pbxproj`: no signing, no `Info.plist`, no symbol-upload script. The game's own post-build step (`vis/Assets/Editor/iOSPostBuildProcessor.cs`) already adds the local network usage text.
+- `--pin`, run after Xcode resolved the packages, copies each pin's `state` from `CommsNative/Package.resolved` into the export's `Package.resolved` and keeps the `originHash` Xcode wrote, as `NATIVE-INTEGRATION.md` describes.
+
+`build_game_ios.sh` behaviour: `--team` (or `DEVELOPMENT_TEAM`) is required; `--device` takes either identifier `xcrun devicectl list devices` reports and looks up the hardware UDID for `xcodebuild`; `--install` and `--launch` use `devicectl`. Without `--export` it copies the files Git tracks in `vis/` to `.comms-local/game-ios/vis` (keeping `Library/` as a cache), adds a batch build entry point `Assets/Editor/CommsBuild/CommsIOSBuild.cs` to that copy only, and runs Unity `6000.5.10f1` in batch mode with the enabled scenes of `EditorBuildSettings`, into `.comms-local/game-ios/xcode`. Untracked files in `vis/` (such as the Finder ` 2` duplicates) never reach the build. With `--export` it clears the quarantine flag and restores executable bits on the scripts and Mach-O tools of a zipped export. It then links, resolves, pins, resolves again, builds with `CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=<team> -allowProvisioningUpdates` (nothing written into the project), and fails unless `UnityFramework` defines `_CommsNextResult`. Logs: `.comms-local/game-ios/{unity,resolve,xcodebuild}.log`.
 
 ### Reference implementation constants
 
