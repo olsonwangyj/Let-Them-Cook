@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import os
 from pathlib import Path
 import shlex
@@ -62,6 +63,73 @@ def test_options_are_validated():
         deploy_service.options_from(_args(start_timeout=1))
     with pytest.raises(ValueError):
         deploy_service.options_from(_args(session_id=""))
+
+
+def test_runner_options_need_the_bridge_and_absolute_board_paths():
+    runner = dict(model="ultra96.model_bridge", runner="/home/xilinx/w/runner.py",
+                  runner_python=deploy_service.PYNQ_PYTHON, runner_arg=["--bit", "a.bit"])
+    assert deploy_service.options_from(_args(**runner))["runner"] == dict(
+        script="/home/xilinx/w/runner.py", python=deploy_service.PYNQ_PYTHON, args=["--bit", "a.bit"])
+    assert "runner" not in deploy_service.options_from(_args(model="ultra96.model_bridge"))
+    for bad in (dict(model=None), dict(model="wen_model"), dict(runner="runner.py"),
+                dict(runner_python="python3"), dict(runner_arg=["a\nb"])):
+        with pytest.raises(ValueError):
+            deploy_service.options_from(_args(**dict(runner, **bad)))
+
+
+class _Stream:
+    def __init__(self, data=b"", code=0):
+        self.data, self.written, self.channel = data, "", self
+        self.code = code
+
+    def read(self):
+        return self.data
+
+    def write(self, text):
+        self.written += text
+
+    def flush(self):
+        pass
+
+    def shutdown_write(self):
+        self.closed = True
+
+    def recv_exit_status(self):
+        return self.code
+
+
+class _Board:
+    def __init__(self, record, code):
+        self.stdin = _Stream()
+        self.out = _Stream((json.dumps(record) + "\n").encode(), code)
+
+    def open_sftp(self):
+        return type("Sftp", (), dict(mkdir=lambda *a, **k: None, put=lambda *a: None,
+                                    chmod=lambda *a: None, close=lambda self: None,
+                                    open=lambda *a: io.StringIO()))()
+
+    def exec_command(self, command, timeout):
+        assert "runner" in command
+        return self.stdin, self.out, _Stream()
+
+    def close(self):
+        pass
+
+
+@pytest.mark.parametrize("code, runner, result, message", [
+    (0, dict(status="running", pid=7, connected=True, log="/b/l"), 0, "Model runner running (PID 7)"),
+    (3, dict(status="failed", error="runner script not found: /x"), 1, "the model runner is not"),
+])
+def test_deploy_hands_the_sudo_password_to_the_board_on_stdin(monkeypatch, tmp_path, capsys,
+                                                              code, runner, result, message):
+    board = _Board(dict(status="deployed", runner=runner), code)
+    monkeypatch.setattr(deploy_service, "RECORDS", tmp_path)
+    monkeypatch.setattr(deploy_service, "_connect",
+                        lambda jump_user, board_user, want_sudo: (board, board, "sudo-pw"))
+    assert deploy_service.main(["--model", "ultra96.model_bridge", "--runner", "/home/xilinx/r.py"]) == result
+    assert board.stdin.written == "sudo-pw\n" and board.stdin.closed
+    output = capsys.readouterr()
+    assert message in output.out + output.err and "sudo-pw" not in output.out + output.err
 
 
 def test_certificate_folder_needs_both_files(tmp_path):
@@ -137,7 +205,7 @@ def test_remote_program_on_linux(tmp_path):
                             timeout=600, env=environment)
     output = result.stdout.decode("utf-8", "replace").replace("\0", "")
     assert result.returncode == 0, output[-4000:]
-    assert "RESULT pass=27 fail=0" in output
+    assert "RESULT pass=36 fail=0" in output
 
 
 def test_ssh_errors_end_in_a_failed_line(monkeypatch, tmp_path, capsys):

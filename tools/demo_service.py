@@ -17,6 +17,15 @@ BOARD_SOURCE = BOARD_ROOT + "/source-co-v2-20260928T122047Z"
 DEPLOYMENTS = ROOT / ".comms-local" / "deployments"
 
 
+# The model runner that tools.deploy_service --runner started (as root, so ps -u misses it).
+RUNNER_STATUS = f'''runner_record={BOARD_ROOT}/evidence/model-runner.json
+if [ -f "$runner_record" ]; then
+  runner_pid=$(/usr/bin/python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["pid"])' "$runner_record") || runner_pid=0
+  printf '\\nModel runner PID %s: ' "$runner_pid"
+  ps -o user=,args= -p "$runner_pid" || echo 'not running'
+fi
+'''
+
 _MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 
@@ -118,6 +127,6 @@ for pid in $(pgrep -u "$(id -u)" -f '[u]ltra96.server' || true); do
   printf '\\nServer PID %s, working directory: ' "$pid"
   readlink "/proc/$pid/cwd" || true
 done
-'''
+''' + RUNNER_STATUS
     # Inherited stdio keeps authentication interactive and the server in this terminal.
     return subprocess.run(ssh_command(script), cwd=ROOT).returncode

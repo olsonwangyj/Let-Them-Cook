@@ -17,10 +17,17 @@ installs a renewed server certificate, and then, on the board:
   5. waits until it listens on both ports. Any failure from step 3 on stops the
      new service, restores the previous certificate files and restarts the
      previous code; a final record is printed and saved in every case.
-It never uses sudo and never touches other users' processes.
+  6. only with --runner (and --model ultra96.model_bridge): once the new service
+     listens, starts the model owner's runner program as root through sudo
+     (ultra96/model_runner_launch.py), replacing the runner this tool started
+     last. The owner types the sudo password too; it reaches sudo on stdin. A
+     runner that does not start leaves the new service running and the tool
+     exits nonzero.
+Apart from step 6 it never uses sudo, and it never touches other users' processes.
 
     python -m tools.deploy_service --server-cert-dir <folder with server-cert.pem and server-key.pem>
     python -m tools.deploy_service --dry-run
+    python -m tools.deploy_service --model ultra96.model_bridge --runner /home/xilinx/<folder>/<runner>.py
 """
 import argparse
 from datetime import datetime, timezone
@@ -39,6 +46,8 @@ ROOT = Path(__file__).resolve().parents[1]
 JUMP_HOST = "stujump.comp.nus.edu.sg"
 BOARD_HOST = "makerslab-fpga-35.ddns.comp.nus.edu.sg"
 RECORDS = ROOT / ".comms-local" / "deployments"
+BRIDGE_MODEL = "ultra96.model_bridge"
+PYNQ_PYTHON = "/usr/local/share/pynq-venv/bin/python"
 
 REMOTE_PROGRAM = r'''
 import compileall, json, os, shutil, signal, ssl, subprocess, sys, time
@@ -47,6 +56,8 @@ from pathlib import Path
 base = Path(sys.argv[1]); source = Path(sys.argv[2]); stamp = sys.argv[3]
 options = json.loads(sys.argv[4])
 PORTS = {8888, 9999}
+# The sudo password for the runner arrives on stdin, never in argv.
+sudo_password = sys.stdin.readline() if options.get("runner") else ""
 
 
 def info(pid):
@@ -282,6 +293,34 @@ except BaseException as failure:
             record["rollback_error"] = type(second).__name__ + ": " + str(second)
             finish("rollback_failed_nothing_running")
     raise
+
+
+def start_runner(runner):
+    """As root (sudo): replace the runner started last with this one; the service keeps running."""
+    launch_options = dict(python=runner["python"], script=runner["script"], args=runner["args"],
+                          log=str(evidence / ("model-runner-" + stamp + ".log")),
+                          pidfile=str(evidence / "model-runner.json"), service_log=record["log"])
+    argv = ["/usr/bin/python3", "-I", str(source / "ultra96" / "model_runner_launch.py"),
+            json.dumps(launch_options)]
+    if runner.get("sudo", True):
+        argv = ["sudo", "-S", "-p", "", "--"] + argv
+    try:
+        done = subprocess.run(argv, input=sudo_password, capture_output=True, text=True, timeout=60,
+                              cwd="/")
+    except subprocess.TimeoutExpired:
+        return dict(status="failed", error="the runner launcher did not answer within 60 s")
+    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    if lines:
+        return json.loads(lines[-1])
+    # Without a JSON line, sudo itself refused (wrong password, no sudo rights).
+    return dict(status="failed", error=(done.stderr.strip() or "sudo exit " + str(done.returncode))[-300:])
+
+
+if options.get("runner"):
+    record["runner"] = start_runner(options["runner"])
+    finish("deployed", record["current"])
+    if record["runner"].get("status") != "running":
+        sys.exit(3)
 '''
 
 
@@ -313,8 +352,19 @@ def options_from(args):
         raise ValueError("--model-path needs --model")
     if not 5 <= args.start_timeout <= 300:
         raise ValueError("--start-timeout must be 5..300 seconds")
-    return dict(session_id=args.session_id, event_log=not args.no_event_log, model=args.model,
-                model_path=args.model_path, start_timeout=args.start_timeout)
+    options = dict(session_id=args.session_id, event_log=not args.no_event_log, model=args.model,
+                   model_path=args.model_path, start_timeout=args.start_timeout)
+    runner = getattr(args, "runner", None)
+    if runner is not None:
+        if args.model != BRIDGE_MODEL:
+            raise ValueError("--runner needs --model " + BRIDGE_MODEL)
+        for name, value in (("--runner", runner), ("--runner-python", args.runner_python)):
+            if not (value.startswith("/") and value.isprintable()):
+                raise ValueError(name + " must be an absolute path on the board")
+        if not all(isinstance(arg, str) and arg.isprintable() for arg in args.runner_arg):
+            raise ValueError("--runner-arg must be printable")
+        options["runner"] = dict(script=runner, python=args.runner_python, args=list(args.runner_arg))
+    return options
 
 
 def certificate_files(folder):
@@ -328,7 +378,8 @@ def certificate_files(folder):
     return pair
 
 
-def _connect(jump_user, board_user):
+def _connect(jump_user, board_user, want_sudo=False):
+    """(jump, board, sudo password or None); every password is typed, none is saved."""
     import paramiko
     jump, board = paramiko.SSHClient(), paramiko.SSHClient()
     for client in (jump, board):
@@ -340,11 +391,15 @@ def _connect(jump_user, board_user):
                      look_for_keys=False, allow_agent=False, timeout=10, auth_timeout=15)
         channel = jump.get_transport().open_channel(
             "direct-tcpip", (BOARD_HOST, 22), ("127.0.0.1", 0), timeout=10)
-        board.connect(BOARD_HOST, username=board_user,
-                      password=getpass.getpass(f"Password for {board_user}@{BOARD_HOST}: "),
+        board_password = getpass.getpass(f"Password for {board_user}@{BOARD_HOST}: ")
+        board.connect(BOARD_HOST, username=board_user, password=board_password,
                       sock=channel, look_for_keys=False, allow_agent=False, timeout=10,
                       auth_timeout=15)
-        return jump, board
+        sudo_password = None
+        if want_sudo:
+            sudo_password = getpass.getpass(f"sudo password for {board_user} on the board, for the "
+                                            "model runner (Enter: the same as above): ") or board_password
+        return jump, board, sudo_password
     except BaseException:
         board.close()
         jump.close()
@@ -361,10 +416,15 @@ def deploy(args):
     print(f"Files: {len(files)} from common/ and ultra96/; certificate: "
           f"{'install ' + str(certificate[0].parent) if certificate else 'keep the one on the board'}")
     print("Options: " + json.dumps(options, sort_keys=True))
+    if options.get("runner"):
+        print("Runner: after the service listens, as root (sudo, a login shell): "
+              + " ".join(shlex.quote(part) for part in
+                         [options["runner"]["python"], options["runner"]["script"]] + options["runner"]["args"])
+              + "; it replaces the runner this tool started last")
     if args.dry_run:
         print("Dry run: nothing was connected or changed.")
         return 0
-    jump, board = _connect(args.jump_user, args.board_user)
+    jump, board, sudo_password = _connect(args.jump_user, args.board_user, bool(options.get("runner")))
     sftp = None
     try:
         sftp = board.open_sftp()
@@ -381,10 +441,15 @@ def deploy(args):
                 sftp.put(str(path), source + "/tls-incoming/" + path.name)
             sftp.chmod(source + "/tls-incoming/server-key.pem", 0o600)
         # The longest silent stretch on the board: stop (10 s, then up to 5 s after SIGKILL),
-        # the new service's start, its stop (up to 10 s) and the rollback's start.
-        wait = 2 * options["start_timeout"] + 120
-        _, out, err = board.exec_command(remote_command(BOARD_ROOT, source, stamp, options),
-                                         timeout=wait)
+        # the new service's start, its stop (up to 10 s) and the rollback's start; with a
+        # runner, up to 60 s more for sudo and the launcher.
+        wait = 2 * options["start_timeout"] + 120 + (60 if options.get("runner") else 0)
+        stdin, out, err = board.exec_command(remote_command(BOARD_ROOT, source, stamp, options),
+                                             timeout=wait)
+        if sudo_password is not None:
+            stdin.write(sudo_password + "\n")
+            stdin.flush()
+        stdin.channel.shutdown_write()
         try:
             result = out.read().decode()
             errors = err.read().decode()
@@ -403,9 +468,18 @@ def deploy(args):
             path = RECORDS / f"deployment-{stamp}.json"
             path.write_text(json.dumps(json.loads(lines[-1]), indent=2), encoding="utf-8")
             print("Local record: " + str(path))
+        runner = json.loads(lines[-1]).get("runner") if lines else None
+        if code == 3 and runner is not None:
+            print("FAILED: the service is deployed and running, but the model runner is not: "
+                  + json.dumps(runner), file=sys.stderr)
+            return 1
         if code:
             print(f"FAILED: the board reported exit {code}; see the record above.", file=sys.stderr)
             return 1
+        if runner is not None:
+            print("Model runner running (PID {}){}; log: {}".format(
+                runner.get("pid"), ", connected to the service" if runner.get("connected")
+                else ", not yet connected to the service", runner.get("log")))
         print("Deployed. Next: python demo.py service (inspect), then the acceptance run.")
         return 0
     finally:
@@ -422,6 +496,13 @@ def main(argv=None):
     parser.add_argument("--session-id", default="ltc-comms")
     parser.add_argument("--model", help="module passed to ultra96.server --model (default: dummy model)")
     parser.add_argument("--model-path", help="board folder passed to ultra96.server --model-path")
+    parser.add_argument("--runner", metavar="BOARD_SCRIPT",
+                        help="with --model " + BRIDGE_MODEL + ": the model owner's runner script on the "
+                             "board, started as root with sudo once the service listens")
+    parser.add_argument("--runner-python", default=PYNQ_PYTHON,
+                        help="the Python that runs --runner (default: PYNQ's, " + PYNQ_PYTHON + ")")
+    parser.add_argument("--runner-arg", action="append", default=[], metavar="ARG",
+                        help="an argument for the runner script (repeat for several)")
     parser.add_argument("--no-event-log", action="store_true", help="start without --event-log-dir")
     parser.add_argument("--start-timeout", type=float, default=30.0,
                         help="seconds to wait for both listeners (model loading counts)")
