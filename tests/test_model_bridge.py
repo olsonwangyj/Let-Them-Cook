@@ -2,7 +2,7 @@
 import asyncio
 import io
 import json
-from pathlib import Path
+from pathlib import PurePosixPath
 import queue
 import socket
 import stat
@@ -181,5 +181,5 @@ def test_service_with_the_bridge_sends_a_glove_sample_to_the_runner_and_its_resu
 def test_the_example_runner_and_the_deployed_bridge_agree_on_the_socket():
     # A deployed bridge lives in BOARD_ROOT/<source folder>/ultra96/; its socket is in BOARD_ROOT.
     assert DEFAULT_SOCKET == BOARD_ROOT + "/model-runner.sock"
-    deployed = Path(BOARD_ROOT) / "source-co-v3-stamp" / "ultra96" / "model_bridge.py"
+    deployed = PurePosixPath(BOARD_ROOT) / "source-co-v3-stamp" / "ultra96" / "model_bridge.py"
     assert str(deployed.parents[2] / "model-runner.sock") == DEFAULT_SOCKET

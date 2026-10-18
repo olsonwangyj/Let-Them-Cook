@@ -360,9 +360,9 @@ def options_from(args):
             raise ValueError("--runner needs --model " + BRIDGE_MODEL)
         for name, value in (("--runner", runner), ("--runner-python", args.runner_python)):
             if not (value.startswith("/") and value.isprintable()):
-                raise ValueError(name + " must be an absolute path on the board")
-        if not all(isinstance(arg, str) and arg.isprintable() for arg in args.runner_arg):
-            raise ValueError("--runner-arg must be printable")
+                raise ValueError(name + " must be an absolute path on the board" + _git_bash_hint([value]))
+        if not all(isinstance(a, str) and a.isprintable() for a in args.runner_arg) or _git_bash_hint(args.runner_arg):
+            raise ValueError("--runner-arg must be printable board values" + _git_bash_hint(args.runner_arg))
         options["runner"] = dict(script=runner, python=args.runner_python, args=list(args.runner_arg))
     return options
 
@@ -502,7 +502,7 @@ def main(argv=None):
     parser.add_argument("--runner-python", default=PYNQ_PYTHON,
                         help="the Python that runs --runner (default: PYNQ's, " + PYNQ_PYTHON + ")")
     parser.add_argument("--runner-arg", action="append", default=[], metavar="ARG",
-                        help="an argument for the runner script (repeat for several)")
+                        help="an argument for the runner script (repeat; --runner-arg=--flag for a dash)")
     parser.add_argument("--no-event-log", action="store_true", help="start without --event-log-dir")
     parser.add_argument("--start-timeout", type=float, default=30.0,
                         help="seconds to wait for both listeners (model loading counts)")
@@ -523,6 +523,16 @@ def main(argv=None):
             print("The server does not offer password login. Off the NUS VPN, stujump accepts "
                   "only public keys: connect the NUS VPN and run this again.", file=sys.stderr)
         return 2
+
+
+def _git_bash_hint(values):
+    """A hint when a board value is a Windows path: Git Bash turns /home/... into D:/Git/home/..."""
+    for value in values:
+        for part in [value] + value.split("=")[1:]:
+            if len(part) > 2 and part[0].isascii() and part[0].isalpha() and part[1:3] in (":/", ":\\"):
+                return (f"; {value!r} is a Windows path. Git Bash rewrites arguments that start "
+                        "with /: run this from PowerShell, or set MSYS_NO_PATHCONV=1")
+    return ""
 
 
 if __name__ == "__main__":

@@ -77,6 +77,24 @@ def test_runner_options_need_the_bridge_and_absolute_board_paths():
             deploy_service.options_from(_args(**dict(runner, **bad)))
 
 
+def test_board_paths_that_git_bash_rewrote_are_refused():
+    runner = dict(model="ultra96.model_bridge", runner="/home/xilinx/w/runner.py",
+                  runner_python=deploy_service.PYNQ_PYTHON, runner_arg=[])
+    for bad in (dict(runner="D:/Git/home/xilinx/w/runner.py"),
+                dict(runner_python="C:/Program Files/Git/usr/local/share/pynq-venv/bin/python"),
+                dict(runner_arg=["--socket", "D:/Git/var/tmp/x.sock"]),
+                dict(runner_arg=["--socket=D:/Git/var/tmp/x.sock"])):
+        with pytest.raises(ValueError, match="Git Bash"):
+            deploy_service.options_from(_args(**dict(runner, **bad)))
+
+
+def test_runner_arguments_that_start_with_a_dash_use_the_equals_form(monkeypatch, capsys):
+    monkeypatch.setattr(deploy_service, "_connect", lambda *a: pytest.fail("connected"))
+    assert deploy_service.main(["--model", "ultra96.model_bridge", "--runner", "/home/xilinx/r.py",
+                                "--runner-arg=--bit", "--runner-arg", "a b.bit", "--dry-run"]) == 0
+    assert "/home/xilinx/r.py --bit 'a b.bit'" in capsys.readouterr().out
+
+
 class _Stream:
     def __init__(self, data=b"", code=0):
         self.data, self.written, self.channel = data, "", self
