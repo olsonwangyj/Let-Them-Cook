@@ -175,10 +175,22 @@ echo x | /usr/bin/python3 -c "$PROG" "$BASE" "$BASE/source-co-v3-T9" T9 "$(runne
 SVC9=$(cat "$BASE/evidence/server.pid")
 check "missing runner: exit 3, service deployed and alive" '[ $code -eq 3 ] && grep -q "\"status\": \"deployed\"" "$BASE/out9.json" && kill -0 "$SVC9" 2>/dev/null'
 check "missing runner: reported as failed" 'tail -1 "$BASE/out9.json" | grep -q "runner script not found"'
+check "missing runner: the previous runner is untouched, alive and named" 'tail -1 "$BASE/out9.json" | grep -q "\"previous\": \"untouched\", \"previous_running\": $RUN2" && kill -0 "$RUN2" 2>/dev/null'
+
+# --- 12. a runner started by hand next to --runner: the new runner is stopped, status conflict ---
+(cd "$BASE/runner" && setsid /usr/bin/python3 model_runner_example.py --socket "$BASE/model-runner.sock" --every 1 > "$BASE/hand-runner.log" 2>&1 < /dev/null &)
+sleep 2
+HAND=$(pgrep -u "$(id -u)" -f '[m]odel_runner_example.py --socket' | while read -r p; do [ "$p" != "$RUN2" ] && echo "$p"; done | head -1)
+newsrc source-co-v3-T10
+echo x | /usr/bin/python3 -c "$PROG" "$BASE" "$BASE/source-co-v3-T10" T10 "$(runner_opts "$BASE/runner/model_runner_example.py")" > "$BASE/out10.json" 2> "$BASE/err10.txt"; code=$?
+RUN3=$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["pid"])' "$BASE/evidence/model-runner.json")
+check "hand-started runner: exit 3 with status conflict" '[ $code -eq 3 ] && tail -1 "$BASE/out10.json" | grep -q "\"status\": \"conflict\""'
+check "hand-started runner: the recorded runner replaced, the new one stopped again" '! kill -0 "$RUN2" 2>/dev/null && ! kill -0 "$RUN3" 2>/dev/null'
+check "hand-started runner: left running (not this tool's)" '[ -n "$HAND" ] && kill -0 "$HAND" 2>/dev/null'
 
 cleanup
 echo "RESULT pass=$pass fail=$fail"
-for f in err1 err2 err3 err4 err5 err6 err7 err8 err9; do echo "--- $f"; tail -3 "$BASE/$f.txt"; done
+for f in err1 err2 err3 err4 err5 err6 err7 err8 err9 err10; do echo "--- $f"; tail -3 "$BASE/$f.txt"; done
 echo "--- e2e"; cat "$BASE/e2e.txt"; echo "--- e2e7"; cat "$BASE/e2e7.txt"
 rm -rf "$BASE"
-[ "$fail" -eq 0 ] && [ "$pass" -eq 36 ]
+[ "$fail" -eq 0 ] && [ "$pass" -eq 40 ]

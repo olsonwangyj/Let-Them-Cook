@@ -69,7 +69,10 @@ def main(argv=None):
                     run(sock, args.every, args.label)
                 except (ConnectionError, BrokenPipeError):
                     pass  # the service stopped while a result was being sent
-            print("disconnected; connecting again", flush=True)
+            # A second runner on the socket replaces this one; waiting keeps the two from
+            # taking the connection from each other many times a second.
+            print("disconnected; connecting again in 1 s", flush=True)
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
     return 0

@@ -308,12 +308,24 @@ def start_runner(runner):
         done = subprocess.run(argv, input=sudo_password, capture_output=True, text=True, timeout=60,
                               cwd="/")
     except subprocess.TimeoutExpired:
-        return dict(status="failed", error="the runner launcher did not answer within 60 s")
+        return dict(status="failed", error="the runner launcher did not answer within 60 s",
+                    previous_running=recorded_runner())
     lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
     if lines:
         return json.loads(lines[-1])
     # Without a JSON line, sudo itself refused (wrong password, no sudo rights).
-    return dict(status="failed", error=(done.stderr.strip() or "sudo exit " + str(done.returncode))[-300:])
+    return dict(status="failed", error=(done.stderr.strip() or "sudo exit " + str(done.returncode))[-300:],
+                previous="untouched", previous_running=recorded_runner())
+
+
+def recorded_runner():
+    """The PID of the runner the launcher started last, while it still runs (read only; it is root's)."""
+    try:
+        record = json.loads((evidence / "model-runner.json").read_text())
+        fields = (Path("/proc") / str(record["pid"]) / "stat").read_text().rsplit(")", 1)[1].split()
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        return None
+    return record["pid"] if fields[19] == str(record["start_ticks"]) and fields[0] != "Z" else None
 
 
 if options.get("runner"):
@@ -470,8 +482,13 @@ def deploy(args):
             print("Local record: " + str(path))
         runner = json.loads(lines[-1]).get("runner") if lines else None
         if code == 3 and runner is not None:
-            print("FAILED: the service is deployed and running, but the model runner is not: "
+            print("FAILED: the service is deployed and running, but the new model runner is not: "
                   + json.dumps(runner), file=sys.stderr)
+            if runner.get("previous_running"):
+                print("The runner of the previous --runner deploy (PID {}) is still running and serves "
+                      "the new service with its own code. Fix the cause and deploy again with --runner, "
+                      "which replaces it; do not start a second runner by hand.".format(
+                          runner["previous_running"]), file=sys.stderr)
             return 1
         if code:
             print(f"FAILED: the board reported exit {code}; see the record above.", file=sys.stderr)

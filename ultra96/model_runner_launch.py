@@ -11,9 +11,16 @@ interactive `sudo -E` shell), with stdin from /dev/null and its output in a log
 file, and checks that it is still running a moment later. It prints one JSON
 line. Standard library only, and it imports nothing from this repository.
 
+It cannot stop a runner it did not start (one started by hand). If the bridge
+reports that a second runner took over the connection, the new runner is stopped
+again, so the two do not keep replacing each other, and the status is "conflict".
+When it fails before it reaches the previous runner, "previous" is "untouched"
+and "previous_running" names that runner's PID while it still runs.
+
 Options: python, script, args (list), log, pidfile, service_log, settle (seconds the
 runner must survive), connect_wait (seconds to look for the bridge's "model runner
-connected" in service_log).
+connected" line with the runner's PID in service_log), conflict_wait (seconds to keep
+watching for a second runner after that).
 """
 import json
 import os
@@ -24,6 +31,10 @@ import sys
 import time
 
 CONNECTED = "model runner connected"
+REPLACED = "a new model runner connected; closing the previous one"
+CONFLICT = ("another model runner is connected to the bridge (one started by hand?), and the two "
+            "kept replacing each other; the new runner was stopped. Stop the other runner, then "
+            "deploy again with --runner")
 
 
 def _stat(pid):
@@ -43,15 +54,21 @@ def alive(pid, ticks):
     return fields is not None and fields[19] == ticks and fields[0] != "Z"
 
 
-def stop_previous(pidfile, wait=5.0):
-    """Stop the runner this launcher started last; never signal a reused PID."""
+def _recorded(pidfile):
     try:
         previous = json.loads(Path(pidfile).read_text())
-        pid, ticks = int(previous["pid"]), str(previous["start_ticks"])
+        return int(previous["pid"]), str(previous["start_ticks"])
     except (FileNotFoundError, ValueError, KeyError, TypeError):
-        return "none"
-    if not alive(pid, ticks):
-        return "not_running"
+        return None
+
+
+def recorded_runner(pidfile):
+    """The PID of the runner this launcher started last, while it still runs; else None."""
+    recorded = _recorded(pidfile)
+    return recorded[0] if recorded is not None and alive(*recorded) else None
+
+
+def _stop_group(pid, ticks, wait):
     # The runner runs in its own session; signal the whole group so its children stop too.
     for sig, seconds in ((signal.SIGTERM, wait), (signal.SIGKILL, wait)):
         try:
@@ -63,7 +80,17 @@ def stop_previous(pidfile, wait=5.0):
             if not alive(pid, ticks):
                 return "sigterm" if sig == signal.SIGTERM else "sigkill"
             time.sleep(0.1)
-    raise RuntimeError("the previous runner did not exit after SIGKILL")
+    raise RuntimeError("the runner did not exit after SIGKILL")
+
+
+def stop_previous(pidfile, wait=5.0):
+    """Stop the runner this launcher started last; never signal a reused PID."""
+    recorded = _recorded(pidfile)
+    if recorded is None:
+        return "none"
+    if not alive(*recorded):
+        return "not_running"
+    return _stop_group(*recorded, wait)
 
 
 def _tail(path, lines=10):
@@ -73,22 +100,22 @@ def _tail(path, lines=10):
         return []
 
 
-def _connected_since(service_log, offset):
+def _log_since(service_log, offset):
     try:
         with open(service_log, "rb") as stream:
             stream.seek(offset)
-            return CONNECTED.encode() in stream.read()
+            return stream.read().decode("utf-8", "replace")
     except FileNotFoundError:
-        return False
+        return ""
 
 
-def launch(options):
+def launch(options, result):
     script = Path(options["script"])
+    result.update(script=str(script), log=options["log"])
     if not script.is_file():
         raise FileNotFoundError("runner script not found: " + str(script))
     if not Path(options["python"]).is_file():
         raise FileNotFoundError("runner python not found: " + options["python"])
-    result = dict(script=str(script), log=options["log"])
     result["previous"] = stop_previous(options["pidfile"])
     service_log = options.get("service_log")
     offset = os.path.getsize(service_log) if service_log and os.path.exists(service_log) else 0
@@ -112,11 +139,19 @@ def launch(options):
     result["status"] = "running"
     result["connected"] = False
     if service_log:
+        # The bridge logs the connecting process's PID; bash exec keeps the runner's.
+        mine = "{} (pid {})".format(CONNECTED, runner.pid)
         deadline = time.monotonic() + options.get("connect_wait", 10.0)
         while time.monotonic() < deadline and runner.poll() is None:
-            if _connected_since(service_log, offset):
+            text = _log_since(service_log, offset)
+            if REPLACED in text:
+                result.update(status="conflict", connected=False, error=CONFLICT,
+                              stopped=_stop_group(runner.pid, ticks, 5.0))
+                return result
+            if mine in text and not result["connected"]:
                 result["connected"] = True
-                break
+                # Keep watching a little: a second runner shows up as a replaced connection.
+                deadline = min(deadline, time.monotonic() + options.get("conflict_wait", 3.0))
             time.sleep(0.2)
         if runner.poll() is not None:
             result.update(status="exited", returncode=runner.returncode, log_tail=_tail(options["log"]))
@@ -125,10 +160,18 @@ def launch(options):
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
+    result = {}
     try:
-        result = launch(json.loads(argv[0]))
+        options = json.loads(argv[0])
+        launch(options, result)
     except Exception as exc:
-        result = dict(status="failed", error=type(exc).__name__ + ": " + str(exc))
+        result.update(status="failed", error=type(exc).__name__ + ": " + str(exc))
+        if "previous" not in result:  # failed before it reached the previous runner
+            result["previous"] = "untouched"
+            try:
+                result["previous_running"] = recorded_runner(options["pidfile"])
+            except Exception:
+                result["previous_running"] = None
     print(json.dumps(result), flush=True)
     return 0 if result.get("status") == "running" else 1
 

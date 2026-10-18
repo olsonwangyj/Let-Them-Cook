@@ -27,6 +27,7 @@ from pathlib import Path
 import queue
 import socket
 import stat
+import struct
 import threading
 import time
 
@@ -112,7 +113,7 @@ class Bridge:
                 conn, _ = self._listener.accept()
             except OSError:
                 return  # listener closed
-            LOG.info("model runner connected")
+            LOG.info("model runner connected (pid %s)", _peer_pid(conn))
             self.attach(conn)
 
     def _send_loop(self, conn, sends):
@@ -155,7 +156,7 @@ class Bridge:
             if not isinstance(message, dict) or message.get("type") != "result":
                 raise ValueError("not a result")
             fields = [message[key] for key in ("gesture", "confidence", "device_id", "boot_id", "seq")]
-        except (ValueError, KeyError, UnicodeDecodeError):
+        except (ValueError, KeyError, UnicodeDecodeError, RecursionError):  # deep nesting recurses
             self._count("bad_lines")
             self._warn("bad", "model runner sent a line that is not a result; skipped")
             return
@@ -231,6 +232,16 @@ def _lock(path):
         lock.close()
         raise FileExistsError("another service is using {}".format(path)) from None
     return lock
+
+
+def _peer_pid(conn):
+    """The connecting process's PID (Linux SO_PEERCRED), or None where it is not available."""
+    try:
+        pid, _, _ = struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
+                                                        struct.calcsize("3i")))
+        return pid
+    except (AttributeError, OSError, struct.error):
+        return None
 
 
 def _skip_to_newline(reader):

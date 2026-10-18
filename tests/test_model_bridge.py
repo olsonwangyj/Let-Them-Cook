@@ -2,6 +2,7 @@
 import asyncio
 import io
 import json
+import os
 from pathlib import PurePosixPath
 import queue
 import socket
@@ -74,6 +75,31 @@ def test_result_lines_call_emit_and_bad_lines_are_skipped_without_closing():
     bridge.on_sample(1, 7, 43, 1, (0.0,) * 11)
     assert json.loads(lines.readline())["seq"] == 43  # still connected
     bridge.close()
+
+
+def test_a_line_too_deeply_nested_to_parse_is_skipped_without_closing(monkeypatch):
+    # Python 3.10 (the board's) raises RecursionError for deep nesting; 3.12 may not.
+    def loads(text):
+        if text.startswith("[[["):
+            raise RecursionError("maximum recursion depth exceeded")
+        return json.loads(text)
+    monkeypatch.setattr(model_bridge, "json", type("Json", (), dict(loads=staticmethod(loads),
+                                                                     dumps=staticmethod(json.dumps))))
+    bridge = Bridge()
+    emit, runner, lines = connected(bridge)
+    lines.readline()
+    runner.sendall(b"[" * 2000 + b"\n" + b'{"type":"result","gesture":"CHOP","confidence":1,'
+                   b'"device_id":1,"boot_id":7,"seq":3}\n')
+    assert emit.calls.get(timeout=5) == ("CHOP", 1, 1, 7, 3)
+    assert bridge.counts["bad_lines"] == 1
+    bridge.close()
+
+
+def test_the_bridge_names_the_connecting_process_where_the_system_tells_it():
+    left, right = socket.socketpair()
+    with left, right:
+        pid = model_bridge._peer_pid(left)
+    assert pid == (os.getpid() if hasattr(socket, "SO_PEERCRED") else None)
 
 
 def test_results_emit_refuses_are_counted():

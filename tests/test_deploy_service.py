@@ -136,7 +136,10 @@ class _Board:
 
 @pytest.mark.parametrize("code, runner, result, message", [
     (0, dict(status="running", pid=7, connected=True, log="/b/l"), 0, "Model runner running (PID 7)"),
-    (3, dict(status="failed", error="runner script not found: /x"), 1, "the model runner is not"),
+    (3, dict(status="failed", error="runner script not found: /x"), 1, "the new model runner is not"),
+    (3, dict(status="failed", previous="untouched", previous_running=41, error="sudo: incorrect password"),
+     1, "previous --runner deploy (PID 41) is still running"),
+    (3, dict(status="conflict", error="another model runner is connected"), 1, "another model runner"),
 ])
 def test_deploy_hands_the_sudo_password_to_the_board_on_stdin(monkeypatch, tmp_path, capsys,
                                                               code, runner, result, message):
@@ -223,7 +226,7 @@ def test_remote_program_on_linux(tmp_path):
                             timeout=600, env=environment)
     output = result.stdout.decode("utf-8", "replace").replace("\0", "")
     assert result.returncode == 0, output[-4000:]
-    assert "RESULT pass=36 fail=0" in output
+    assert "RESULT pass=40 fail=0" in output
 
 
 def test_ssh_errors_end_in_a_failed_line(monkeypatch, tmp_path, capsys):
