@@ -55,8 +55,24 @@ ENROLLED="$(sed -n 's/.*static let caSHA256 = "\([0-9a-f]*\)".*/\1/p' "$ROOT/ios
 ACTUAL="$(openssl x509 -in "$TMP/ca.pem" -outform der | shasum -a 256 | cut -d' ' -f1)"
 [ "$ACTUAL" = "$ENROLLED" ] || { echo "The CA in $FROM is not the enrolled Communications CA" >&2; exit 1; }
 
-container to "$TO" --source "$TMP/settings.json" --destination "Library/Application Support/Comms/public-settings.json" ||
+# devicectl creates every folder on a destination path as root (mode 0755),
+# and the app then cannot save into it ("NSCocoaErrorDomain 513"). Folders
+# inside a copied source folder keep the app's owner, so send Comms/ inside a
+# folder copied over Application Support: only Application Support itself is
+# root-owned, and the app can still write in Comms/. This replaces the target
+# app's Application Support.
+mkdir -p "$TMP/support/Comms"
+cp "$TMP/settings.json" "$TMP/support/Comms/public-settings.json"
+cp "$TMP/ca.pem" "$TMP/support/Comms/comms-ca.pem"
+container to "$TO" --source "$TMP/support" --destination "Library/Application Support" --remove-existing-content true ||
     { cat "$TMP/devicectl.log" >&2; exit 1; }
-container to "$TO" --source "$TMP/ca.pem" --destination "Library/Application Support/Comms/comms-ca.pem" ||
-    { cat "$TMP/devicectl.log" >&2; exit 1; }
+xcrun devicectl device info files --device "$DEVICE" --domain-type appDataContainer --domain-identifier "$TO" \
+    --subdirectory Library --json-output "$TMP/files.json" > /dev/null 2>&1
+python3 - "$TMP/files.json" <<'PY'
+import json, sys
+files = {f["relativePath"]: f["metadata"] for f in json.load(open(sys.argv[1]))["result"]["files"]}
+comms = files.get("Application Support/Comms")
+if not comms or comms["ownerUid"] == 0:
+    sys.exit("Application Support/Comms on the phone is missing or owned by root; the app could not save there")
+PY
 echo "Copied the public setup (Application Support/$found) from $FROM to $TO; enter the passwords in the app"
