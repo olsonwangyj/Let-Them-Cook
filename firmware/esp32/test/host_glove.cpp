@@ -121,7 +121,7 @@ static void testDummyTicks() {
 
   uint8_t output[comms::kSourceStatsSize] = {};
   assert(comms::serializeSourceStats(output, sizeof(output), 1, comms::kGloveGated, stats, counters));
-  assert(output[5] == (comms::kGloveGated ? 0x01 : 0x00));
+  assert(output[5] == (comms::kGloveGated ? 0x03 : 0x02));
 }
 
 static void testBeginRetries() {
