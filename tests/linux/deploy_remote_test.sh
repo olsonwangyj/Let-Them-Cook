@@ -188,9 +188,26 @@ check "hand-started runner: exit 3 with status conflict" '[ $code -eq 3 ] && tai
 check "hand-started runner: the recorded runner replaced, the new one stopped again" '! kill -0 "$RUN2" 2>/dev/null && ! kill -0 "$RUN3" 2>/dev/null'
 check "hand-started runner: left running (not this tool's)" '[ -n "$HAND" ] && kill -0 "$HAND" 2>/dev/null'
 
+# --- 13. a runner started as a module (python -m src.worker) from its own folder, as the model owner does ---
+pkill -u "$(id -u)" -f '[m]odel_runner_example.py --socket' 2>/dev/null; sleep 0.5
+mkdir -p "$BASE/ai/src"; cp "$SRC/new/ultra96/model_runner_example.py" "$BASE/ai/src/worker.py"
+module_opts() {  # $1 module, $2 folder
+  printf '{"event_log": false, "model": "ultra96.model_bridge", "model_path": null, "session_id": "ltc-comms", "start_timeout": 30, "runner": {"module": "%s", "cwd": "%s", "python": "/usr/bin/python3", "args": ["--socket", "%s/model-runner.sock", "--every", "1"], "sudo": false}}' "$1" "$2" "$BASE"
+}
+newsrc source-co-v3-T11
+echo x | /usr/bin/python3 -c "$PROG" "$BASE" "$BASE/source-co-v3-T11" T11 "$(module_opts src.worker "$BASE/ai")" > "$BASE/out11.json" 2> "$BASE/err11.txt"; code=$?
+RUN4=$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["pid"])' "$BASE/evidence/model-runner.json")
+check "module runner: exit 0, running and connected" '[ $code -eq 0 ] && tail -1 "$BASE/out11.json" | grep -q "\"status\": \"running\", \"connected\": true"'
+check "module runner: python -m src.worker in its folder" 'tr "\0" " " < /proc/$RUN4/cmdline | grep -q -- "-m src.worker --socket" && [ "$(readlink /proc/$RUN4/cwd)" = "$BASE/ai" ]'
+newsrc source-co-v3-T12
+echo x | /usr/bin/python3 -c "$PROG" "$BASE" "$BASE/source-co-v3-T12" T12 "$(module_opts src.missing "$BASE/ai")" > "$BASE/out12.json" 2> "$BASE/err12.txt"; code=$?
+check "missing module: exit 3, reported, the previous runner untouched" '[ $code -eq 3 ] && tail -1 "$BASE/out12.json" | grep -q "runner module not found" && kill -0 "$RUN4" 2>/dev/null'
+check "missing module: the service is deployed" 'grep -q "\"status\": \"deployed\"" "$BASE/out12.json"'
+pkill -u "$(id -u)" -f '[s]rc.worker --socket' 2>/dev/null
+
 cleanup
 echo "RESULT pass=$pass fail=$fail"
-for f in err1 err2 err3 err4 err5 err6 err7 err8 err9 err10; do echo "--- $f"; tail -3 "$BASE/$f.txt"; done
+for f in err1 err2 err3 err4 err5 err6 err7 err8 err9 err10 err11 err12; do echo "--- $f"; tail -3 "$BASE/$f.txt"; done
 echo "--- e2e"; cat "$BASE/e2e.txt"; echo "--- e2e7"; cat "$BASE/e2e7.txt"
 rm -rf "$BASE"
-[ "$fail" -eq 0 ] && [ "$pass" -eq 40 ]
+[ "$fail" -eq 0 ] && [ "$pass" -eq 44 ]

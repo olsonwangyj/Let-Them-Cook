@@ -77,6 +77,37 @@ def test_runner_options_need_the_bridge_and_absolute_board_paths():
             deploy_service.options_from(_args(**dict(runner, **bad)))
 
 
+def test_a_runner_module_runs_from_its_board_folder():
+    runner = dict(model="ultra96.model_bridge", runner_module="src.socket_worker",
+                  runner_cwd="/tmp/cnn_conv1d/ai_integration", runner_python=deploy_service.PYNQ_PYTHON,
+                  runner_arg=["--weights", "fpga/hls/w.npz"])
+    assert deploy_service.options_from(_args(**runner))["runner"] == dict(
+        module="src.socket_worker", cwd="/tmp/cnn_conv1d/ai_integration",
+        python=deploy_service.PYNQ_PYTHON, args=["--weights", "fpga/hls/w.npz"])
+    for bad in (dict(runner_cwd=None), dict(runner_cwd="tmp/ai"), dict(runner_module="src/socket_worker.py"),
+                dict(runner_module="src..x"), dict(runner_module="-m src.x"), dict(model="wen_model"),
+                dict(runner="/home/xilinx/w/runner.py")):
+        with pytest.raises(ValueError):
+            deploy_service.options_from(_args(**dict(runner, **bad)))
+    with pytest.raises(ValueError, match="need --runner or --runner-module"):
+        deploy_service.options_from(_args(model="ultra96.model_bridge", runner_cwd="/tmp/ai"))
+
+
+def test_a_runner_script_may_run_in_another_folder():
+    runner = dict(model="ultra96.model_bridge", runner="/home/xilinx/w/runner.py", runner_cwd="/home/xilinx",
+                  runner_python=deploy_service.PYNQ_PYTHON, runner_arg=[])
+    assert deploy_service.options_from(_args(**runner))["runner"]["cwd"] == "/home/xilinx"
+
+
+def test_the_plan_shows_the_runner_module_command(monkeypatch, capsys):
+    monkeypatch.setattr(deploy_service, "_connect", lambda *a: pytest.fail("connected"))
+    assert deploy_service.main(["--model", "ultra96.model_bridge", "--runner-module", "src.socket_worker",
+                                "--runner-cwd", "/tmp/cnn_conv1d/ai_integration",
+                                "--runner-arg=--weights", "--runner-arg", "fpga/hls/w.npz", "--dry-run"]) == 0
+    assert ("cd /tmp/cnn_conv1d/ai_integration && " + deploy_service.PYNQ_PYTHON
+            + " -m src.socket_worker --weights fpga/hls/w.npz") in capsys.readouterr().out
+
+
 def test_board_paths_that_git_bash_rewrote_are_refused():
     runner = dict(model="ultra96.model_bridge", runner="/home/xilinx/w/runner.py",
                   runner_python=deploy_service.PYNQ_PYTHON, runner_arg=[])
@@ -226,7 +257,7 @@ def test_remote_program_on_linux(tmp_path):
                             timeout=600, env=environment)
     output = result.stdout.decode("utf-8", "replace").replace("\0", "")
     assert result.returncode == 0, output[-4000:]
-    assert "RESULT pass=40 fail=0" in output
+    assert "RESULT pass=44 fail=0" in output
 
 
 def test_ssh_errors_end_in_a_failed_line(monkeypatch, tmp_path, capsys):

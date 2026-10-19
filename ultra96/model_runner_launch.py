@@ -17,10 +17,13 @@ again, so the two do not keep replacing each other, and the status is "conflict"
 When it fails before it reaches the previous runner, "previous" is "untouched"
 and "previous_running" names that runner's PID while it still runs.
 
-Options: python, script, args (list), log, pidfile, service_log, settle (seconds the
-runner must survive), connect_wait (seconds to look for the bridge's "model runner
-connected" line with the runner's PID in service_log), conflict_wait (seconds to keep
-watching for a second runner after that).
+Options: python, script or module, cwd, args (list), log, pidfile, service_log, settle
+(seconds the runner must survive), connect_wait (seconds to look for the bridge's "model
+runner connected" line with the runner's PID in service_log), conflict_wait (seconds to
+keep watching for a second runner after that). With script it runs `python script args`
+in cwd (default: the script's folder); with module, `python -m module args` in cwd
+(required), the way a runner whose code imports its own package is started by hand
+(for example `cd <checkout> && python -m src.socket_worker ...`).
 """
 import json
 import os
@@ -109,21 +112,48 @@ def _log_since(service_log, offset):
         return ""
 
 
-def launch(options, result):
+def module_file(cwd, module):
+    """The file `python -m module` runs from cwd: <module path>.py, or its package's __main__.py."""
+    path = Path(cwd).joinpath(*module.split("."))
+    for candidate in (path.with_name(path.name + ".py"), path / "__main__.py"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def runner_command(options, result):
+    """(argv after the Python, working folder) of the runner the options describe."""
+    if options.get("module"):
+        module, cwd = options["module"], Path(options["cwd"])
+        result.update(module=module, cwd=str(cwd))
+        if not cwd.is_dir():
+            raise FileNotFoundError("runner folder not found: " + str(cwd))
+        if module_file(cwd, module) is None:
+            raise FileNotFoundError("runner module not found: {} in {}".format(module, cwd))
+        return ["-m", module], cwd
     script = Path(options["script"])
-    result.update(script=str(script), log=options["log"])
+    cwd = Path(options.get("cwd") or script.parent)
+    result.update(script=str(script), cwd=str(cwd))
     if not script.is_file():
         raise FileNotFoundError("runner script not found: " + str(script))
+    if not cwd.is_dir():
+        raise FileNotFoundError("runner folder not found: " + str(cwd))
+    return [str(script)], cwd
+
+
+def launch(options, result):
+    result.update(log=options["log"])
+    command, cwd = runner_command(options, result)
     if not Path(options["python"]).is_file():
         raise FileNotFoundError("runner python not found: " + options["python"])
     result["previous"] = stop_previous(options["pidfile"])
     service_log = options.get("service_log")
     offset = os.path.getsize(service_log) if service_log and os.path.exists(service_log) else 0
-    argv = ["/bin/bash", "-l", "-c", 'exec "$@"', "model-runner", options["python"], str(script)]
+    argv = ["/bin/bash", "-l", "-c", 'exec "$@"', "model-runner", options["python"]] + command
     argv += list(options.get("args", []))
     with open(options["log"], "ab", buffering=0) as out:
         os.chmod(options["log"], 0o644)
-        runner = subprocess.Popen(argv, cwd=str(script.parent), stdin=subprocess.DEVNULL,
+        runner = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL,
                                   stdout=out, stderr=out, start_new_session=True)
     ticks = start_ticks(runner.pid)
     record = dict(pid=runner.pid, start_ticks=ticks, argv=argv, started=time.time())

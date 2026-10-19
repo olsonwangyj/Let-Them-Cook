@@ -17,17 +17,19 @@ installs a renewed server certificate, and then, on the board:
   5. waits until it listens on both ports. Any failure from step 3 on stops the
      new service, restores the previous certificate files and restarts the
      previous code; a final record is printed and saved in every case.
-  6. only with --runner (and --model ultra96.model_bridge): once the new service
-     listens, starts the model owner's runner program as root through sudo
-     (ultra96/model_runner_launch.py), replacing the runner this tool started
-     last. The owner types the sudo password too; it reaches sudo on stdin. A
-     runner that does not start leaves the new service running and the tool
-     exits nonzero.
+  6. only with --runner or --runner-module (and --model ultra96.model_bridge):
+     once the new service listens, starts the model owner's runner program as
+     root through sudo (ultra96/model_runner_launch.py), replacing the runner
+     this tool started last. The owner types the sudo password too; it reaches
+     sudo on stdin. A runner that does not start leaves the new service running
+     and the tool exits nonzero.
 Apart from step 6 it never uses sudo, and it never touches other users' processes.
 
     python -m tools.deploy_service --server-cert-dir <folder with server-cert.pem and server-key.pem>
     python -m tools.deploy_service --dry-run
     python -m tools.deploy_service --model ultra96.model_bridge --runner /home/xilinx/<folder>/<runner>.py
+    python -m tools.deploy_service --model ultra96.model_bridge --runner-module src.socket_worker \
+        --runner-cwd /tmp/cnn_conv1d/ai_integration --runner-arg=--weights --runner-arg <file> ...
 """
 import argparse
 from datetime import datetime, timezone
@@ -35,6 +37,7 @@ import getpass
 import hashlib
 import json
 from pathlib import Path
+import re
 import shlex
 import socket
 import sys
@@ -48,6 +51,7 @@ BOARD_HOST = "makerslab-fpga-35.ddns.comp.nus.edu.sg"
 RECORDS = ROOT / ".comms-local" / "deployments"
 BRIDGE_MODEL = "ultra96.model_bridge"
 PYNQ_PYTHON = "/usr/local/share/pynq-venv/bin/python"
+MODULE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 REMOTE_PROGRAM = r'''
 import compileall, json, os, shutil, signal, ssl, subprocess, sys, time
@@ -297,8 +301,8 @@ except BaseException as failure:
 
 def start_runner(runner):
     """As root (sudo): replace the runner started last with this one; the service keeps running."""
-    launch_options = dict(python=runner["python"], script=runner["script"], args=runner["args"],
-                          log=str(evidence / ("model-runner-" + stamp + ".log")),
+    launch_options = {key: value for key, value in runner.items() if key != "sudo"}
+    launch_options.update(log=str(evidence / ("model-runner-" + stamp + ".log")),
                           pidfile=str(evidence / "model-runner.json"), service_log=record["log"])
     argv = ["/usr/bin/python3", "-I", str(source / "ultra96" / "model_runner_launch.py"),
             json.dumps(launch_options)]
@@ -367,16 +371,40 @@ def options_from(args):
     options = dict(session_id=args.session_id, event_log=not args.no_event_log, model=args.model,
                    model_path=args.model_path, start_timeout=args.start_timeout)
     runner = getattr(args, "runner", None)
-    if runner is not None:
-        if args.model != BRIDGE_MODEL:
-            raise ValueError("--runner needs --model " + BRIDGE_MODEL)
-        for name, value in (("--runner", runner), ("--runner-python", args.runner_python)):
-            if not (value.startswith("/") and value.isprintable()):
-                raise ValueError(name + " must be an absolute path on the board" + _git_bash_hint([value]))
-        if not all(isinstance(a, str) and a.isprintable() for a in args.runner_arg) or _git_bash_hint(args.runner_arg):
-            raise ValueError("--runner-arg must be printable board values" + _git_bash_hint(args.runner_arg))
-        options["runner"] = dict(script=runner, python=args.runner_python, args=list(args.runner_arg))
+    module = getattr(args, "runner_module", None)
+    cwd = getattr(args, "runner_cwd", None)
+    if runner is None and module is None:
+        if cwd is not None or getattr(args, "runner_arg", []):
+            raise ValueError("--runner-cwd and --runner-arg need --runner or --runner-module")
+        return options
+    if runner is not None and module is not None:
+        raise ValueError("give --runner (a script) or --runner-module (python -m), not both")
+    if args.model != BRIDGE_MODEL:
+        raise ValueError(("--runner" if module is None else "--runner-module") + " needs --model " + BRIDGE_MODEL)
+    if module is not None:
+        if not MODULE_NAME.fullmatch(module):
+            raise ValueError("--runner-module must be a dotted Python module name, such as src.socket_worker")
+        if cwd is None:
+            raise ValueError("--runner-module needs --runner-cwd, the board folder it runs from")
+    paths = [("--runner", runner), ("--runner-cwd", cwd), ("--runner-python", args.runner_python)]
+    for name, value in paths:
+        if value is not None and not (value.startswith("/") and value.isprintable()):
+            raise ValueError(name + " must be an absolute path on the board" + _git_bash_hint([value]))
+    if not all(isinstance(a, str) and a.isprintable() for a in args.runner_arg) or _git_bash_hint(args.runner_arg):
+        raise ValueError("--runner-arg must be printable board values" + _git_bash_hint(args.runner_arg))
+    options["runner"] = (dict(script=runner) if module is None else dict(module=module))
+    if cwd is not None:
+        options["runner"]["cwd"] = cwd
+    options["runner"].update(python=args.runner_python, args=list(args.runner_arg))
     return options
+
+
+def runner_line(runner):
+    """The runner's command as a shell line, for the plan the tool prints."""
+    target = ["-m", runner["module"]] if runner.get("module") else [runner["script"]]
+    line = " ".join(shlex.quote(part) for part in [runner["python"]] + target + runner["args"])
+    cwd = runner.get("cwd")
+    return ("cd " + shlex.quote(cwd) + " && " + line) if cwd else line
 
 
 def certificate_files(folder):
@@ -430,9 +458,7 @@ def deploy(args):
     print("Options: " + json.dumps(options, sort_keys=True))
     if options.get("runner"):
         print("Runner: after the service listens, as root (sudo, a login shell): "
-              + " ".join(shlex.quote(part) for part in
-                         [options["runner"]["python"], options["runner"]["script"]] + options["runner"]["args"])
-              + "; it replaces the runner this tool started last")
+              + runner_line(options["runner"]) + "; it replaces the runner this tool started last")
     if args.dry_run:
         print("Dry run: nothing was connected or changed.")
         return 0
@@ -486,8 +512,8 @@ def deploy(args):
                   + json.dumps(runner), file=sys.stderr)
             if runner.get("previous_running"):
                 print("The runner of the previous --runner deploy (PID {}) is still running and serves "
-                      "the new service with its own code. Fix the cause and deploy again with --runner, "
-                      "which replaces it; do not start a second runner by hand.".format(
+                      "the new service with its own code. Fix the cause and deploy again with --runner "
+                      "or --runner-module, which replaces it; do not start a second runner by hand.".format(
                           runner["previous_running"]), file=sys.stderr)
             return 1
         if code:
@@ -516,10 +542,16 @@ def main(argv=None):
     parser.add_argument("--runner", metavar="BOARD_SCRIPT",
                         help="with --model " + BRIDGE_MODEL + ": the model owner's runner script on the "
                              "board, started as root with sudo once the service listens")
+    parser.add_argument("--runner-module", metavar="MODULE",
+                        help="instead of --runner: run the runner as python -m MODULE from --runner-cwd "
+                             "(for example src.socket_worker)")
+    parser.add_argument("--runner-cwd", metavar="BOARD_FOLDER",
+                        help="the board folder the runner runs in (needed with --runner-module; "
+                             "relative --runner-arg paths are read from it)")
     parser.add_argument("--runner-python", default=PYNQ_PYTHON,
-                        help="the Python that runs --runner (default: PYNQ's, " + PYNQ_PYTHON + ")")
+                        help="the Python that runs the runner (default: PYNQ's, " + PYNQ_PYTHON + ")")
     parser.add_argument("--runner-arg", action="append", default=[], metavar="ARG",
-                        help="an argument for the runner script (repeat; --runner-arg=--flag for a dash)")
+                        help="an argument for the runner (repeat; --runner-arg=--flag for a dash)")
     parser.add_argument("--no-event-log", action="store_true", help="start without --event-log-dir")
     parser.add_argument("--start-timeout", type=float, default=30.0,
                         help="seconds to wait for both listeners (model loading counts)")
