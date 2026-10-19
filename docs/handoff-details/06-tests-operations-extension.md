@@ -736,7 +736,7 @@ Why the gloves need the always-send build for this test: Wen Ree's runner (`src/
 
 Steps (PowerShell, from the repository root, NUS VPN on). Only steps 2, 3, 5 and 6 ask for passwords, and the owner types them.
 
-1. **Always-send glove images** (built and linked on 2026-10-19 from `8096c22`, images not flashed: left 1,155,024 bytes, right 1,155,040 bytes; flash only with the owner's go-ahead, as the gloves are Siqiang's). One glove at a time on COM3, left first:
+1. **Always-send glove images** (built and linked on 2026-10-19 from `8096c22`: left 1,155,024 bytes, right 1,155,040 bytes; flash only with the owner's go-ahead, as the gloves are Siqiang's). **Left glove done on 2026-10-19** (about 18:15 +08:00): flashed with the command below, serial `glove_begin ok=1 module=external gated=0 attempts=1`, and `python -m tools.check_board left --duration 65` passed with the glove lying still (2941 = 2941 = 2941, `idle=0`, no pairing needed; evidence `.comms-local/checks/2026-10-19-left-glove-send-all/`). The right glove is not flashed yet. One glove at a time on COM3, left first:
 
    ```powershell
    $env:PLATFORMIO_BUILD_FLAGS = "-DCOMMS_GLOVE_SEND_ALL=1"
