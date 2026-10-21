@@ -740,6 +740,17 @@ Where documents disagree with the code (follow the code):
 - The board deployment folder `BOARD_ROOT` and the old code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:13`, `:16`). They are real folders on the board. New snapshots are named `source-co-v3-<stamp>`.
 - The laptop's default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` (`demo.py:79-80`). Other machines must pass `--ca` explicitly.
 
+### Board state (2026-10-22, the fresh redeploy before the team integration)
+
+On 2026-10-22 at 00:41:51 +08:00 (stamp `20261021T164151Z`) the owner ran the same local helper again, from local `main` at `9899153` with a clean tree and the NUS VPN on, typing the three passwords once.
+
+- **Inspection:** the only runner process was PID 164281 (the recorded one, up 6 h 35 min); Wen Ree's `/tmp/cnn_full_20261020/` `.bit` and `.hwh` still match the team main `41a9146`; `model-runner/` holds `cnn_conv1d` and `cnn_full_20261020`; the running service code equalled local `main`. Staging reported `Already staged with matching hashes`.
+- **Service:** `deployed`, PID 164924, `BOARD_ROOT/source-co-v3-20261021T164151Z`, log `BOARD_ROOT/evidence/server-co-20261021T164151Z.log`; old service PID 164274 stopped with SIGTERM, code in `BOARD_ROOT/rollback-co-20261021T164151Z`; certificate unchanged (`Nov 13 14:27:35 2026 GMT`).
+- **Runner:** `running`, `connected: true`, `previous: sigterm`; PID 164932, the same command as on 10-21; log `BOARD_ROOT/evidence/model-runner-20261021T164151Z.log` with `Loaded FULL CNN bitstream` and `IP: gesture_cnn_full_0 control: 0x80000000`. Service log: the old runner connected for 0.2 s (0 samples), then `model runner connected (pid 164932)`.
+- **Record:** `.comms-local/deployments/deployment-20261021T164151Z.json`.
+- **Optional weights:** the team main `722fba2` adds `fpga/hls/eightclass_weights_standard_20261021.npz` (same keys, shapes, class order and config as `20261018_v2`; the runner passes weights to the FPGA at run time). Only if Wen Ree asks for it: `python .comms-local/integration-20261022/stage_weights.py` (two passwords, no sudo) copies it to `BOARD_ROOT/model-runner/weights_standard_20261021/` with a hash check and prints the deploy command, which differs from the full-CNN command only in an absolute `--weights` path.
+- **Live logs:** `python .comms-local/integration-20261022/watch_board.py` (add `--runner` for the runner log only) tails the logs named in the newest local deployment record, through the same two SSH hops as `python demo.py service`; read only.
+
 ### Board state (2026-10-21, with Wen Ree's full-CNN runner)
 
 On 2026-10-21 at about 18:06 +08:00 (stamp `20261021T100657Z`) the owner ran the local helper (previous section) in PowerShell on the laptop, from local `main` at `d2f9a16` with a clean tree and the NUS VPN on, typing the jump-host, board and sudo passwords once (nothing stored).
