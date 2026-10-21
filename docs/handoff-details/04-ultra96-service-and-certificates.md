@@ -603,7 +603,28 @@ Wen Ree's runner, its weights, the bitstream and its `.hwh` are in `/tmp/cnn_con
 python -m tools.deploy_service --model ultra96.model_bridge --runner-module src.socket_worker --runner-cwd /var/tmp/cg4002-week7-yanjie-20260907/model-runner/cnn_conv1d/ai_integration --runner-arg=--weights --runner-arg fpga/hls/eightclass_weights_20261018_v2.npz --runner-arg=--bit --runner-arg /var/tmp/cg4002-week7-yanjie-20260907/model-runner/cnn_conv1d/cnn_conv1d_fixed28_v2.bit
 ```
 
-The copy is what Wen Ree put on the board, not the team repository's files, so it runs the code Wen Ree tested there. When Wen Ree puts a new version in `/tmp/cnn_conv1d`, copy it with a new `--name` (for example `--name cnn_conv1d-20261020`) and deploy with that folder. The board program was tested on Windows (`tests/test_stage_model_runner.py`) and under Python 3.10.12 in WSL (the board runs 3.10.4); not yet run on the Ultra96.
+The copy is what Wen Ree put on the board, not the team repository's files, so it runs the code Wen Ree tested there. When Wen Ree puts a new version in `/tmp/cnn_conv1d`, copy it with a new `--name` (for example `--name cnn_conv1d-20261020`) and deploy with that folder. The board program was tested on Windows (`tests/test_stage_model_runner.py`) and under Python 3.10.12 in WSL (the board runs 3.10.4), and ran on the Ultra96 on 2026-10-19 at 19:09 +08:00 (`staged`, 25 files; hand-off 6.1). Its file list is the Conv1-only folder's, so it does not fit the full-CNN runner (next section).
+
+### Full-CNN runner and the Conv1-only fallback (2026-10-21)
+
+Wen Ree's full-CNN runner (`src/socket_worker_full.py`, team main `41a9146`, `README_FULL_CNN.md`) runs every network layer on the FPGA. It speaks the same socket lines as `src/socket_worker.py`, uses the same weights file and the same eight labels, and needs its own overlay (`fpga/overlays/full_cnn/cnn_full_20261020.bit` and the `.hwh` with the same base name, next to it). Its IP, `gesture_cnn_full_0`, is at `0x80000000` and the runner finds it from the `.hwh`; do not pass `--control-address` (the Conv1-only runner's `0x80010000` would fail with "Control address mismatch").
+
+Its persistent copy is `BOARD_ROOT/model-runner/cnn_full_20261020`, laid out as the repository: `src/ai_common.py`, `src/export_full_cnn.py`, `src/full_cnn_backend.py`, `src/socket_worker_full.py`, `fpga/hls/eightclass_weights_20261018_v2.npz`, `fpga/overlays/full_cnn/cnn_full_20261020.bit` and `.hwh` (no `src/__init__.py`; `src` is a namespace package, which `python -m` accepts). It was staged on 2026-10-21 from the team main's files, not from Wen Ree's `/tmp/cnn_full_20261020/` (whose `.bit` and `.hwh` have the same SHA-256), by a local helper that is not in the repository (`.comms-local/cnn-full-20261020/stage_and_deploy.py`: inspection, upload to `<copy>.partial`, SHA-256 check on the board, `test ! -e <copy> && mv`, then the deploy below, in one login). `tools/stage_model_runner.py` does not fit this runner: it requires the Conv1-only folder's four files and prints the Conv1-only command.
+
+Start the full-CNN runner (the version the team chose for 2026-10-22):
+
+```powershell
+python -m tools.deploy_service --model ultra96.model_bridge --runner-module src.socket_worker_full --runner-cwd /var/tmp/cg4002-week7-yanjie-20260907/model-runner/cnn_full_20261020 --runner-arg=--weights --runner-arg fpga/hls/eightclass_weights_20261018_v2.npz --runner-arg=--bit --runner-arg /var/tmp/cg4002-week7-yanjie-20260907/model-runner/cnn_full_20261020/fpga/overlays/full_cnn/cnn_full_20261020.bit
+```
+
+Fall back to the Conv1-only runner (FPGA Conv1, the rest on the CPU):
+
+```powershell
+python -m tools.deploy_service --model ultra96.model_bridge --runner-module src.socket_worker --runner-cwd /var/tmp/cg4002-week7-yanjie-20260907/model-runner/cnn_conv1d/ai_integration --runner-arg=--weights --runner-arg fpga/hls/eightclass_weights_20261018_v2.npz --runner-arg=--bit --runner-arg /var/tmp/cg4002-week7-yanjie-20260907/model-runner/cnn_conv1d/cnn_conv1d_fixed28_v2.bit
+```
+
+Loading an overlay replaces the FPGA's configuration, so the two runners must never run together. Each deploy stops the runner the tool started last before it starts the new one, but it cannot stop a runner started by hand: before switching, check `ps` on the board (Wen Ree's board tests start runners by hand with `sudo -E`). A runner whose overlay was replaced under it by such a test keeps running with the wrong configuration; redeploying its command loads its overlay again. The launcher waits 3 s and then up to 10 s for the bridge's `model runner connected`; a slow overlay load can show `not yet connected` with exit 0, so read the runner log the deploy prints. A missing file or an import error shows as `exited` only after the previous runner was stopped; then deploy the other command.
+
 ### Renewing the server certificate
 
 1. On the laptop, run `python -m tools.generate_comms_pki --renew-server-from <existing CA folder> --output-dir <new empty folder outside Git>`. The existing CA folder must hold both `ca-cert.pem` and `ca-key.pem`. The location of the current CA and the full command are in section 6.3 of the hand-off document and in "Certificates" above. This was done on 2026-10-14, and step 3 on 2026-10-16; the next renewal is due in early November (hand-off 9.2).
@@ -718,6 +739,17 @@ Where documents disagree with the code (follow the code):
 - The TLS host name `ultra96.week7.internal`. It is in the CN and SAN of the server certificate. It is also hard-coded in `common/tls.py:4`, `tools/generate_comms_pki.py:24`, `phone/receiver.py:17`, `phone/unity/CommsPhoneCore.cs:365` and `ios-visualizer/CommsNative/Sources/CommsTransport/CommsClient.swift:142`. Changing it needs a new certificate and a rebuild of the phone app.
 - The board deployment folder `BOARD_ROOT` and the old code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:13`, `:16`). They are real folders on the board. New snapshots are named `source-co-v3-<stamp>`.
 - The laptop's default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` (`demo.py:79-80`). Other machines must pass `--ca` explicitly.
+
+### Board state (2026-10-21, with Wen Ree's full-CNN runner)
+
+On 2026-10-21 at about 18:06 +08:00 (stamp `20261021T100657Z`) the owner ran the local helper (previous section) in PowerShell on the laptop, from local `main` at `d2f9a16` with a clean tree and the NUS VPN on, typing the jump-host, board and sudo passwords once (nothing stored).
+
+- **Before:** the service and runner of the redeploy of 2026-10-20 at about 13:24 +08:00 (stamp `20261020T052348Z`): service PID 157399, Conv1-only runner PID 157406 from `BOARD_ROOT/model-runner/cnn_conv1d/ai_integration`, the only runner process on the board and the one recorded in `BOARD_ROOT/evidence/model-runner.json`. The service's code equalled local `main`'s.
+- **Service:** `status: deployed`, PID 164274, working directory `BOARD_ROOT/source-co-v3-20261021T100657Z`, log `BOARD_ROOT/evidence/server-co-20261021T100657Z.log`, the same options as before; old service stopped with SIGTERM, its code in `BOARD_ROOT/rollback-co-20261021T100657Z`.
+- **Runner:** `running`, `connected: true`, `previous: sigterm`. PID 164281, root, `/usr/local/share/pynq-venv/bin/python -m src.socket_worker_full --weights fpga/hls/eightclass_weights_20261018_v2.npz --bit BOARD_ROOT/model-runner/cnn_full_20261020/fpga/overlays/full_cnn/cnn_full_20261020.bit` in `BOARD_ROOT/model-runner/cnn_full_20261020`, log `BOARD_ROOT/evidence/model-runner-20261021T100657Z.log`: `Loaded FULL CNN bitstream`, `IP: gesture_cnn_full_0 control: 0x80000000`. The service log shows the old runner reconnecting to the new service for 0.3 s (0 samples) before the launcher stopped it, then `model runner connected (pid 164281)`.
+- **Records:** `.comms-local/deployments/deployment-20261021T100657Z.json` and `model-runner-stage-20261021T100657Z.json`.
+- **Not yet seen:** any sample reaching this runner, or a result from it on the phone (the team integration of 2026-10-22).
+- Harmless on this board: commands run over SSH print `Could not chdir to home directory /home/xilinx: Permission denied` on stderr.
 
 ### Board state (2026-10-19 evening, with Wen Ree's runner)
 
