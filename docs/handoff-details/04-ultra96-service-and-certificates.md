@@ -740,6 +740,13 @@ Where documents disagree with the code (follow the code):
 - The board deployment folder `BOARD_ROOT` and the old code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:13`, `:16`). They are real folders on the board. New snapshots are named `source-co-v3-<stamp>`.
 - The laptop's default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` (`demo.py:79-80`). Other machines must pass `--ca` explicitly.
 
+### Board state (2026-10-22, after the team integration)
+
+- **Service:** PID 165927, `BOARD_ROOT/source-co-v3-20261022T020232Z`, log `BOARD_ROOT/evidence/server-co-20261022T020232Z.log`, event log `BOARD_ROOT/evidence/observer-co-live-20261022T020232Z/`; deployed by the owner at 10:02:32 +08:00 during the integration (record `.comms-local/deployments/deployment-20261022T020232Z.json`).
+- **Runner:** PID 165934, `running` and `connected`: Wen Ree's `src.socket_worker_full` from `BOARD_ROOT/model-runner/cnn_full_20261020` with `--weights BOARD_ROOT/model-runner/weights_standard_20261021/eightclass_weights_standard_20261021.npz` and the full-CNN `--bit`; log `BOARD_ROOT/evidence/model-runner-20261022T020232Z.log`.
+- **Deploys that day:** 00:41:51 (the `20261018_v2` weights; below), 09:38:21 (`20261022T013821Z`, the standardized weights, after `stage_weights.py` copied them), a service restart at about 09:57:50 (PID 165847) with no record on this laptop, and 10:02:32. The runs against these services are in hand-off section 6.1.
+- **Folders under `BOARD_ROOT/model-runner/`:** `cnn_full_20261020` (running), `weights_standard_20261021` (the weights in use), `cnn_conv1d` (the Conv1-only fallback).
+
 ### Board state (2026-10-22, the fresh redeploy before the team integration)
 
 On 2026-10-22 at 00:41:51 +08:00 (stamp `20261021T164151Z`) the owner ran the same local helper again, from local `main` at `9899153` with a clean tree and the NUS VPN on, typing the three passwords once.
