@@ -225,3 +225,12 @@ readlink() { [ "$1" = /proc/456/cwd ] || return 97; printf '/deployed/source\\n'
     output, = outputs
     assert "LISTENERS" in output and "456 ultra96.server" in output
     assert "Server PID 456, working directory: /deployed/source" in output
+
+
+def test_service_ssh_uses_the_given_jump_login(service, monkeypatch):
+    calls = []
+    monkeypatch.setattr(service.subprocess, "run",
+                        lambda command, **kwargs: calls.append(command) or subprocess.CompletedProcess(command, 0))
+    assert service.main(jump="e0123456@stujump.comp.nus.edu.sg") == 0
+    proxy = next(o for o in calls[0] if o.startswith("ProxyCommand="))
+    assert "e0123456@stujump.comp.nus.edu.sg" in proxy and "yanjie" not in proxy

@@ -43,10 +43,10 @@ import socket
 import sys
 
 from tools.demo_service import BOARD_ROOT
+from tools.ssh_tunnel import JUMP_HOST, default_jump_user
 from ultra96.protocol import validate_session
 
 ROOT = Path(__file__).resolve().parents[1]
-JUMP_HOST = "stujump.comp.nus.edu.sg"
 BOARD_HOST = "makerslab-fpga-35.ddns.comp.nus.edu.sg"
 RECORDS = ROOT / ".comms-local" / "deployments"
 BRIDGE_MODEL = "ultra96.model_bridge"
@@ -555,7 +555,8 @@ def main(argv=None):
     parser.add_argument("--no-event-log", action="store_true", help="start without --event-log-dir")
     parser.add_argument("--start-timeout", type=float, default=30.0,
                         help="seconds to wait for both listeners (model loading counts)")
-    parser.add_argument("--jump-user", default="yanjie")
+    parser.add_argument("--jump-user", default=default_jump_user(),
+                        help="your NUS login for the jump host; default: LTC_JUMP_USER when set, else yanjie")
     parser.add_argument("--board-user", default="xilinx")
     parser.add_argument("--dry-run", action="store_true", help="print the plan; connect nothing")
     args = parser.parse_args(argv)

@@ -5,7 +5,7 @@ import re
 import shlex
 import subprocess
 
-from tools.ssh_tunnel import tunnel_command
+from tools.ssh_tunnel import default_jump, tunnel_command
 from ultra96.protocol import validate_session
 
 
@@ -69,9 +69,9 @@ def board_source():
     return newest_deployment()[0]
 
 
-def ssh_command(script):
+def ssh_command(script, jump=None):
     # Keep both verified SSH hops; a remote command needs no local forwarding.
-    tunnel = tunnel_command("yanjie@stujump.comp.nus.edu.sg",
+    tunnel = tunnel_command(jump or default_jump(),
         "xilinx@makerslab-fpga-35.ddns.comp.nus.edu.sg", 18889, 8888, batch=False)
     command = [tunnel[0], "-tt"]
     arguments = iter(tunnel[1:-1])
@@ -113,7 +113,7 @@ exec /usr/bin/python3 -u -m ultra96.server --cert {BOARD_ROOT}/tls/server-cert.p
 '''
 
 
-def main(start=False, session_id="ltc-comms") -> int:
+def main(start=False, session_id="ltc-comms", jump=None) -> int:
     if start:
         script = start_script(session_id)
         print("Run 'python demo.py service' first. Reuse an existing healthy service.")
@@ -134,4 +134,4 @@ for pid in $(pgrep -u "$(id -u)" -f '[u]ltra96.server' || true); do
 done
 ''' + RUNNER_STATUS
     # Inherited stdio keeps authentication interactive and the server in this terminal.
-    return subprocess.run(ssh_command(script), cwd=ROOT).returncode
+    return subprocess.run(ssh_command(script, jump), cwd=ROOT).returncode
