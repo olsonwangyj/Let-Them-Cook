@@ -185,7 +185,7 @@ Status: built and tested on the laptop (`tests/test_model_interface.py`). The du
 
 **`on_sample`** (`ModelPort.on_sample`, `ultra96/model.py:150-166`; called at `ultra96/server.py:339-342`):
 
-- Called once for each newly accepted stream sample (`request_id` null). Not for a duplicate, not for a command, not for a rejected frame. With a `-glove` build (without `COMMS_GLOVE_SEND_ALL=1`), only samples sent while the movement detector said MOVING arrive; the default dummy builds send every tick (see "The model interface" under "Cautions and known limitations").
+- Called once for each newly accepted stream sample (`request_id` null). Not for a duplicate, not for a command, not for a rejected frame. With a gated `-glove` build (`COMMS_GLOVE_SEND_ALL=0`; since pull request #31, in local `main` from 2026-10-23, the `-glove` environments set it to 1), only samples sent while the movement detector said MOVING arrive; the default dummy builds send every tick (see "The model interface" under "Cautions and known limitations").
 - Called on the event-loop thread, inside `_ingest`, before that sample's ACK is written.
 - Arguments: `device_id`, `boot_id`, `seq`, `uptime_ms` as received, and `values`, a tuple of 11 Python floats, each `int16 / SCALES[i]` (`physical_values`, `common/sensor.py:92-98`). Packing keeps 4 decimal places for acceleration and flex and 2 for angular rate and angles; restoring cannot recover more. Any normalisation is Wen Ree's.
 - The return value is ignored.
@@ -853,7 +853,7 @@ History: the 28 September deployment was done with `.week7-local/co_deploy.py` (
 
 What the model receives since gating (`5d2e52f`, `e24f8ea`; built; on 2026-10-16 the gating ran on the right board with the gated dummy against a service on the laptop, not yet through the Ultra96 and not yet with Siqiang's detector on a glove; the firmware side is in [detail chapter 2](02-firmware.md)):
 
-- A board built from the `-glove` environments, with Siqiang's sensor module, sends a sample only while his movement detector says MOVING. While it says IDLE, the glove sends nothing, and `on_sample` is not called for that glove. A `-glove` build with `-DCOMMS_GLOVE_SEND_ALL=1`, meant for recordings, sends IDLE samples too. The default environments, with the built-in dummy glove, send every tick unless built with `COMMS_DUMMY_IDLE_MS` above 0.
+- A board built from the `-glove` environments, with Siqiang's sensor module, sends a sample only while his movement detector says MOVING. While it says IDLE, the glove sends nothing, and `on_sample` is not called for that glove. A `-glove` build with `-DCOMMS_GLOVE_SEND_ALL=1` sends IDLE samples too; since pull request #31 (in local `main` from 2026-10-23) both `-glove` environments set it, so the plain `-glove` build does. The default environments, with the built-in dummy glove, send every tick unless built with `COMMS_DUMMY_IDLE_MS` above 0.
 - The IDLE/MOVING state itself does not travel. The packet and `on_sample` keep the 11 values; the only sign of IDLE is silence.
 - The firmware allocates a `seq` only for a sample it sends. An idle pause therefore shows as a jump in `uptime_ms`, not as a gap in `seq`. A `seq` gap still means a lost sample (see "Behaviour limits").
 - The two gloves gate independently. One glove can be silent for any length of time while the other sends.
