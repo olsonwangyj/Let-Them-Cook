@@ -454,6 +454,38 @@ async def test_a_starved_link_is_dropped_and_rebuilt_and_samples_flow_again(sens
     assert summary["configuration"]["starvation_cooldown_seconds"] == 10.0
 
 
+@pytest.mark.parametrize("sensor_version", [3, 4])
+@async_test
+async def test_without_a_stop_event_a_starved_link_is_still_dropped_and_rebuilt(sensor_version):
+    # Bridge.run (python -m laptop.bridge) calls ble_loop without a stop_event:
+    # the starved wakeup is then the only thing besides a link loss that ends a link.
+    glove = FakeGlove(["starved", "healthy"], sensor_version=sensor_version)
+    bridge, events, messages = glove_bridge(glove, sensor_version=sensor_version)
+    writer = asyncio.create_task(bridge.writer_loop())
+    worker = asyncio.create_task(bridge.ble_loop(scanner=glove, client_factory=glove.client))
+    try:
+        await wait_until(lambda: worker.done() or len(glove.first_seq) == 2 and sum(
+            message["seq"] >= glove.first_seq[1] for message in messages) >= 20)
+        assert not worker.done()
+    finally:
+        for task in (writer, worker):
+            task.cancel()
+        await asyncio.gather(writer, worker, return_exceptions=True)
+        await bridge.close_transport()
+
+    assert len(glove.clients) == 2 and bridge.metrics.ble_connections == 2
+    assert (bridge.metrics.starved_reconnects, bridge.metrics.starved_held) == (1, 0)
+    assert (bridge.metrics.disconnects, bridge.metrics.ble_errors,
+            bridge.metrics.cleanup_errors) == (0, 0, 0)
+    first = glove.clients[0]
+    assert (first.stop_calls, first.disconnect_calls) == (1, 1)
+    assert bridge.source_audit.interruptions == 2
+    assert kinds(events, "BLE_link_starved", "BLE_starved_reconnect", "BLE_disconnected",
+                 "BLE_connected")[:5] == [
+        ("BLE_connected", 1), ("BLE_link_starved", 1), ("BLE_starved_reconnect", 1),
+        ("BLE_disconnected", 1), ("BLE_connected", 2)]
+
+
 @pytest.mark.parametrize("pattern", ["healthy", "two_links"])
 @async_test
 async def test_a_healthy_link_longer_than_the_window_is_never_dropped(pattern):
