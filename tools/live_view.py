@@ -676,6 +676,13 @@ def _record_text(record):
             record.get("validation"), record.get("received"), record.get("expected_received"))
     if kind == "source_final_verified":
         return "glove counters read again: unchanged"
+    if kind == "BLE_link_starved":
+        return "BLE link starved: {} full notifications in {} s, {} samples missing; {}".format(
+            record.get("notifications"), record.get("streak_seconds"), record.get("missing"),
+            "reconnecting" if record.get("action") == "reconnect"
+            else "reconnect held by the {} s cooldown".format(record.get("cooldown")))
+    if kind == "BLE_starved_reconnect":
+        return "dropping the starved link to reconnect"
     if kind.startswith("command_"):
         return "command {} {}".format(kind[len("command_"):], record.get("request_id"))
     return _generic(record)
@@ -771,8 +778,8 @@ def capture_problems(report, exit_code=None):
                 item.get("observation_max_silence") or 0))
         anomalies = ["{} {}".format(item[key], key.replace("_", " ")) for key in (
             "malformed", "stale_dropped", "ack_errors", "ambiguous_dropped", "transport_errors",
-            "ble_errors", "disconnects", "queue_dropped", "gaps", "duplicates", "out_of_order",
-            "new_boots") if item.get(key)]
+            "ble_errors", "disconnects", "starved_reconnects", "starved_held", "queue_dropped",
+            "gaps", "duplicates", "out_of_order", "new_boots") if item.get(key)]
         found += anomalies
         if found:
             problems.append("{}: {}".format(name, "; ".join(found)))
