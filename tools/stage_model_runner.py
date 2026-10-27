@@ -1,6 +1,6 @@
 """Put the model owner's runner files in a folder on the Ultra96 that survives a restart.
 
-Two runners are known (--runner):
+Three runners are known (--runner):
   conv1d (default)  Wen Ree's Conv1-only runner, src.socket_worker. Its folder /tmp/cnn_conv1d
                     on the board (ai_integration/src/socket_worker.py, its weights, the bitstream
                     and its .hwh) is copied unchanged (without __pycache__), and the board empties
@@ -10,6 +10,13 @@ Two runners are known (--runner):
                     of this checkout (--from-git, default upstream/main: run `git fetch upstream`
                     first), uploaded and moved into place, in the repository's own layout. With
                     --source it copies a board folder in that layout instead.
+  hand12            The Comms adapter runner ultra96.hand_runner, which runs Wen Ree's
+                    independent-hand model (sensor protocol v4, one model per hand) on the
+                    cnn_hand12_v1 overlay. Its files (the adapter, Wen Ree's src/hand_*.py runtime,
+                    the common/ modules they import, the overlay .bit, .hwh and its manifest) are
+                    uploaded from a commit like the full runner, default HEAD: the adapter is only
+                    in this fork. The overlay must be Wen Ree's board-verified pair (its SHA-256 is
+                    checked before anything is uploaded).
 The copy goes to BOARD_ROOT/model-runner/<name>; the SHA-256 of every file is checked against the
 original (and, for an upload, against the commit), and the tool prints the deploy command that
 starts the runner from the copy. It changes nothing else: the originals, the running service and
@@ -20,10 +27,20 @@ whose files differ is never overwritten (give another --name).
 --weights picks the weights the printed command uses: a path relative to the runner folder is
 copied with the runner; an absolute board path (weights staged on their own) is only printed.
 
+--bundle (hand12 only, in place of --weights) picks the model bundle the hand runner reads. A local
+folder is first checked as the runner checks it (src.hand_runtime.ModelBundle) and uploaded into
+<copy>/bundle, every file's SHA-256 checked on the board; an absolute board path is only printed.
+Trained LEFT/RIGHT bundles come from Wen Ree. A synthetic test bundle (python -m
+tools.hand_hls_prepare --synthetic --out <new folder>) is not a trained model and needs
+--allow-synthetic. --replace-runner PID:START_TICKS is passed on to the deploy command, which then
+replaces that runner started by hand (`python demo.py service` lists them with their start ticks).
+
     python -m tools.stage_model_runner --dry-run
     python -m tools.stage_model_runner
     python -m tools.stage_model_runner --runner full --dry-run
     python -m tools.stage_model_runner --runner full --weights fpga/hls/eightclass_weights_standard_20261021.npz --name cnn_full_std
+    python -m tools.stage_model_runner --runner hand12 --bundle <bundle folder> --dry-run
+    python -m tools.stage_model_runner --runner hand12 --bundle <bundle folder> --replace-runner 177087:611890431
 """
 import argparse
 from datetime import datetime, timezone
@@ -37,18 +54,23 @@ import subprocess
 import sys
 
 from tools.demo_service import BOARD_ROOT
-from tools.deploy_service import RECORDS, _connect, _git_bash_hint
+from tools.deploy_service import RECORDS, _connect, _git_bash_hint, replace_entries
 from tools.ssh_tunnel import default_jump_user
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Runner:
-    """Where a runner's files sit in its copy and how the deploy tool starts it."""
+    """Where a runner's files sit in its copy and how the deploy tool starts it.
 
-    def __init__(self, source, name, folder, module, weights, bitstream, code, git_ref=None):
+    A runner without weights (hand12) reads a model bundle instead (--bundle). overlay_sha256
+    pins the overlay files a runner may be uploaded with; extra files are copied beside them."""
+
+    def __init__(self, source, name, folder, module, weights, bitstream, code, git_ref=None,
+                 extra=(), overlay_sha256=None):
         self.source, self.name, self.folder, self.module = source, name, folder, module
         self.weights, self.bitstream, self.code, self.git_ref = weights, bitstream, code, git_ref
+        self.extra, self.overlay_sha256 = tuple(extra), dict(overlay_sha256 or {})
 
     def path(self, relative):
         """A path inside the runner folder, relative to the copy."""
@@ -58,9 +80,10 @@ class Runner:
         """Relative to the copied folder: what the deploy command reads."""
         weights = self.weights if weights is None else weights
         files = [self.path(name) for name in self.code]
-        if not weights.startswith("/"):
+        if weights is not None and not weights.startswith("/"):
             files.append(self.path(weights))
-        return tuple(files + [self.bitstream, self.bitstream[:-len(".bit")] + ".hwh"])
+        return tuple(files + [self.bitstream, self.bitstream[:-len(".bit")] + ".hwh"] +
+                     list(self.extra))
 
 
 RUNNERS = {
@@ -73,7 +96,37 @@ RUNNERS = {
                    "fpga/overlays/full_cnn/cnn_full_20261020.bit",
                    ("src/ai_common.py", "src/export_full_cnn.py", "src/full_cnn_backend.py",
                     "src/socket_worker_full.py"), git_ref="upstream/main"),
+    # The Comms adapter (only in this fork, so HEAD) and everything it imports: Wen Ree's
+    # independent-hand runtime and the common/ modules (common/__init__.py imports common.sensor,
+    # which reads dummy_fixtures.json). The model bundle is not here: see --bundle.
+    "hand12": Runner(None, "hand12_v1", "", "ultra96.hand_runner", None,
+                     "fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit",
+                     ("ultra96/__init__.py", "ultra96/hand_runner.py", "src/hand_runtime.py",
+                      "src/hand_backend.py", "src/hand_events.py", "src/hand_ai_flex3/__init__.py",
+                      "src/hand_ai_flex3/core.py", "common/__init__.py", "common/sensor.py",
+                      "common/dummy_fixtures.json", "common/hand_contract.py", "common/wire.py"),
+                     git_ref="HEAD",
+                     extra=("fpga/overlays/independent_hand_v1/artifact_manifest.json",),
+                     # Wen Ree's board-verified pair.
+                     overlay_sha256={
+                         "fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit":
+                             "b8d0407300c913fbde24143b6a632f62c0bf4021290d80fad575d32f59d6523d",
+                         "fpga/overlays/independent_hand_v1/cnn_hand12_v1.hwh":
+                             "935975fe769d0fda1a802c43c9a65430406a61dc02802f637df40f935660a790"}),
 }
+
+# Where an uploaded bundle sits in the hand12 copy, relative to the runner's folder.
+BUNDLE = "bundle"
+NO_BUNDLE = ("the hand12 runner needs --bundle: a folder with the LEFT and RIGHT models (a local "
+             "folder, or an absolute board path). Trained bundles come from Wen Ree; a synthetic "
+             "test bundle, which is not a trained model, can be made with `python -m "
+             "tools.hand_hls_prepare --synthetic --out <new folder>` and needs --allow-synthetic")
+# Files only this fork has (the Comms adapter): fetching the team repo never brings them.
+FORK_ONLY = ("ultra96/hand_runner.py",)
+HAND_STARTED = ("Note: the paired runner Wen Ree restored by hand (PID 177087, start_ticks "
+                "611890431 on 2026-10-27) was not started by the deploy tool and must be replaced "
+                "this way (--replace-runner 177087:611890431 while it still runs); "
+                "`python demo.py service` lists hand-started runners with their start ticks.")
 
 # The Conv1-only runner's values, kept under their earlier names.
 _CONV1D = RUNNERS["conv1d"]
@@ -183,10 +236,24 @@ def destination(name):
     return BOARD_ROOT + "/model-runner/" + name
 
 
-def deploy_command(dest, runner="conv1d", weights=None):
+def deploy_command(dest, runner="conv1d", weights=None, bundle=None, allow_synthetic=False,
+                   replace=()):
     """The PowerShell line that starts the runner from the copy (as Wen Ree starts it)."""
     runner = RUNNERS[runner]
     cwd = dest + ("/" + runner.folder if runner.folder else "")
+    if runner.weights is None:
+        # The hand runner reads sensor protocol v4 and a model bundle, on the FPGA.
+        parts = ["python", "-m", "tools.deploy_service", "--sensor-version", "4",
+                 "--model", "ultra96.model_bridge", "--runner-module", runner.module,
+                 "--runner-cwd", cwd,
+                 "--runner-arg=--bundle", "--runner-arg", BUNDLE if bundle is None else bundle,
+                 "--runner-arg=--backend", "--runner-arg", "fpga",
+                 "--runner-arg=--bit", "--runner-arg", dest + "/" + runner.bitstream]
+        if allow_synthetic:
+            parts.append("--runner-arg=--allow-synthetic")
+        for process in replace:
+            parts += ["--replace-runner", process]
+        return " ".join(parts)
     parts = ["python", "-m", "tools.deploy_service", "--model", "ultra96.model_bridge",
              "--runner-module", runner.module, "--runner-cwd", cwd,
              "--runner-arg=--weights", "--runner-arg", runner.weights if weights is None else weights,
@@ -208,8 +275,14 @@ def git_files(ref, names, root=ROOT):
         done = subprocess.run(["git", "-C", str(root), "cat-file", "blob", ref + ":" + name],
                               capture_output=True)
         if done.returncode:
-            raise ValueError("{} is not in {} of this checkout (run `git fetch upstream` first, or "
-                             "give another --from-git)".format(name, ref))
+            if name in FORK_ONLY:
+                hint = ("it is only in this fork: commit it first, then stage from a commit that has "
+                        "it, such as HEAD, the hand12 default")
+            elif ref == "HEAD":
+                hint = "commit it first, or give another --from-git"
+            else:
+                hint = "run `git fetch upstream` first, or give another --from-git"
+            raise ValueError("{} is not in {} of this checkout ({})".format(name, ref, hint))
         files[name] = done.stdout
     return files
 
@@ -217,6 +290,52 @@ def git_files(ref, names, root=ROOT):
 def listing(files):
     """{relative path: [size, sha256]}, as the board program lists a folder."""
     return {name: [len(data), hashlib.sha256(data).hexdigest()] for name, data in files.items()}
+
+
+def check_overlay(runner, files):
+    """Refuse an overlay other than the one the runner was verified with on the board."""
+    for name, pinned in sorted(runner.overlay_sha256.items()):
+        actual = hashlib.sha256(files[name]).hexdigest()
+        if actual != pinned:
+            raise ValueError("{} has SHA-256 {}, not {} (Wen Ree's board-verified overlay); "
+                             "nothing was uploaded".format(name, actual, pinned))
+
+
+def bundle_files(folder, allow_synthetic=False):
+    """({BUNDLE/name: bytes}, synthetic) of a local hand model bundle, checked as the runner checks it.
+
+    Every file the manifest's generated_sha256 lists is uploaded (the runner checks them all
+    again on the board), plus manifest.json."""
+    from src.hand_runtime import ModelBundle  # Wen Ree's check; it needs NumPy, so only here
+    try:
+        checked = ModelBundle(folder, allow_synthetic=allow_synthetic)
+    except Exception as exc:  # its own refusals are ValueError; a broken file raises others
+        raise ValueError("--bundle {} is not a usable hand model bundle: {}".format(folder, exc))
+    hashes = checked.manifest["generated_sha256"]
+    files = {}
+    for name in sorted(set(hashes) | {"manifest.json"}):
+        if (not all(c.isalnum() or c in "._-/" for c in name) or name.startswith("/") or
+                posixpath.normpath(name) != name or ".." in name.split("/")):
+            raise ValueError("the bundle's manifest names an unsafe file: {!r}".format(name))
+        data = (checked.folder / name).read_bytes()
+        if name in hashes and hashlib.sha256(data).hexdigest() != hashes[name]:
+            raise ValueError("the bundle file {} changed after it was checked".format(name))
+        files[BUNDLE + "/" + name] = data
+    return files, checked.synthetic
+
+
+def hand_bundle(value, allow_synthetic=False):
+    """(the --bundle value the runner gets, {copy path: bytes} to upload, synthetic or None).
+
+    A local folder is checked and uploaded into the copy's bundle folder; an absolute board path
+    is only named, so whether it is synthetic is not known here (None)."""
+    if Path(value).is_dir():
+        files, synthetic = bundle_files(value, allow_synthetic)
+        return BUNDLE, files, synthetic
+    if not (value.startswith("/") and value.isprintable() and " " not in value):
+        raise ValueError("--bundle {!r} is not a local folder, and a board path must be absolute "
+                         "(start with /, no spaces)".format(value) + _git_bash_hint([value]))
+    return value, {}, None
 
 
 def _upload(board, folder, files):
@@ -248,10 +367,27 @@ def _run(board, command):
 
 def stage(args):
     runner = RUNNERS[args.runner]
-    weights = runner.weights if args.weights is None else args.weights
-    if not weights or not weights.isprintable() or _git_bash_hint([weights]):
-        raise ValueError("--weights must be a path relative to the runner folder, or an absolute "
-                         "board path" + _git_bash_hint([weights]))
+    reads_bundle = runner.weights is None
+    if reads_bundle:
+        weights = None
+        if args.weights is not None:
+            raise ValueError("the {} runner reads a model bundle (--bundle), not --weights".format(
+                args.runner))
+        if args.source is not None:
+            raise ValueError("the {} runner is uploaded from a commit (--from-git), not copied from "
+                             "a board folder (--source)".format(args.runner))
+        if args.bundle is None:
+            raise ValueError(NO_BUNDLE)
+        # The deploy tool's own check, so the printed command is never one it refuses.
+        replace_entries(args.replace_runner)
+    else:
+        if args.bundle is not None or args.allow_synthetic or args.replace_runner:
+            raise ValueError("--bundle, --allow-synthetic and --replace-runner are for the hand12 "
+                             "runner only; the {} runner reads --weights".format(args.runner))
+        weights = runner.weights if args.weights is None else args.weights
+        if not weights or not weights.isprintable() or _git_bash_hint([weights]):
+            raise ValueError("--weights must be a path relative to the runner folder, or an absolute "
+                             "board path" + _git_bash_hint([weights]))
     expected = runner.expected(weights)
     git_ref = args.from_git or (runner.git_ref if args.source is None else None)
     if args.from_git and args.source is not None:
@@ -264,18 +400,46 @@ def stage(args):
         raise ValueError("--source must be an absolute path on the board" + _git_bash_hint([source]))
     dest = destination(args.name or runner.name)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    command = deploy_command(dest, args.runner, weights)
+    bundle = synthetic = None
+    uploads = {}
+    if reads_bundle:
+        bundle, uploads, synthetic = hand_bundle(args.bundle, args.allow_synthetic)
+        # A checked local bundle needs the flag only when it is synthetic.
+        command = deploy_command(dest, args.runner, bundle=bundle,
+                                 allow_synthetic=args.allow_synthetic if synthetic is None else synthetic,
+                                 replace=args.replace_runner)
+    else:
+        command = deploy_command(dest, args.runner, weights)
     files = None
     if git_ref is not None:
         files = git_files(git_ref, expected)
+        check_overlay(runner, files)
+        files.update(uploads)
         print("Upload from {} of this checkout -> {}".format(git_ref, dest))
         for name, (size, digest) in sorted(listing(files).items()):
             print("  {:>10}  {}  {}".format(size, digest[:16], name))
     else:
         print("Copy on the board: {} -> {} (without __pycache__; the original stays)".format(source, dest))
         print("Required files: " + ", ".join(expected))
-    print("Then deploy from the copy:\n  " + command)
+    if reads_bundle and uploads:
+        print("Bundle: {} passed src.hand_runtime.ModelBundle ({}) and goes into {}/{}".format(
+            args.bundle, "a synthetic test bundle" if synthetic else "trained LEFT and RIGHT models",
+            dest, BUNDLE))
+    elif reads_bundle:
+        print("Bundle: board path {}, only named in the deploy command (not uploaded or checked "
+              "here; the runner checks it when it starts)".format(bundle))
+    if synthetic:
+        print("SYNTHETIC test bundle allowed (--allow-synthetic): it is not a trained model, so its "
+              "gestures mean nothing.")
+    elif synthetic is None and args.allow_synthetic:
+        # A board path is not read here: the flag only lets the runner accept a synthetic bundle.
+        print("--allow-synthetic passed on: the runner will also accept a synthetic test bundle at {}; "
+              "a synthetic bundle is not a trained model.".format(bundle))
+    print("Then deploy from the copy:")
+    print("  " + command)
     if args.dry_run:
+        if reads_bundle:
+            print(HAND_STARTED)
         print("Dry run: nothing was connected or changed.")
         return 0
     jump, board, _ = _connect(args.jump_user, args.board_user)
@@ -305,6 +469,8 @@ def stage(args):
     record["runner"] = args.runner
     if git_ref is not None:
         record["git_ref"] = git_ref
+    if reads_bundle:
+        record.update(bundle=bundle, bundle_source=args.bundle, bundle_synthetic=synthetic)
     RECORDS.mkdir(parents=True, exist_ok=True)
     path = RECORDS / "model-runner-stage-{}.json".format(stamp)
     path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -318,6 +484,8 @@ def stage(args):
     print(("Copied" if record["status"] == "staged" else "Already copied") +
           ": {} files in {}, each SHA-256 equal to the original.".format(len(copied), dest))
     print("Deploy from the copy (PowerShell, NUS VPN on):\n  " + command)
+    if reads_bundle:
+        print(HAND_STARTED)
     return 0
 
 
@@ -327,15 +495,24 @@ def main(argv=None):
     parser.add_argument("--runner", choices=sorted(RUNNERS), default="conv1d",
                         help="which runner (default %(default)s)")
     parser.add_argument("--source", help="the runner folder on the board (default for conv1d: {}; "
-                                         "the full runner uploads from --from-git instead)".format(SOURCE))
+                                         "the full runner uploads from --from-git instead; not for "
+                                         "hand12)".format(SOURCE))
     parser.add_argument("--from-git", metavar="REF",
-                        help="full runner only: upload the files from this commit of the checkout "
-                             "(default upstream/main)")
-    parser.add_argument("--weights", help="weights for the deploy command: relative to the runner "
-                                          "folder (copied too) or an absolute board path (default: "
-                                          + WEIGHTS + ")")
+                        help="full and hand12 runners: upload the files from this commit of the "
+                             "checkout (default upstream/main for full, HEAD for hand12)")
+    parser.add_argument("--weights", help="conv1d and full: weights for the deploy command: relative "
+                                          "to the runner folder (copied too) or an absolute board "
+                                          "path (default: " + WEIGHTS + ")")
+    parser.add_argument("--bundle", help="hand12 only, needed: the model bundle the runner reads: a "
+                                         "local folder (checked, then uploaded into <copy>/bundle) or "
+                                         "an absolute board path (only printed)")
+    parser.add_argument("--allow-synthetic", action="store_true",
+                        help="hand12 only: accept a synthetic test bundle (not a trained model)")
+    parser.add_argument("--replace-runner", action="append", default=[], metavar="PID:START_TICKS",
+                        help="hand12 only: passed on to the deploy command, which replaces this "
+                             "runner started by hand (repeat for several)")
     parser.add_argument("--name", help="the copy's folder name under BOARD_ROOT/model-runner "
-                                       "(default: cnn_conv1d or cnn_full_20261020)")
+                                       "(default: cnn_conv1d, cnn_full_20261020 or hand12_v1)")
     parser.add_argument("--jump-user", default=default_jump_user(),
                         help="your NUS login for the jump host; default: LTC_JUMP_USER when set, else yanjie")
     parser.add_argument("--board-user", default="xilinx")

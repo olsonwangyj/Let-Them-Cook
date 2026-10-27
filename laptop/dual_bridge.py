@@ -54,6 +54,8 @@ class DualBridge:
                 raise ValueError("dual reception requires source auditing")
         if left.config.session_id != right.config.session_id:
             raise ValueError("both bridges must use the same session ID")
+        if left.config.sensor_version != right.config.sensor_version:
+            raise ValueError("both bridges must use the same sensor version")
         if (left.config.address and right.config.address
                 and left.config.address.lower() == right.config.address.lower()):
             raise ValueError("physical devices require distinct BLE addresses")
@@ -566,6 +568,10 @@ def _parser():
     parser.add_argument("--mock", action="store_true",
                         help="explicit two-device synthetic input, not BLE evidence")
     parser.add_argument("--diagnostic-unprotected", action="store_true")
+    parser.add_argument("--sensor-version", type=int, choices=(3, 4), default=3,
+                        help="sensor packet version of BOTH boards: 3 (38-byte packets, 11 "
+                             "values, LCS3) or 4 (the three-flex boards: 40-byte packets, 12 "
+                             "values, LCS4); the Ultra96 service must use the same; default: 3")
     parser.add_argument("--supervised", action="store_true",
                         help="for demo.py start: JSON lines on stdout (evidence, status, log, "
                              "finished), stop/command lines on stdin, no stderr output")
@@ -620,6 +626,7 @@ def main():
         "seed": args.seed,
         "queue_capacity": args.queue_capacity, "freshness_seconds": args.freshness,
         "ack_window": args.ack_window,
+        "sensor_version": args.sensor_version,
         "session_id": args.session_id,
         "revision": reporting.local_revision(Path(__file__).parents[1]),
         **reporting.source_provenance(Path(__file__).parents[1]),
@@ -655,7 +662,8 @@ def main():
             ack_window=args.ack_window,
             address=address, diagnostic_unprotected=args.diagnostic_unprotected,
             expected_device_id=device_id, source_audit=True, controls_enabled=controls_enabled,
-            source_rate=args.rate, seed=None if args.seed is None else args.seed + device_id),
+            source_rate=args.rate, seed=None if args.seed is None else args.seed + device_id,
+            sensor_version=args.sensor_version),
             evidence=evidence)
 
     async def run():

@@ -1,8 +1,10 @@
+import hashlib
 import io
 import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -219,7 +221,17 @@ def test_git_files_reads_each_file_of_a_commit_and_names_a_missing_one(tmp_path)
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "a")
     assert stage.git_files("HEAD", ["src/a.py"], root=tmp_path) == {"src/a.py": b"\x00binary\r\n"}
     with pytest.raises(ValueError, match="git fetch upstream"):
+        stage.git_files("upstream/main", ["src/a.py"], root=tmp_path)
+    # A file missing from HEAD (the hand12 default) is one not committed yet.
+    with pytest.raises(ValueError, match="commit it first"):
         stage.git_files("HEAD", ["src/missing.py"], root=tmp_path)
+    # The fork-only adapter never comes from the team repo, whatever the ref.
+    for ref, names in [("upstream/main", ["ultra96/hand_runner.py"]),
+                       ("origin/main", ["ultra96/hand_runner.py"]),
+                       ("HEAD", ["src/a.py", "ultra96/hand_runner.py"])]:
+        with pytest.raises(ValueError, match="only in this fork: commit it first") as refused:
+            stage.git_files(ref, names, root=tmp_path)
+        assert "git fetch upstream" not in str(refused.value)
 
 
 def test_full_dry_run_reads_the_commit_and_connects_nothing(monkeypatch, capsys):
@@ -310,3 +322,268 @@ def test_full_staging_uploads_checks_and_reports_end_to_end(tmp_path, monkeypatc
     assert "Copied: 7 files" in capsys.readouterr().out
     assert stage.main(["--runner", "full"]) == 0
     assert "Already copied" in capsys.readouterr().out
+
+
+HAND12 = stage.RUNNERS["hand12"]
+REPO = Path(stage.__file__).resolve().parents[1]
+OVERLAY = "fpga/overlays/independent_hand_v1/"
+BOARD_BUNDLE = deploy_service.BOARD_ROOT + "/model-runner/bundles/hand12_trained"
+
+
+def no_connect(*args, **kwargs):
+    pytest.fail("connected")
+
+
+@pytest.fixture(scope="module")
+def overlay():
+    """The overlay files of this checkout: Wen Ree's board-verified pair and its manifest."""
+    return {name: (REPO / name).read_bytes() for name in HAND12.expected() if name.startswith(OVERLAY)}
+
+
+@pytest.fixture(scope="module")
+def synthetic_bundle(tmp_path_factory):
+    from tools import hand_hls_prepare
+    folder = tmp_path_factory.mktemp("hand12") / "synthetic"
+    hand_hls_prepare.prepare(folder, synthetic=True)
+    return folder
+
+
+def hand12_commit(overlay, changed=None):
+    """git_files for a commit with placeholder code, this checkout's overlay and the changed files."""
+    def git_files(ref, names):
+        files = {name: overlay.get(name, ("hand12 " + name).encode()) for name in names}
+        files.update(changed or {})
+        return files
+    return git_files
+
+
+def hand12_command(dest, bundle="bundle", extra=""):
+    return ("python -m tools.deploy_service --sensor-version 4 --model ultra96.model_bridge "
+            "--runner-module ultra96.hand_runner --runner-cwd " + dest +
+            " --runner-arg=--bundle --runner-arg " + bundle +
+            " --runner-arg=--backend --runner-arg fpga --runner-arg=--bit --runner-arg " + dest +
+            "/fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit" + extra)
+
+
+def test_the_hand12_runner_stages_the_adapter_wen_rees_runtime_and_the_verified_overlay(overlay):
+    assert HAND12.expected() == (
+        "ultra96/__init__.py", "ultra96/hand_runner.py", "src/hand_runtime.py", "src/hand_backend.py",
+        "src/hand_events.py", "src/hand_ai_flex3/__init__.py", "src/hand_ai_flex3/core.py",
+        "common/__init__.py", "common/sensor.py", "common/dummy_fixtures.json",
+        "common/hand_contract.py", "common/wire.py", OVERLAY + "cnn_hand12_v1.bit",
+        OVERLAY + "cnn_hand12_v1.hwh", OVERLAY + "artifact_manifest.json")
+    assert (HAND12.module, HAND12.name, HAND12.git_ref, HAND12.folder) == (
+        "ultra96.hand_runner", "hand12_v1", "HEAD", "")
+    assert HAND12.overlay_sha256 == {
+        OVERLAY + "cnn_hand12_v1.bit": "b8d0407300c913fbde24143b6a632f62c0bf4021290d80fad575d32f59d6523d",
+        OVERLAY + "cnn_hand12_v1.hwh": "935975fe769d0fda1a802c43c9a65430406a61dc02802f637df40f935660a790"}
+    stage.check_overlay(HAND12, overlay)  # this checkout carries that pair
+    # The other runners pin no overlay and copy nothing extra.
+    assert FULL.overlay_sha256 == {} == stage.RUNNERS["conv1d"].overlay_sha256
+    assert FULL.extra == () == stage.RUNNERS["conv1d"].extra
+
+
+def test_the_hand12_deploy_command_reads_v4_the_bundle_and_the_overlay():
+    dest = stage.destination(HAND12.name)
+    assert dest == deploy_service.BOARD_ROOT + "/model-runner/hand12_v1"
+    assert stage.deploy_command(dest, "hand12") == hand12_command(dest)
+    assert stage.deploy_command(dest, "hand12", bundle=BOARD_BUNDLE, allow_synthetic=True,
+                                replace=["177087:611890431", "2:3"]) == hand12_command(
+        dest, BOARD_BUNDLE, " --runner-arg=--allow-synthetic --replace-runner 177087:611890431"
+                            " --replace-runner 2:3")
+
+
+def test_the_deploy_tool_accepts_the_hand12_command(monkeypatch):
+    dest = stage.destination(HAND12.name)
+    captured = {}
+    monkeypatch.setattr(deploy_service, "deploy", lambda args: captured.update(
+        args=args, options=deploy_service.options_from(args)) or 0)
+    command = stage.deploy_command(dest, "hand12", replace=["177087:611890431"])
+    assert deploy_service.main(command.split()[3:]) == 0
+    runner = captured["options"]["runner"]
+    assert runner["module"] == "ultra96.hand_runner" and runner["cwd"] == dest
+    assert runner["args"] == ["--bundle", "bundle", "--backend", "fpga", "--bit",
+                              dest + "/fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit"]
+    assert captured["options"]["sensor_version"] == 4
+    assert [entry["pid"] for entry in runner["replace"]] == [177087]
+
+
+def test_hand12_dry_run_checks_a_local_bundle_and_plans_its_upload(synthetic_bundle, overlay,
+                                                                   monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    seen = []
+    commit = hand12_commit(overlay)
+    monkeypatch.setattr(stage, "git_files", lambda ref, names: seen.append((ref, tuple(names))) or
+                        commit(ref, names))
+    capsys.readouterr()
+    assert stage.main(["--runner", "hand12", "--bundle", str(synthetic_bundle), "--allow-synthetic",
+                       "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert seen == [("HEAD", HAND12.expected())]
+    manifest = json.loads((synthetic_bundle / "manifest.json").read_text())
+    names = sorted(manifest["generated_sha256"]) + ["manifest.json"]
+    assert {"left/parameter_words.bin", "right/normalization.npz", "vectors/hand_test.bin"} <= set(names)
+    lines = out.splitlines()
+    for name in names:
+        data = (synthetic_bundle / name).read_bytes()
+        assert "  {:>10}  {}  bundle/{}".format(
+            len(data), hashlib.sha256(data).hexdigest()[:16], name) in lines
+    dest = stage.destination("hand12_v1")
+    assert "  " + hand12_command(dest, extra=" --runner-arg=--allow-synthetic") in lines
+    assert "a synthetic test bundle" in out and "not a trained model" in out
+    assert "PID 177087, start_ticks 611890431 on 2026-10-27" in out
+    assert "--replace-runner 177087:611890431" in out and "python demo.py service" in out
+    assert lines[-1] == "Dry run: nothing was connected or changed."
+
+
+def test_a_synthetic_bundle_needs_allow_synthetic(synthetic_bundle, overlay, monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    assert stage.main(["--runner", "hand12", "--bundle", str(synthetic_bundle), "--dry-run"]) == 2
+    err = capsys.readouterr().err
+    assert "--allow-synthetic" in err and "not a trained model" in err
+
+
+def test_a_damaged_local_bundle_is_refused(synthetic_bundle, overlay, tmp_path, monkeypatch, capsys):
+    damaged = tmp_path / "damaged"
+    shutil.copytree(str(synthetic_bundle), str(damaged))
+    (damaged / "right" / "config.json").write_bytes(b"{}")
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    assert stage.main(["--runner", "hand12", "--bundle", str(damaged), "--allow-synthetic"]) == 2
+    err = capsys.readouterr().err
+    assert "not a usable hand model bundle" in err and "right/config.json" in err
+
+
+def test_hand12_with_a_board_bundle_path_only_names_it(overlay, monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    assert stage.main(["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--replace-runner",
+                       "177087:611890431", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert " bundle/" not in out and "board path " + BOARD_BUNDLE in out
+    dest = stage.destination("hand12_v1")
+    assert "  " + hand12_command(dest, BOARD_BUNDLE, " --replace-runner 177087:611890431") in (
+        out.splitlines())
+    assert "--allow-synthetic" not in out and "SYNTHETIC" not in out
+
+
+def test_allow_synthetic_with_a_board_bundle_path_does_not_call_it_synthetic(overlay, monkeypatch,
+                                                                            capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    assert stage.main(["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--allow-synthetic",
+                       "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    # Not read here, so whether it is synthetic is unknown: the flag is passed on, nothing claimed.
+    assert "SYNTHETIC" not in out and "gestures mean nothing" not in out
+    assert ("--allow-synthetic passed on: the runner will also accept a synthetic test bundle at " +
+            BOARD_BUNDLE + "; a synthetic bundle is not a trained model.") in out.splitlines()
+    dest = stage.destination("hand12_v1")
+    assert "  " + hand12_command(dest, BOARD_BUNDLE, " --runner-arg=--allow-synthetic") in (
+        out.splitlines())
+
+
+def test_without_a_bundle_the_hand12_runner_says_where_one_comes_from(overlay, monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    assert stage.main(["--runner", "hand12", "--dry-run"]) == 2
+    err = capsys.readouterr().err
+    assert "needs --bundle" in err and "Wen Ree" in err and "--allow-synthetic" in err
+    assert "python -m tools.hand_hls_prepare --synthetic --out <new folder>" in err
+
+
+@pytest.mark.parametrize("argv, message", [
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--weights", "w.npz"], "not --weights"),
+    (["--runner", "full", "--bundle", BOARD_BUNDLE], "hand12 runner only"),
+    (["--bundle", BOARD_BUNDLE], "hand12 runner only"),
+    (["--runner", "full", "--allow-synthetic"], "hand12 runner only"),
+    (["--runner", "full", "--replace-runner", "177087:611890431"], "hand12 runner only"),
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--source", "/tmp/hand12"], "--source"),
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--replace-runner", "177087"], "PID:START_TICKS"),
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--replace-runner", "0:611890431"],
+     "PID:START_TICKS"),
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--replace-runner", "177087:6118x"],
+     "PID:START_TICKS"),
+    # What the deploy tool refuses too: init, and one PID twice.
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--replace-runner", "1:5"], "names init"),
+    (["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--replace-runner", "177087:1",
+      "--replace-runner", "177087:2"], "names PID 177087 twice"),
+    (["--runner", "hand12", "--bundle", "D:/Git/var/tmp/hand12_bundle"], "Git Bash"),
+    (["--runner", "hand12", "--bundle", "no/such/bundle"], "not a local folder"),
+])
+def test_hand12_refusals(argv, message, overlay, monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    assert stage.main(argv + ["--dry-run"]) == 2
+    assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["cnn_hand12_v1.bit", "cnn_hand12_v1.hwh"])
+def test_an_overlay_other_than_the_board_verified_pair_is_refused_before_connecting(
+        name, overlay, monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay, {OVERLAY + name: b"another build"}))
+    assert stage.main(["--runner", "hand12", "--bundle", BOARD_BUNDLE]) == 2
+    err = capsys.readouterr().err
+    assert OVERLAY + name in err and "board-verified" in err and "nothing was uploaded" in err
+
+
+def test_hand12_uploads_the_code_overlay_and_bundle_for_the_board_to_check(
+        synthetic_bundle, overlay, tmp_path, monkeypatch, capsys):
+    class Connection:
+        def close(self):
+            pass
+    monkeypatch.setattr(stage, "RECORDS", tmp_path / "records")
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay))
+    monkeypatch.setattr(stage, "_connect", lambda jump, board: (Connection(), Connection(), None))
+    uploaded, commands = {}, []
+    monkeypatch.setattr(stage, "_upload", lambda board, folder, files: uploaded.update(files))
+
+    def run(board, command):
+        commands.append(shlex.split(command))
+        return json.dumps({"status": "staged", "files": stage.listing(uploaded)}), "", 0
+    monkeypatch.setattr(stage, "_run", run)
+    capsys.readouterr()
+    assert stage.main(["--runner", "hand12", "--bundle", str(synthetic_bundle), "--allow-synthetic",
+                       "--replace-runner", "177087:611890431"]) == 0
+    manifest = json.loads((synthetic_bundle / "manifest.json").read_text())
+    bundle = ["bundle/" + name for name in list(manifest["generated_sha256"]) + ["manifest.json"]]
+    assert sorted(uploaded) == sorted(list(HAND12.expected()) + bundle)
+    for name in bundle:
+        assert uploaded[name] == (synthetic_bundle / name[len("bundle/"):]).read_bytes()
+    # What lands in the copy's bundle folder passes the runner's own check.
+    from src.hand_runtime import ModelBundle
+    assert ModelBundle(write_upload(tmp_path / "copy", uploaded) / "bundle", allow_synthetic=True).synthetic
+    # The board program gets every size and SHA-256 and moves the upload into place.
+    [argv] = commands
+    assert argv[-1] == "move" and json.loads(argv[7]) == stage.listing(uploaded)
+    assert argv[5] == stage.destination("hand12_v1")
+    record = json.loads(next((tmp_path / "records").glob("model-runner-stage-*.json")).read_text())
+    assert (record["runner"], record["git_ref"], record["bundle"], record["bundle_synthetic"]) == (
+        "hand12", "HEAD", "bundle", True)
+    out = capsys.readouterr().out
+    assert "Copied: {} files".format(len(uploaded)) in out
+    assert "  " + hand12_command(stage.destination("hand12_v1"), extra=(
+        " --runner-arg=--allow-synthetic --replace-runner 177087:611890431")) in out.splitlines()
+    assert out.splitlines()[-1] == stage.HAND_STARTED
+
+
+def test_the_staged_hand12_code_imports_on_its_own(tmp_path):
+    """The copy runs from its own folder: everything it imports must be in the staged set."""
+    copy = tmp_path / "hand12_v1"
+    for name in HAND12.code:
+        (copy / name).parent.mkdir(parents=True, exist_ok=True)
+        (copy / name).write_bytes((REPO / name).read_bytes())
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("PYTHONPATH", "PYTHONSAFEPATH")}
+    done = subprocess.run(
+        [sys.executable, "-c", "import ultra96.hand_runner, src.hand_runtime, src.hand_backend, "
+         "src.hand_events, common.hand_contract; import json, sys; print(json.dumps(sorted("
+         "m.__file__ for n, m in list(sys.modules.items()) if n.split('.')[0] in "
+         "('ultra96', 'src', 'common') and getattr(m, '__file__', None))))"],
+        cwd=str(copy), env=env, capture_output=True, text=True, timeout=120)
+    assert done.returncode == 0, done.stderr
+    loaded = [Path(path).resolve() for path in json.loads(done.stdout.strip().splitlines()[-1])]
+    assert loaded and all(copy.resolve() in path.parents for path in loaded), loaded
+    assert {path.relative_to(copy.resolve()).as_posix() for path in loaded} <= set(HAND12.code)

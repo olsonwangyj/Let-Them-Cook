@@ -33,6 +33,15 @@ def _port(value):
     return port
 
 
+def _sensor_version_option(parser):
+    parser.add_argument("--sensor-version", type=int, choices=(3, 4), default=3,
+                        help="sensor packets of BOTH gloves: 3 = the current boards (38-byte "
+                             "packets, 11 values); 4 = the three-flex boards (v4, 40-byte packets, "
+                             "12 values, flashed with flash.py --flex3). With 4 the Ultra96 service "
+                             "must be deployed with python -m tools.deploy_service "
+                             "--sensor-version 4; default: 3")
+
+
 def _jump_option(parser):
     parser.add_argument("--jump", default=default_jump(),
                         help="your NUS login for the jump host, user@" + JUMP_HOST +
@@ -75,6 +84,7 @@ def _parser():
                        help="session expected by the Ultra96 server; default: LTC_COMMS_SESSION or ltc-comms")
     start.add_argument("--output-root", type=Path, default=OUTPUT_ROOT)
     start.add_argument("--seed", type=int, help="repeat laptop random fixture selection")
+    _sensor_version_option(start)
     start.add_argument("--mock", action="store_true", help=argparse.SUPPRESS)  # tests only
 
     # The same capture implementation serves recording and live keyboard demos.
@@ -97,6 +107,7 @@ def _parser():
         run.add_argument("--file", type=Path, help="send a 1..65536 byte file through BLE")
         run.add_argument("--file-device", type=int, choices=(1, 2), default=1)
         run.add_argument("--seed", type=int, help="repeat laptop random fixture selection")
+        _sensor_version_option(run)
 
     report = commands.add_parser("report", help="view the latest capture, or a given report")
     report.add_argument("path", nargs="?", type=Path, help="capture folder or report.json")
@@ -124,6 +135,9 @@ def capture_command(args, report_path):
                         ("--file-device", args.file_device)):
         if value is not None:
             command.extend((flag, str(value)))
+    if getattr(args, "sensor_version", 3) == 4:
+        # Only the three-flex boards name it, so a version 3 command line stays as it was.
+        command.extend(("--sensor-version", "4"))
     return command
 
 
@@ -280,6 +294,9 @@ def run_capture(args):
     folder.mkdir()
     report_path = folder / "report.json"
     print(f"Physical two-ESP capture: {args.duration:g} seconds. Evidence: {folder}", flush=True)
+    if getattr(args, "sensor_version", 3) == 4:
+        print("Sensor packets: version 4 (the three-flex boards); the Ultra96 service must run "
+              "with --sensor-version 4.", flush=True)
     child = None
     exit_code = 2
     try:
