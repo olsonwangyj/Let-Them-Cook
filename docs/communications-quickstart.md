@@ -230,5 +230,5 @@ Every step above is version 3. For the three-flex gloves (12 values, 40-byte pac
 
 - Flash: `python flash.py --flex3` (dummy module, bare boards) or `python flash.py --glove --flex3` (the three-flex gloves). One board without changing the saved glove mapping: `platformio run -d firmware/esp32 -e firebeetle32-left-flex3 -t upload --upload-port COMx`.
 - Check: `python -m tools.check_board left --sensor-version 4` (add `--address ADDR` for a board not in `.comms-local/boards.json`; `--duration 300` for a longer gap measurement).
-- Deploy: `python -m tools.deploy_service --sensor-version 4 ...`; for the hand12 runner, stage it with `python -m tools.stage_model_runner --runner hand12 --bundle <folder>` and run the deploy command it prints (detail chapter 4, "Staging the hand12 runner").
+- Deploy: `python -m tools.deploy_service --sensor-version 4 ...`; for the hand12 runner (Wen Ree's `src.socket_worker_hand` with the compat delivery), stage it with `python -m tools.stage_model_runner --runner hand12 --bundle <folder>` and run the deploy command it prints (detail chapter 4, "Staging the hand12 runner").
 - Capture: `python demo.py start --sensor-version 4` (or `run`/`live`).

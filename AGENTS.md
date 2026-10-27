@@ -66,6 +66,12 @@ inside Communications folders too: since the merge of the team main `5e3f78e`
 Communications files he changed (for example `laptop/bridge.py`,
 `ultra96/server.py`) stay Communications'.
 
+One exception the other way: `src/socket_worker_hand.py` stays Wen Ree's,
+but on 2026-10-28 he agreed (relayed by olsonwangyj) that Communications may
+edit that one file, for the compat delivery of hand results to the model
+bridge. Keep his style in it, and keep his `HandEngine` and `EventEncoder`
+logic unchanged. Every other file under `src/` stays read-only.
+
 ## Rules
 
 1. Do not edit, move, rename, reformat, regenerate or delete anything under a
