@@ -10,7 +10,8 @@ this way, what each folder and file does, the current progress, what must not
 be done, and what comes next. Its six detail chapters in
 `docs/handoff-details/` are the architecture documents. Read the hand-off
 document before touching anything, and keep the documents current as rule 7
-below requires.
+below requires. `docs/integration-journal.md` records the integration week by
+week, and rule 9 keeps it current.
 
 ## Role and scope
 
@@ -86,6 +87,7 @@ If the authors are not `olsonwangyj`, treat the path as a teammate's.
      firmware, laptop, Ultra96, phone, tests and operations).
    - `docs/co-protocol-v3.md` when a wire format, message, constant or limit
      changes.
+   - `docs/integration-journal.md`: an entry for the change (rule 9).
    Read the affected passages after the change and correct every statement
    the change made untrue. Put the code and its document updates in the same
    commit, or in consecutive commits of the same piece of work.
@@ -95,6 +97,21 @@ If the authors are not `olsonwangyj`, treat the path as a teammate's.
    `docs/B07-CO-protocol-explained.zh-CN.md` is a Chinese study companion
    written for protocol version 2, not a formal document; the English
    specification `docs/co-protocol-v3.md` governs. `docs/archive/` is history and is not translated.
+9. Keep the integration journal, `docs/integration-journal.md`, without being
+   asked. Every code change, deployment change (boards, Ultra96 service,
+   model runner, phone app, certificates), integration or hardware run, and
+   decision that affects another subsystem gets an entry, in the same piece of
+   work as the change and its other document updates. File it under the
+   current teaching week (Monday to Sunday; Week 11 starts on Monday
+   2026-10-26) as the "Adding an entry" section of the journal describes:
+   what was done, what failed and how it was investigated, the options
+   considered, what changed, the retest and its result, and who decided,
+   each with its evidence (commit, pull request, run folder, deployment
+   record). Mark what was not measured or not confirmed, and write proposals
+   and teammates' plans as plans, not decisions. The journal records how the
+   integration went; the hand-off document records the current state. One
+   does not replace the other. Do not write into the team's shared Google
+   Doc; the owner copies from the journal.
 
 ## Git layout
 
