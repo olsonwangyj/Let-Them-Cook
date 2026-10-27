@@ -22,11 +22,36 @@ Status words: **verified** means run or measured (the row says where); **built**
 
 On 2026-10-16 version 3 ran on the real Ultra96 and on the right board, the right board's ungated stream went through the Ultra96, and the phone app built from the current source subscribed to the Ultra96 once. On 2026-10-17 the left board ran the current plain build against a service on the laptop, and then both boards passed the acceptance run: `python demo.py run` through the real Ultra96 to the subscribed phone, at 10 Hz and at 50 Hz (`--rate 50`), `CAPTURE PASSED` and the phone's `Received` increase equal to `Phone expected increase` (1204, then 6035). Nothing of version 3 has run with a gated board through the Ultra96 (the idle tests cover the service's side), with a glove's sensors or with a model other than the built-in dummy. On 2026-10-18 the board monitor and `python demo.py start` were built and tested on the laptop only (see the row above), and on 2026-10-19 the owner redeployed the Ultra96 service with the monitor: the first `python demo.py start` against the redeployed service, on 2026-10-19 at 02:56 (+08:00), connected the board view to the real Ultra96 (`board view connected`; model dummy, phone subscribed as subscriber 1, identities 0/128) but found no gloves, because `.comms-local/boards.json` still named the owner's test boards (it now names the gloves), and it ended before its summary; neither has run with the gloves yet.
 
-## Version 3 is the only version
+## Version 3, and the opt-in sensor version 4
 
-Every component produces and accepts only version 3 (the owner's rule of 2026-10-14: only the newest version is supported). There is no compatibility mode. An upgrade means reflashing both boards, redeploying the Ultra96 service and reinstalling the phone app together. What version 3 removed is listed under "History" at the end.
+Version 3 is the default of every component, and the version the current gloves, the deployed Ultra96 service and both phone apps use. From 2026-10-14 to 2026-10-26 it was the only version (the owner's rule of 2026-10-14: only the newest version is supported). Since the merge of the team main `5e3f78e` into the fork on 2026-10-27, a **sensor version 4** for the three-flex gloves exists beside it, selected explicitly at each end and described in the next section. A run uses one version end to end: a version-3 end and a version-4 end refuse each other's packets and messages, and nothing negotiates or mixes them. Everything below that names 38 bytes, 11 values or `LCS3` is version 3. Within version 3 there is no compatibility mode. An upgrade means reflashing both boards, redeploying the Ultra96 service and reinstalling the phone app together. What version 3 removed is listed under "History" at the end.
 
 Unchanged by version 3: the BLE service and its UUIDs, the BLE security, the `B7` control framing (control version 1), the network framing, the `SUBSCRIBE` and `SUBSCRIBED` envelopes (`v` 1), the session ID and the ports. The board monitor's envelopes, added within version 3 on 2026-10-18, are at `v` 1 too and use the existing gateway port 9999, so the ports are still 8888 and 9999 (see "Board monitor on the gateway port").
+
+## Sensor version 4 (opt-in, the three-flex gloves)
+
+Added by Wen Ree in the team pull requests #32 to #36 (team main `5e3f78e`; the transport is `c74abab`, described in `docs/HAND_V4_TRANSPORT.md`) and merged into the fork on 2026-10-27 (`97db189`). The Communications launch options that select it were added the same day. Version 3 stays the default everywhere; version 4 is chosen with:
+
+- **Firmware:** `-DCOMMS_FLEX3_GLOVE=1` (`comms_packet.h`): `kPacketVersion` 4, `kChannelCount` 12, `kPacketSize` 40. The environments `firebeetle32-left-glove-flex3` and `firebeetle32-right-glove-flex3` build the real three-flex gloves (Siqiang's module, always-send, 50 Hz from boot); `firebeetle32-left-flex3` and `firebeetle32-right-flex3` (2026-10-27) build the dummy module in the same format for bare boards, with `flex3` always 0, 50 Hz from boot. `python flash.py --flex3` (with or without `--glove`) flashes them.
+- **Laptop:** `BridgeConfig(sensor_version=4)`, `python -m laptop.bridge --sensor-version 4`, `python -m laptop.dual_bridge --sensor-version 4`, `python demo.py start|run|live --sensor-version 4` and `python -m tools.check_board ... --sensor-version 4`.
+- **Ultra96:** `python -m ultra96.server --sensor-version 4`, deployed with `python -m tools.deploy_service --sensor-version 4`; `demo.py service --start` restarts a deployment with the version it was deployed with.
+
+What changes in version 4, and nothing else:
+
+| Part | Version 3 | Version 4 |
+|---|---|---|
+| Sensor packet | 38 bytes, `<2sBBIII11h>`, version byte 3 | 40 bytes, `<2sBBIII12h>`, version byte 4; the same 16-byte header |
+| Channels | 11: `ax ay az gx gy gz yaw pitch roll flex1 flex2` | 12: the same 11, then `flex3` (index 11; the thumb, GPIO39; index GPIO34, middle GPIO35), scale 10000. Wen Ree's firmware comment: the flex values are the raw 12-bit ADC reading / 4095, not a calibrated bend fraction |
+| Constants | `common/sensor.py` | `common/sensor_v4.py`: `VERSION` 4, `PACKET_SIZE` 40, `SENSOR_MTU_FLOOR` 43, `MAX_PACKETS_PER_NOTIFICATION` 6 (240 bytes, still one 251-byte link-layer packet), separate synthetic fixtures `DUMMY_FIXTURES` |
+| Source statistics | 36 bytes, marker `LCS3` | the same 36-byte layout, marker `LCS4` (`parse_source_stats(..., sensor_version=4)`) |
+| Control commands | the command's embedded packet is version 3 | version 4 (`common/control.py`, `sensor_version=4`); the `B7` framing stays control version 1 |
+| `SENSOR_BATCH`, `INGEST_ACK` | `v` 3, 11 values | `v` 4, 12 values (`ultra96.protocol.validate_message(..., sensor_version=4)`) |
+| `GESTURE_RESULT` | `v` 3 | **`v` 3** (2026-10-27, the owner's decision: both phone apps refuse `v` 4; `ultra96.protocol.RESULT_VERSION`). Until that change Wen Ree's transport published results at `v` 4 |
+| Model interface | `values` 11 floats | `values` 12 floats; the runner bridge's hello names the 12 channels |
+
+Unchanged: the BLE service, its UUIDs and its security, the network framing, the ports, the session, the subscription and board-monitor envelopes (`v` 1), the result rules and the result fields. The laptop's goodput counts 40 bytes per packet in version 4 (16 kbps per board at 50 Hz). Wen Ree's `common/hand_contract.py` is a separate reference codec of the same packet with a proposed `HAND_EVENT` message; no Communications component sends `HAND_EVENT` (see "Separate model process").
+
+Status (2026-10-27): built and tested on the laptop (unit tests, the in-process mock runs and real-TLS loopback runs in both versions). The owner's left test board (factory MAC `38:18:2b:19:82:ac`) was flashed with `firebeetle32-left-flex3` on 2026-10-27 and printed `comms_ready device_id=1 packet_bytes=40 packet_version=4 rate_hz=50 protected=1`. Not yet run over BLE (the laptop's Bluetooth was off), through the Ultra96 or to a phone.
 
 ## Sensor packet
 
@@ -132,7 +157,7 @@ The read characteristic `6e1c0006-7a45-4dc4-b678-3f2d5a9c1001` returns 36 bytes,
 
 | Offset | Size | Field | Value |
 |---|---|---|---|
-| 0 | 4 | Marker | ASCII `LCS3`. It follows the packet version |
+| 0 | 4 | Marker | ASCII `LCS3`. It follows the packet version (`LCS4` with sensor version 4) |
 | 4 | 1 | `device_id` | 1 or 2 |
 | 5 | 1 | Flags | Bit 0 = a gated board (see "When a glove sends"). Bit 1 = the board may send several packets per notification; every board since 2026-10-19 sets it. The other bits are 0 |
 | 6 | 2 | Reserved | Zero |
@@ -154,11 +179,11 @@ Each network frame is a 4-byte big-endian length followed by a strict UTF-8 JSON
 
 | `type` | `v` | Port, direction | Keys (exactly these) |
 |---|---|---|---|
-| `SENSOR_BATCH` | 3 | 8888, laptop → board | `v`, `type`, `session_id`, `device_id`, `boot_id`, `seq`, `uptime_ms`, `values`, `request_id` |
-| `INGEST_ACK` | 3 | 8888, board → laptop | `v`, `type`, `session_id`, `device_id`, `boot_id`, `seq`, `request_id`, `status` |
+| `SENSOR_BATCH` | 3 (4 with sensor version 4) | 8888, laptop → board | `v`, `type`, `session_id`, `device_id`, `boot_id`, `seq`, `uptime_ms`, `values`, `request_id` |
+| `INGEST_ACK` | 3 (4 with sensor version 4) | 8888, board → laptop | `v`, `type`, `session_id`, `device_id`, `boot_id`, `seq`, `request_id`, `status` |
 | `SUBSCRIBE` | 1 | 9999, phone → board | `v`, `type`, `session_id` |
 | `SUBSCRIBED` | 1 | 9999, board → phone | `v`, `type`, `session_id` |
-| `GESTURE_RESULT` | 3 | 9999, board → phone | `v`, `type`, `session_id`, `device_id`, `boot_id`, `seq`, `request_id`, `result_id`, `gesture`, `confidence` (10 keys) |
+| `GESTURE_RESULT` | 3 (also with sensor version 4) | 9999, board → phone | `v`, `type`, `session_id`, `device_id`, `boot_id`, `seq`, `request_id`, `result_id`, `gesture`, `confidence` (10 keys) |
 | `MONITOR` | 1 | 9999, laptop → board | `v`, `type`, `session_id` |
 | `MONITORING` | 1 | 9999, board → laptop | `v`, `type`, `session_id` |
 | `MONITOR_UPDATE` | 1 | 9999, board → laptop | `v`, `type`, `session_id`, `update`, `uptime_seconds`, `model`, `subscriber`, `identities`, `identity_limit`, `devices`, `service`, `events`, `events_dropped` (13 keys) |
@@ -303,6 +328,8 @@ For a model that cannot run inside the service process (the service runs as `xil
 - **Behaviour.** One runner at a time; a new connection replaces the old one, which sees the end of its stream. The service never waits for the runner: ACKs do not depend on it, and samples are not stored for it. A sample is dropped when no runner is connected, or when 1024 lines already wait for the runner (about 10 s of both gloves at 50 Hz). A line that is not JSON (including JSON nested too deeply to parse), not a result, longer than 4096 bytes or missing a field is skipped and counted, and the connection stays open; a result `emit` refuses is counted. When the service stops, the runner reads the end of the stream and should connect again (the example does, once a second). Since 2026-10-19 one glove's samples can reach the runner in small groups, up to 6 within microseconds (one BLE notification, see "Sensor notifications"), when its BLE link falls behind; at 50 Hz in the slow link state the groups are 1 or 2 samples about every 30 ms, and 3 or 4 after a skipped slot. Each line's `uptime_ms` is the glove's own clock at the sample, 20 ms apart at 50 Hz whatever the grouping.
 - **Log lines.** The bridge logs `model runner connected (pid N)` (the connecting process, where Linux reports it) and `a new model runner connected; closing the previous one` when a second runner takes the connection; the launcher reads both.
 - **Counters.** The bridge logs `samples_sent`, `samples_dropped_no_runner`, `samples_dropped_full`, `results`, `results_refused`, `bad_lines` and `connections` when a runner disconnects. The service's own `model_*` metrics count the samples and results as for any model.
+- **Sensor version 4.** With `ultra96.server --sensor-version 4` the hello names the twelve channels (`flex3` last) and each sample carries 12 values; `configure_sensor_version` sets this before the bridge starts and refuses a change afterwards. An eleven-channel runner must not be started against it (`tools.deploy_service` refuses `src.socket_worker` and `src.socket_worker_full` with `--sensor-version 4`).
+- **The hand12 runner (`ultra96/hand_runner.py`, Communications, 2026-10-27).** It runs Wen Ree's `src.hand_runtime.HandEngine` and `src.hand_events.EventEncoder` unchanged, one of each per hand, with his hand12 backend (`src.hand_backend`, NumPy or the FPGA overlay `cnn_hand12_v1`), and delivers in **compat mode** through this socket: each `pulse`, `state_start`, `state_refresh` and `idle` event becomes one result line, `device_id` = the hand that made it, `boot_id` and `seq` = the source sample of the event; `state_end` and `reset` events are logged only, because a version-3 result has no place for them (the owner's decision, 2026-10-27). Each source sample gets at most one result. It accepts only the twelve-channel hello (exit status 3 otherwise), resets a hand whose samples stop for `--reconnect-gap` seconds (default 1.0) or whose `boot_id` changes, without touching the other hand, and starts a fresh worker epoch on each bridge connection. Wen Ree's structured `HAND_EVENT` envelope (`docs/HAND_COMMS_INTEGRATION.md`) is not carried: no result field, `v` or message type changes.
 - **Example.** `ultra96/model_runner_example.py` is the smallest runner: standard library only, it imports nothing from this repository and can be copied. The model goes where it is marked.
 
 ## Per-result function on the phone: `CommsNextResult`

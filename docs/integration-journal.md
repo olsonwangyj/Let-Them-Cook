@@ -5,7 +5,7 @@
 **Why it exists:** from Week 9 the team keeps an integration journal (Siqiang's request in the team chat, 2026-10-25): the integration activities carried out, the challenges or failures, how they were investigated, the solutions considered, the changes made, the later iterations, tests and retests, and the decisions that affect more than one subsystem. This file is the Communications part, kept in full detail. Each week opens with a one-page summary that can be copied into the team's shared journal; the detailed record follows it.
 **How it relates to the other documents:** the hand-off document ([communications-handoff.md](communications-handoff.md)) records the current state, the design and its reasons; this journal records how the integration got there, week by week. Where the two disagree on a fact, check the evidence named in the entry; the code governs both.
 **Kept current by:** `AGENTS.md` rule 9. Every code change, deployment change, integration run and cross-subsystem decision gets an entry here in the same piece of work.
-**Last updated:** 2026-10-25 (Weeks 9 and 10 reconstructed after the fact; see "Sources").
+**Last updated:** 2026-10-27 (Weeks 9 and 10 reconstructed after the fact, see "Sources"; Week 11 kept as it happens).
 
 ---
 
@@ -406,6 +406,83 @@ Pictures are allowed in the team journal. Made in Week 10 and kept in the projec
 - `ai-diagram/ai-block-diagram.png`: Wen Ree's model and FPGA diagram (Wen Ree's part).
 
 No screenshot of the `demo.py start` live view was kept; the same information is in each run's `run.log`.
+
+---
+
+## Week 11 (Monday 26 October to Sunday 1 November 2026)
+
+### One-page summary
+
+To be written when the week ends. Up to Tuesday 10-27: Wen Ree delivered the three-flex sensor version 4 (40-byte packets, 12 values), an independent-hand model runtime (one model per hand, seven labels) and a board-tested FPGA overlay for it (team pull requests #33 to #36), and handed Communications a summary of what to integrate. Communications merged it into the fork, tested it, and built and tested on the laptop the launch options for version 4, the hand12 runner that feeds the per-hand results to the game through the existing result path, and its staging for the board, for the integration planned for Thursday 10-29. Nothing of it has run over BLE, on the Ultra96 or with the phone yet.
+
+### Day by day
+
+| Date | What happened | Evidence |
+|---|---|---|
+| Mon 10-26 | 19:07 Wen Ree merged team PR #33 (opt-in three-flex firmware support in Communications firmware files, a three-flex recording pipeline, a triage capture and its findings). No Communications work. | team main `4b8c2bf`; `docs/TRIAGE_FINDINGS_20261026.md` |
+| Tue 10-27 | 01:14 team PR #34 (Wen Ree's fixed-point precision sweep). 16:03 team PR #35 (the independent-hand runtime, the hand-event reference contract, the opt-in v4 transport in Communications laptop and Ultra96 files, the board-verified `cnn_hand12_v1` overlay); 16:39 team PR #36 (recording collection planner). By Wen Ree's record the board ran his synthetic hand12 test that day and he then restored the paired runner by hand (W11-3). Wen Ree's handover zip reached the owner on Telegram (W11-1). Evening, by an agent at the owner's request: 20:33 the pending journal work committed (`a369042`); 20:34 the team main merged into the fork (`97db189`; W11-1); the left test board flashed with the dummy three-flex build (W11-5); 21:38 the Communications code committed (`c66a100`; W11-2 to W11-4); the BLE measurement deferred, the laptop's Bluetooth being off (W11-5); documents. | `97db189`, `c66a100`; `.comms-local/checks/2026-10-27-hand12-merge/` |
+
+### Issues, investigations and changes
+
+#### W11-1. Merging Wen Ree's three-flex and independent-hand work
+
+- **What happened.** Wen Ree's team pull requests #33 to #36 (team main `5e3f78e`) changed Communications files: the firmware (`-DCOMMS_FLEX3_GLOVE=1`, two `-glove-flex3` environments), `common/control.py`, `laptop/bridge.py`, `laptop/source_audit.py`, `laptop/controls.py`, `laptop/goodput.py`, `ultra96/protocol.py`, `ultra96/model.py`, `ultra96/model_bridge.py` and `ultra96/server.py` (all opt-in, default version 3), and added files of his own in Communications folders (`common/sensor_v4.py`, `common/hand_contract.py`, `ultra96/hand_admission.py`, `tools/hand_*.py`, `tools/precision_*.py`, 18 test files, documents in `docs/`). His handover zip (`ai-comms-handover-20261027.zip`) held navigation notes, an AI prompt and three of his documents; the three documents equal the repository's byte for byte (git blob hashes compared). The prompt asks Communications to build a structured `HAND_EVENT` path through the bridge, the service and the phone.
+- **Investigation.** The merge had two conflicts, both additive (`.gitignore`, `.gitattributes`), resolved by keeping both sides. On the merged tree: 1319 passed, 16 skipped, 1 failed. The failure is Wen Ree's `tests/test_hand_ai_lab.py` timeline test: it reads a UTF-8 file with `read_text()`, so with the laptop's GBK locale codec (`UnicodeDecodeError: 'gbk' codec can't decode byte 0x94`); it passes with `PYTHONUTF8=1`. His handover checks passed: `test_hand_v4_transport.py` (11), `test_hand_contract.py` (28), `tools.hand_v4_transport_check` (real TLS loopback, both versions) and `tools.hand_contract_demo`.
+- **Options considered.** For delivering his events: his structured `HAND_EVENT` (new message type, format-2 hello, event IDs and leases through the bridge, the service and both phone apps), or a compat mode on the existing result path. **The owner chose the compat mode** for Thursday (task list of 10-27): one `v` 3 result per pulse, state start, state refresh or idle, `device_id` = the hand, no state end.
+- **Change.** Merge commit `97db189` (after `a369042`). Wen Ree's files in Communications folders are recorded in the hand-off document as his (12.2, 12.3, 12.5).
+- **Status.** Merged locally, not pushed. For Wen Ree: the locale bug in his test [not sent].
+
+#### W11-2. Sensor version 4 through the Communications launch path
+
+- **What happened.** Wen Ree's transport switches codec only where `sensor_version=4` is passed; `demo.py`, `laptop.dual_bridge`, `tools.check_board`, the deploy tool and the evidence tools did not pass it (his `docs/HAND_V4_TRANSPORT.md` says so). With version 4 the service also wrote results at `v` 4, which both phone apps refuse.
+- **Change** (`c66a100`). `--sensor-version 4` in `demo.py start|run|live`, `laptop.dual_bridge`, `tools.check_board` (also `--address` and a `SEQUENCE` line with the gaps), `tools.deploy_service` (and `demo.py service --start`, which restarts a deployment with its own version); the packet check, the CSV export and the live view read version 4; `flash.py --flex3` and new dummy `firebeetle32-left-flex3`/`right-flex3` environments for bare boards; results stay at `v` 3 in version 4 (`ultra96.protocol.RESULT_VERSION`, the owner's decision). Version-3 command lines and defaults are unchanged.
+- **Retest.** `tests/test_v4_launcher.py` (37) and `tests/test_v4_service.py` (9), among them `demo.py start --sensor-version 4` end to end on loopback and a real-TLS version-4 service publishing `v` 3 results; Wen Ree's version-4 tests and check still pass. All ten firmware environments build with no warnings.
+- **Status.** Built and tested on the laptop. Not run over BLE (W11-5), on the Ultra96 or with a phone.
+
+#### W11-3. Replacing a runner that was started by hand
+
+- **What happened.** By Wen Ree's record (`docs/HAND_FPGA_BOARD_RESULTS_20261027.md`), after his hand12 board test he restored the paired full-CNN runner by hand as PID 177087 (start ticks 611890431). The deploy tool's launcher stops only the runner it started itself, so a new runner would fight the hand-started one for the bridge connection.
+- **Options considered.** Document that the owner stops it by hand before the deploy, or let the deploy name it. Built the second, as the task allowed ("handle or document stopping it").
+- **Change** (`c66a100`). `tools.deploy_service --replace-runner PID:START_TICKS`: the launcher (root) checks each named process before stopping anything (Python, a runner module in its arguments, not PID 1, not itself, not the service); after stopping its own recorded runner it sends that PID SIGTERM, and SIGKILL only while it still has the same start ticks; a gone or reused PID counts as already gone. `python demo.py service` lists hand-started runners with their start ticks.
+- **Retest.** `tests/test_model_runner_launch.py` and `tests/test_deploy_service.py` on Windows; the Linux script, now 55 checks, passed in WSL (Python 3.10.12), with a hand-started runner stopped by SIGTERM and a non-runner refused without any signal.
+- **Status.** Not run on the board. [Not confirmed by Communications: that PID 177087 still runs with those ticks; check with `python demo.py service` first.]
+
+#### W11-4. The hand12 runner and its staging
+
+- **What happened.** Wen Ree's `src/socket_worker_hand.py` only observes; nothing fed his per-hand events to the game.
+- **Change** (`c66a100`). `ultra96/hand_runner.py` (Communications) runs his `HandEngine` and `EventEncoder` unchanged, one of each per hand, with his backend (NumPy, or the FPGA overlay), in the model slot of the bridge; compat delivery as decided in W11-1; a hand is reset on a 1 s silence or a new `boot_id` (a glove reconnect or restart), the other hand untouched; each bridge connection gets a new worker epoch; JSON-line logs with the source identity and runner-local timings of every result. `tools.stage_model_runner --runner hand12` uploads the adapter, his runtime, the `common/` modules they import and the overlay (SHA-256 checked against his board-verified pair) from a commit, and a bundle (`--bundle`; a synthetic one needs `--allow-synthetic`), and prints the deploy command with `--sensor-version 4` and `--replace-runner`.
+- **Investigation.** One interface point in his code [for Wen Ree]: `HandEngine.add` stamps a reset's `state_end` with the sample's arrival time, which can be earlier than a prediction the encoder already took, and `EventEncoder.consume` then raises `Invalid local event time`. The adapter hands such a record over at the latest time already taken and counts it; only `state_end` records are affected, and they are not forwarded.
+- **Retest.** `tests/test_comms_hand_runner.py` (35, fake clock and a scripted backend that reads the gesture from the window's `flex3` value) and `tests/test_comms_hand_loopback.py` (7, a real-TLS version-4 service, the real bridge over a socket pair, both hands at 50 Hz real time, a subscriber): both hands independent; duplicates and a held pulse; CHOP to POURING gives one result at the transition sample; a reconnect or restart of one hand resets only that hand; a bridge reconnect; stale samples and an inference slower than 0.5 s give no result; IDLE only when confident. Staging dry run with a synthetic bundle made by his `tools.hand_hls_prepare --synthetic` (`.comms-local/hand12-synthetic-bundle-20261027`). The code was written by four agents in parallel, each reviewed independently (12 findings, all low, all fixed). Full suite after: 1516 passed, 16 skipped (`PYTHONUTF8=1`).
+- **Status.** Not run on the board, with the FPGA backend, with trained bundles, the gloves or the game. Trained LEFT/RIGHT bundles are Wen Ree's [pending].
+
+#### W11-5. The bare-board BLE measurement at 50 Hz
+
+- **What happened.** The owner connected two bare ESP32 boards by USB; only one CH340 port appeared (COM3, the left test board, factory MAC `38:18:2b:19:82:ac`), so the second cable carries power only. The board was flashed with `firebeetle32-left-flex3` (image 1,130,256 bytes, hash verified) and printed `comms_ready device_id=1 packet_bytes=40 packet_version=4 rate_hz=50 protected=1`. The BLE run could not start: the laptop's Bluetooth radio was powered off. Switching it on is a system setting that the agent does not change, and the owner was in Remote Control mode.
+- **Prepared.** A harness that streams the board through the merged version-4 bridge into a local version-4 service for several minutes and reports sequence gaps, notification rates and batch sizes per 10 s (the W10-8 starvation signature is about 7 full six-packet notifications a second); `tools.check_board left --sensor-version 4 --address 38:18:2B:19:82:AE --duration 300` does the official check.
+- **Status.** Waiting for the owner to switch Bluetooth on. One board cannot show the two-link starvation of W10-8; a second powered board could load the laptop's controller with a second link.
+
+### Decisions that affect more than one subsystem (Week 11)
+
+| Date | Decision | Who | Affects |
+|---|---|---|---|
+| 10-27 | For the Thursday integration the per-hand events reach the game in compat mode: one `v` 3 result per pulse, state start, state refresh or idle, `device_id` = the hand, no state end; Wen Ree's structured `HAND_EVENT` is not carried yet. | Owner | Wen Ree, Jie Ling |
+| 10-27 | Results stay at `v` 3 when the sensor version is 4, so the phone apps need no change. | Owner | Jie Ling |
+| 10-27 | Communications writes and runs the hand12 runner (an adapter around Wen Ree's unchanged engine) in the model slot. | Owner | Wen Ree |
+
+### Tests on hardware (Week 11)
+
+| When | Run | Result | Evidence |
+|---|---|---|---|
+| 10-27 evening | Left test board flashed with `firebeetle32-left-flex3`, boot output over USB | `packet_version=4 packet_bytes=40 rate_hz=50`; no BLE run (Bluetooth off) | hand-off 6.1 |
+
+### Open (Week 11, so far)
+
+1. The 50 Hz version-4 BLE gap measurement (W11-5), once Bluetooth is on.
+2. Wen Ree's trained LEFT/RIGHT bundle for the hand12 runner; until then only a synthetic bundle.
+3. Staging and deploying the hand12 runner on the board (the owner's logins), replacing PID 177087 (W11-3).
+4. Telling Jie Ling that ongoing actions arrive as repeated results with no end message; telling Wen Ree the two findings (W11-1, W11-4).
+5. The three-flex gloves from Siqiang, flashed with `python flash.py --glove --flex3`.
+6. Pushing the fork; whether any of `c66a100` goes to the team repo is the owner's call.
 
 ---
 

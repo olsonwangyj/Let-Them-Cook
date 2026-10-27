@@ -55,7 +55,16 @@ top-level folders that arrive from the team repo. To check a path:
 
     git log upstream/main --format=%an -- <path>
 
-If the authors are not `olsonwangyj`, treat the path as a teammate's.
+If the authors are not `olsonwangyj`, treat the path as a teammate's. This holds
+inside Communications folders too: since the merge of the team main `5e3f78e`
+(2026-10-27) `common/sensor_v4.py`, `common/hand_contract.py`,
+`ultra96/hand_admission.py`, `tools/hand_*.py`, `tools/precision_*.py`,
+`tools/hand_vivado_templates/`, Wen Ree's tests (`tests/test_hand_*.py`,
+`tests/test_precision_*.py`, `tests/test_flex_range_check.py`,
+`tests/test_triage_capture.py`) and his documents in `docs/` (`HAND_*.md`,
+`AI_*.md`, `FPGA_*.md` and others listed in `docs/README.md`) are Wen Ree's.
+Communications files he changed (for example `laptop/bridge.py`,
+`ultra96/server.py`) stay Communications'.
 
 ## Rules
 
