@@ -11,6 +11,7 @@ import io
 import json
 from pathlib import Path
 import re
+import signal
 import socket
 import threading
 import time
@@ -112,13 +113,14 @@ class Run:
         self.right = Glove(RIGHT, 22)
 
     def step(self, *samples, clock=False):
+        """Returns the result lines this step sent."""
         self.clock.now += 0.02
         for message in samples:
             self.ignored += not self.engine.add(message, self.clock())
-        lines = worker.run_due(self.engine, self.clock(), self.records.append, self.delivery,
-                               self.clock if clock else None)
-        self.results += lines
-        return lines
+        before = len(self.results)
+        worker.run_due(self.engine, self.clock(), self.records.append, self.delivery,
+                       self.clock if clock else None, self.results.append)
+        return self.results[before:]
 
     def play(self, seconds, left=None, right=None, left_confidence=None, right_confidence=None,
              clock=False):
@@ -407,7 +409,7 @@ def test_a_second_result_for_one_sample_is_never_forwarded():
     run.play(3.0, left="PICKUP")
     record = dict(type="idle", device_id=LEFT, gesture="IDLE", confidence=0.94, elapsed_s=run.clock(),
                   boot_id=11, seq=120, uptime_ms=1000 + 120 * 20)
-    assert run.delivery.consume(record) == []
+    run.delivery.consume(record, run.results.append)
     assert run.counts(LEFT)["collisions"] == 1
     assert run.events(LEFT, "idle")[-1]["delivery"] == "collision"
     assert len(run.results) == 1
@@ -421,12 +423,41 @@ def test_the_sent_memory_is_bounded(monkeypatch):
     assert list(run.delivery.sent) == identities(run.results[-3:])
 
 
+def test_a_bridge_reconnect_resets_both_hands_and_the_next_connection_has_a_new_epoch():
+    run = Run()
+    run.play(3.0, left="CHOP", right="PICKUP")
+    first = run.delivery.encoder.hello["worker_epoch"]
+    # The end of a connection, as in observe_socket: the receiver resets both hands, and the
+    # last run_due hands the state ends over with nothing more sent.
+    run.engine.reset(run.clock())
+    run.delivery.closed = True
+    assert run.step() == []
+    ends = run.events(kind="state_end")
+    assert [(e["device_id"], e["reason"], e["delivery"]) for e in ends] == [
+        (LEFT, "connection_reset", "not_forwarded")]
+    # The next connection, as in serve_socket: a new encoder and no sent memory; the counts go on.
+    second = "{:032x}".format(2)
+    run.delivery.reopen(make_hello(SESSION, second, worker.LEASE_MS, 0.70, 3))
+    assert run.delivery.encoder.active == {LEFT: None, RIGHT: None} and not run.delivery.sent
+    assert not run.delivery.closed and run.delivery.failure is None
+    before = len(run.results)
+    run.play(3.0, left="CHOP", right="PICKUP")
+    again = run.results[before:]
+    # Both hands start again from a new window: a new pulse and a new state.
+    assert [r["gesture"] for r in again if r["device_id"] == RIGHT] == ["PICKUP"]
+    assert again[0]["gesture"] == "CHOP" and again[0]["seq"] >= 150 + 100
+    starts = run.events(LEFT, "state_start")
+    assert [s["event_id"].split(":")[0] for s in starts] == [first, second]
+    assert run.counts(RIGHT)["forwarded"] == 2 and run.counts(LEFT)["forwarded"] == len(run.hand(LEFT))
+    assert_compat(run)
+
+
 def test_records_the_encoder_does_not_read_give_nothing():
     run = Run()
     for record in (dict(type="stale_suppressed", device_id=LEFT, elapsed_s=1.0),
                    dict(type="prediction", device_id=3, elapsed_s=1.0), dict(type="error")):
-        assert run.delivery.consume(record) == []
-    assert not run.records and not run.counts(LEFT)["event_time_raised"]
+        run.delivery.consume(record, run.results.append)
+    assert not run.records and not run.results and not run.counts(LEFT)["event_time_raised"]
 
 
 # --- observe_socket and main() over a socket pair ------------------------------------------
@@ -548,8 +579,16 @@ def test_a_failed_send_ends_the_loop_cleanly_with_a_record():
         peer.close()
     [lost] = [r for r in records if r["type"] == "connection_lost"]
     assert lost["error_type"] == "BrokenPipeError" and lost["results_unsent"] >= 1 and failing.sends == 1
+    events = [r for r in records if r["type"] == "hand_event"]
+    before = records[:records.index(lost)]
+    assert lost["results_unsent"] == sum(r["type"] == "hand_event" and r["delivery"] == "unsent" for r in before)
+    # Each event's record says what became of its line, as the summary does: none was sent.
+    assert not [e for e in events if e["delivery"] == "forwarded"]
     summary = delivery.summary()
-    assert sum(summary[h]["forwarded"] for h in ("1", "2")) == 0
+    for hand in (LEFT, RIGHT):
+        assert summary[str(hand)]["forwarded"] == 0
+        assert summary[str(hand)]["unsent"] == sum(e["device_id"] == hand and e["delivery"] == "unsent"
+                                                   for e in events)
     assert sum(summary[h]["unsent"] for h in ("1", "2")) >= 1 and delivery.closed
 
 
@@ -562,12 +601,30 @@ def synthetic_bundle(tmp_path_factory):
     return folder
 
 
-def with_unix(monkeypatch, client):
-    """main() in socket mode on a Python without AF_UNIX, connected to one end of a socket pair."""
+def with_unix(monkeypatch, *connections):
+    """main() in socket mode on a Python without AF_UNIX: each connect_bridge gives the next of
+    connections (an exception among them is raised instead), then Ctrl+C, as the operator
+    stopping the worker. Returns the list of backends main() makes."""
     monkeypatch.setattr(worker, "socket", SimpleNamespace(AF_UNIX=object(), timeout=socket.timeout,
                                                           SHUT_RDWR=socket.SHUT_RDWR))
-    monkeypatch.setattr(worker, "connect_bridge", lambda path: client)
-    monkeypatch.setattr(worker, "NumpyHandBackend", lambda bundle: ScriptedBackend())
+    monkeypatch.setattr(worker, "RETRY", 0.01)
+    pending, backends = list(connections), []
+
+    def connect(path):
+        if not pending:
+            raise KeyboardInterrupt
+        connection = pending.pop(0)
+        if isinstance(connection, BaseException):
+            raise connection
+        return connection
+
+    def backend(bundle):
+        backends.append(ScriptedBackend())
+        return backends[-1]
+
+    monkeypatch.setattr(worker, "connect_bridge", connect)
+    monkeypatch.setattr(worker, "NumpyHandBackend", backend)
+    return backends
 
 
 def read_records(folder):
@@ -602,7 +659,10 @@ def test_main_delivers_in_socket_mode_and_says_so_in_its_records(monkeypatch, sy
     assert scope["gameplay_transport"] is True and scope["delivery"] == "compat_v3_gesture_result"
     assert scope["forwarded_kinds"] == ["pulse", "state_start", "state_refresh", "idle"]
     assert scope["logged_only_kinds"] == ["state_end", "reset"] and scope["session_id"] == SESSION
-    assert re.fullmatch("[0-9a-f]{32}", scope["worker_epoch"])
+    [opened] = [r for r in records if r["type"] == "connection_open"]
+    assert opened["connection"] == 1 and re.fullmatch("[0-9a-f]{32}", opened["worker_epoch"])
+    # The stream's end did not end the worker: it went on to connect again, and Ctrl+C stopped it.
+    assert records[-2] == dict(type="stopped", signal="SIGINT")
     summary = records[-1]
     assert summary["type"] == "summary" and summary["status"] == "finished"
     assert {hand: counts["forwarded"] for hand, counts in summary["delivery"].items()} == {"1": 1, "2": 1}
@@ -630,6 +690,136 @@ def test_main_observe_only_sends_nothing(monkeypatch, synthetic_bundle, tmp_path
     assert records[0]["gameplay_transport"] is False and "delivery" not in records[0]
     assert {r["device_id"] for r in records if r["type"] == "action" or r["type"] == "idle"} == {1, 2}
     assert not any(r["type"] == "hand_event" for r in records) and "delivery" not in records[-1]
+    assert [r for r in records if r["type"] == "connection_open"] == [dict(type="connection_open", connection=1)]
+    assert records[-2] == dict(type="stopped", signal="SIGINT") and records[-1]["status"] == "finished"
+
+
+def socket_argv(bundle, out):
+    return ["--bundle", str(bundle), "--allow-synthetic", "--socket", "/x.sock", "--confirmations", "1",
+            "--out", str(out)]
+
+
+def test_main_waits_for_the_bridge_and_connects_again_with_a_new_epoch_and_the_same_backend(
+        monkeypatch, synthetic_bundle, tmp_path, capsys):
+    (first, first_peer), (second, second_peer) = socket_pair(), socket_pair()
+    backends = with_unix(monkeypatch, FileNotFoundError(2, "No such file or directory"),
+                         ConnectionRefusedError(111, "Connection refused"), first, second)
+    # The service restarts between the two connections; the same gloves go on sending.
+    left, right = Glove(LEFT, 11), Glove(RIGHT, 22)
+    bridges = [Peer(first_peer, bridge_lines((left, "THROW"), (right, "IDLE")), expect=2),
+               Peer(second_peer, bridge_lines((left, "THROW"), (right, "IDLE")), expect=2)]
+    for bridge in bridges:
+        bridge.start()
+    try:
+        worker.main(socket_argv(synthetic_bundle, tmp_path))
+    finally:
+        for bridge in bridges:
+            bridge.join(10)
+        first_peer.close()
+        second_peer.close()
+    assert all(bridge.errors == [] and bridge.rest == b"" for bridge in bridges)
+    sent = [[json.loads(line) for line in bridge.received.splitlines()] for bridge in bridges]
+    assert [sorted(r["gesture"] for r in results) for results in sent] == [["IDLE", "THROW"]] * 2
+    # The first connection's end reset both hands: the second's results need a new window.
+    assert all(r["seq"] == 100 for r in sent[0]) and all(r["seq"] == 201 for r in sent[1])
+    records = read_records(tmp_path)
+    # One record while the socket is absent, then refused; nothing more until it is there.
+    assert [r for r in records if r["type"] == "waiting_for_bridge"] == [
+        dict(type="waiting_for_bridge", socket="/x.sock", error_type="FileNotFoundError")]
+    opened = [r for r in records if r["type"] == "connection_open"]
+    assert [r["connection"] for r in opened] == [1, 2] and opened[0]["worker_epoch"] != opened[1]["worker_epoch"]
+    assert [(r["connection"], r["reconnect_in_s"]) for r in records if r["type"] == "connection_end"] == [
+        (1, 0.01), (2, 0.01)]
+    forwarded = [r for r in records if r["type"] == "hand_event" and r["delivery"] == "forwarded"]
+    assert sorted(e["event_id"].split(":")[0] for e in forwarded) == sorted(
+        [opened[0]["worker_epoch"]] * 2 + [opened[1]["worker_epoch"]] * 2)
+    assert len(backends) == 1  # loaded once (on the board: one overlay download) for both connections
+    assert records[-2] == dict(type="stopped", signal="SIGINT")
+    summary = records[-1]
+    assert summary["status"] == "finished" and summary["counts"]["connection_open"] == 2
+    assert {hand: counts["forwarded"] for hand, counts in summary["delivery"].items()} == {"1": 2, "2": 2}
+
+
+class ResetConnection:
+    """A bridge connection the service resets right after its hello."""
+
+    def __init__(self):
+        self.chunks = [(json.dumps(HELLO) + "\n").encode("utf-8")]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def recv(self, size):
+        if self.chunks:
+            return self.chunks.pop(0)
+        raise ConnectionResetError(104, "Connection reset by peer")
+
+    def sendall(self, data):
+        pass
+
+    def shutdown(self, how):
+        pass
+
+
+def test_a_broken_stream_connects_again_and_an_incompatible_hello_ends_the_worker(
+        monkeypatch, synthetic_bundle, tmp_path, capsys):
+    (truncated, truncated_peer), (old, old_peer) = socket_pair(), socket_pair()
+    with_unix(monkeypatch, ResetConnection(), truncated, old)
+    truncated_peer.sendall((json.dumps(HELLO) + "\n" + '{"type":"sam').encode("utf-8"))
+    truncated_peer.shutdown(socket.SHUT_WR)
+    old_peer.sendall((json.dumps(dict(HELLO, channels=list(CHANNELS[:-1]))) + "\n").encode("utf-8"))
+    old_peer.shutdown(socket.SHUT_WR)
+    try:
+        with pytest.raises(ValueError, match="eleven-channel"):
+            worker.main(socket_argv(synthetic_bundle, tmp_path))
+    finally:
+        truncated_peer.close()
+        old_peer.close()
+    records = read_records(tmp_path)
+    assert [(r["error_type"], r["message"]) for r in records if r["type"] == "receive_error"] == [
+        ("ConnectionResetError", "[Errno 104] Connection reset by peer"),
+        ("BridgeClosed", "Truncated bridge line")]
+    assert [r["connection"] for r in records if r["type"] == "connection_open"] == [1, 2, 3]
+    assert [r["connection"] for r in records if r["type"] == "connection_end"] == [1, 2]
+    assert records[-2]["type"] == "error" and records[-2]["error_type"] == "ValueError"
+    assert records[-1]["status"] == "failed"
+
+
+class TermBackend(ScriptedBackend):
+    """Its first inference gets SIGTERM, as from the launcher stopping or replacing the worker."""
+
+    def probabilities(self, device, window):
+        if not self.calls:
+            self.calls.append(None)
+            signal.raise_signal(signal.SIGTERM)
+        return super().probabilities(device, window)
+
+
+def test_sigterm_ends_socket_mode_with_its_summary_and_restores_the_handler(
+        monkeypatch, synthetic_bundle, tmp_path, capsys):
+    client, peer = socket_pair()
+    with_unix(monkeypatch, client)
+    backend = TermBackend()
+    monkeypatch.setattr(worker, "NumpyHandBackend", lambda bundle: backend)
+    before = signal.getsignal(signal.SIGTERM)
+    bridge = Peer(peer, bridge_lines((Glove(LEFT, 11), "THROW"), (Glove(RIGHT, 22), "IDLE")),
+                  done=lambda: backend.calls)
+    bridge.start()
+    try:
+        worker.main(socket_argv(synthetic_bundle, tmp_path))  # returns: SIGTERM is the normal end of socket mode
+    finally:
+        bridge.join(10)
+        peer.close()
+    assert signal.getsignal(signal.SIGTERM) == before
+    assert bridge.errors == [] and bridge.rest == b"" and backend.calls[0] is None
+    records = read_records(tmp_path)
+    assert [r["type"] for r in records].count("connection_open") == 1
+    assert not any(r["type"] in ("connection_end", "error") for r in records)
+    assert records[-2] == dict(type="stopped", signal="SIGTERM")
+    assert records[-1]["status"] == "finished" and set(records[-1]["delivery"]) == {"1", "2"}
 
 
 def test_an_out_folder_gets_a_new_file_per_start_and_replay_is_unchanged(monkeypatch, synthetic_bundle,
