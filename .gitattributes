@@ -283,3 +283,7 @@ ios-visualizer/*.json text eol=lf
 
 # Run inside Linux/WSL bash, which rejects CRLF.
 tests/linux/*.sh text eol=lf
+
+/fpga/overlays/independent_hand_v1/** -text whitespace=cr-at-eol
+/reports/hand12_board_20261027/** -text whitespace=cr-at-eol
+/reports/hand12_board_20261027/*.rpt -whitespace
