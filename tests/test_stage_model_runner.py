@@ -225,13 +225,6 @@ def test_git_files_reads_each_file_of_a_commit_and_names_a_missing_one(tmp_path)
     # A file missing from HEAD (the hand12 default) is one not committed yet.
     with pytest.raises(ValueError, match="commit it first"):
         stage.git_files("HEAD", ["src/missing.py"], root=tmp_path)
-    # The fork-only adapter never comes from the team repo, whatever the ref.
-    for ref, names in [("upstream/main", ["ultra96/hand_runner.py"]),
-                       ("origin/main", ["ultra96/hand_runner.py"]),
-                       ("HEAD", ["src/a.py", "ultra96/hand_runner.py"])]:
-        with pytest.raises(ValueError, match="only in this fork: commit it first") as refused:
-            stage.git_files(ref, names, root=tmp_path)
-        assert "git fetch upstream" not in str(refused.value)
 
 
 def test_full_dry_run_reads_the_commit_and_connects_nothing(monkeypatch, capsys):
@@ -348,10 +341,16 @@ def synthetic_bundle(tmp_path_factory):
     return folder
 
 
+WORKER = "src/socket_worker_hand.py"
+SOCKET = deploy_service.BOARD_ROOT + "/model-runner.sock"
+
+
 def hand12_commit(overlay, changed=None):
-    """git_files for a commit with placeholder code, this checkout's overlay and the changed files."""
+    """git_files for a commit with placeholder code (the worker naming its compat delivery), this
+    checkout's overlay and the changed files."""
     def git_files(ref, names):
         files = {name: overlay.get(name, ("hand12 " + name).encode()) for name in names}
+        files[WORKER] = b"DELIVERY='compat_v3_gesture_result'\n"
         files.update(changed or {})
         return files
     return git_files
@@ -359,28 +358,74 @@ def hand12_commit(overlay, changed=None):
 
 def hand12_command(dest, bundle="bundle", extra=""):
     return ("python -m tools.deploy_service --sensor-version 4 --model ultra96.model_bridge "
-            "--runner-module ultra96.hand_runner --runner-cwd " + dest +
+            "--runner-module src.socket_worker_hand --runner-cwd " + dest +
             " --runner-arg=--bundle --runner-arg " + bundle +
             " --runner-arg=--backend --runner-arg fpga --runner-arg=--bit --runner-arg " + dest +
-            "/fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit" + extra)
+            "/fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit --runner-arg=--socket --runner-arg " +
+            SOCKET + " --runner-arg=--out --runner-arg " + dest + "/logs" + extra)
 
 
-def test_the_hand12_runner_stages_the_adapter_wen_rees_runtime_and_the_verified_overlay(overlay):
+def test_the_hand12_runner_stages_wen_rees_worker_and_runtime_and_the_verified_overlay(overlay):
     assert HAND12.expected() == (
-        "ultra96/__init__.py", "ultra96/hand_runner.py", "src/hand_runtime.py", "src/hand_backend.py",
-        "src/hand_events.py", "src/hand_ai_flex3/__init__.py", "src/hand_ai_flex3/core.py",
+        "src/socket_worker_hand.py", "src/hand_runtime.py", "src/hand_backend.py", "src/hand_events.py",
+        "src/hand_ai_flex3/__init__.py", "src/hand_ai_flex3/core.py",
         "common/__init__.py", "common/sensor.py", "common/dummy_fixtures.json",
         "common/hand_contract.py", "common/wire.py", OVERLAY + "cnn_hand12_v1.bit",
         OVERLAY + "cnn_hand12_v1.hwh", OVERLAY + "artifact_manifest.json")
     assert (HAND12.module, HAND12.name, HAND12.git_ref, HAND12.folder) == (
-        "ultra96.hand_runner", "hand12_v1", "HEAD", "")
+        "src.socket_worker_hand", "hand12_v1", "HEAD", "")
     assert HAND12.overlay_sha256 == {
         OVERLAY + "cnn_hand12_v1.bit": "b8d0407300c913fbde24143b6a632f62c0bf4021290d80fad575d32f59d6523d",
         OVERLAY + "cnn_hand12_v1.hwh": "935975fe769d0fda1a802c43c9a65430406a61dc02802f637df40f935660a790"}
     stage.check_overlay(HAND12, overlay)  # this checkout carries that pair
-    # The other runners pin no overlay and copy nothing extra.
+    assert HAND12.markers == {WORKER: "compat_v3_gesture_result"} and HAND12.folders == ("logs",)
+    # This checkout's worker is the one with the compat delivery.
+    stage.check_code(HAND12, {WORKER: (REPO / WORKER).read_bytes()}, "HEAD")
+    # The other runners pin no overlay, need no marker and copy nothing extra.
     assert FULL.overlay_sha256 == {} == stage.RUNNERS["conv1d"].overlay_sha256
     assert FULL.extra == () == stage.RUNNERS["conv1d"].extra
+    assert FULL.markers == {} == stage.RUNNERS["conv1d"].markers
+    assert FULL.folders == () == stage.RUNNERS["conv1d"].folders
+
+
+def test_wen_rees_observe_only_worker_is_refused_before_connecting(overlay, monkeypatch, capsys):
+    monkeypatch.setattr(stage, "_connect", no_connect)
+    observe_only = b'"""Observe/replay a twelve-channel bridge and write LOCAL diagnostic events."""\n'
+    monkeypatch.setattr(stage, "git_files", hand12_commit(overlay, {WORKER: observe_only}))
+    assert stage.main(["--runner", "hand12", "--bundle", BOARD_BUNDLE, "--from-git", "upstream/main"]) == 2
+    err = capsys.readouterr().err
+    assert WORKER + " at upstream/main has no 'compat_v3_gesture_result'" in err
+    assert "observe-only worker" in err and "such as HEAD" in err and "nothing was uploaded" in err
+
+
+def test_the_board_program_makes_the_runners_empty_folders_and_keeps_their_files(tmp_path):
+    files = {name: ("hand12 " + name).encode() for name in HAND12.expected()}
+    upload = write_upload(tmp_path / ".upload", files)
+    dest = tmp_path / "hand12_v1"
+    done = subprocess.run([sys.executable, "-I", "-c", stage.REMOTE_PROGRAM, str(upload), str(dest),
+                           "20261028T100000Z", json.dumps(stage.listing(files)), str(tmp_path / "e"),
+                           "move", json.dumps(["logs"])], capture_output=True, text=True, timeout=60)
+    record = json.loads(done.stdout.strip().splitlines()[-1])
+    assert done.returncode == 0 and record["status"] == "staged" and (dest / "logs").is_dir()
+    assert "logs" not in json.dumps(record["files"])
+    # The runner's records do not stop a second staging from counting as already staged.
+    (dest / "logs" / "hand-worker-20261028T100100Z-77.jsonl").write_text("{}\n")
+    upload = write_upload(tmp_path / ".upload2", files)
+    done = subprocess.run([sys.executable, "-I", "-c", stage.REMOTE_PROGRAM, str(upload), str(dest),
+                           "20261028T100200Z", json.dumps(stage.listing(files)), str(tmp_path / "e"),
+                           "move", json.dumps(["logs"])], capture_output=True, text=True, timeout=60)
+    record = json.loads(done.stdout.strip().splitlines()[-1])
+    assert done.returncode == 0 and record["status"] == "already_staged"
+    assert (dest / "logs" / "hand-worker-20261028T100100Z-77.jsonl").read_text() == "{}\n"
+
+
+def test_the_remote_command_passes_the_folders_only_when_there_are_some():
+    def argv(**kwargs):
+        return shlex.split(stage.remote_command("/s", "/d", "T", ["a"], **kwargs))[4:]
+    assert argv() == ["/s", "/d", "T", '["a"]', stage.BOARD_ROOT + "/evidence"]
+    assert argv(move=True)[-1] == "move"
+    assert argv(move=True, folders=("logs",))[-2:] == ["move", '["logs"]']
+    assert argv(folders=("logs",))[-2:] == ["copy", '["logs"]']
 
 
 def test_the_hand12_deploy_command_reads_v4_the_bundle_and_the_overlay():
@@ -401,9 +446,11 @@ def test_the_deploy_tool_accepts_the_hand12_command(monkeypatch):
     command = stage.deploy_command(dest, "hand12", replace=["177087:611890431"])
     assert deploy_service.main(command.split()[3:]) == 0
     runner = captured["options"]["runner"]
-    assert runner["module"] == "ultra96.hand_runner" and runner["cwd"] == dest
+    assert runner["module"] == "src.socket_worker_hand" and runner["cwd"] == dest
     assert runner["args"] == ["--bundle", "bundle", "--backend", "fpga", "--bit",
-                              dest + "/fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit"]
+                              dest + "/fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit",
+                              "--socket", "/var/tmp/cg4002-week7-yanjie-20260907/model-runner.sock",
+                              "--out", dest + "/logs"]
     assert captured["options"]["sensor_version"] == 4
     assert [entry["pid"] for entry in runner["replace"]] == [177087]
 
@@ -555,9 +602,9 @@ def test_hand12_uploads_the_code_overlay_and_bundle_for_the_board_to_check(
     # What lands in the copy's bundle folder passes the runner's own check.
     from src.hand_runtime import ModelBundle
     assert ModelBundle(write_upload(tmp_path / "copy", uploaded) / "bundle", allow_synthetic=True).synthetic
-    # The board program gets every size and SHA-256 and moves the upload into place.
+    # The board program gets every size and SHA-256, moves the upload into place and makes logs/.
     [argv] = commands
-    assert argv[-1] == "move" and json.loads(argv[7]) == stage.listing(uploaded)
+    assert argv[-2:] == ["move", '["logs"]'] and json.loads(argv[7]) == stage.listing(uploaded)
     assert argv[5] == stage.destination("hand12_v1")
     record = json.loads(next((tmp_path / "records").glob("model-runner-stage-*.json")).read_text())
     assert (record["runner"], record["git_ref"], record["bundle"], record["bundle_synthetic"]) == (
@@ -578,7 +625,7 @@ def test_the_staged_hand12_code_imports_on_its_own(tmp_path):
     env = {key: value for key, value in os.environ.items()
            if key not in ("PYTHONPATH", "PYTHONSAFEPATH")}
     done = subprocess.run(
-        [sys.executable, "-c", "import ultra96.hand_runner, src.hand_runtime, src.hand_backend, "
+        [sys.executable, "-c", "import src.socket_worker_hand, src.hand_runtime, src.hand_backend, "
          "src.hand_events, common.hand_contract; import json, sys; print(json.dumps(sorted("
          "m.__file__ for n, m in list(sys.modules.items()) if n.split('.')[0] in "
          "('ultra96', 'src', 'common') and getattr(m, '__file__', None))))"],

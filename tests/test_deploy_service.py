@@ -320,7 +320,7 @@ def test_a_sensor_version_other_than_3_or_4_is_refused_by_the_parser(capsys):
 
 
 def _module_runner(**changes):
-    values = dict(model="ultra96.model_bridge", runner_module="ultra96.hand_runner",
+    values = dict(model="ultra96.model_bridge", runner_module="src.socket_worker_hand",
                   runner_cwd="/home/xilinx/Let-Them-Cook", runner_python=deploy_service.PYNQ_PYTHON,
                   runner_arg=[], sensor_version=4)
     values.update(changes)
@@ -333,14 +333,14 @@ def _module_runner(**changes):
     dict(runner_module=None, runner="/home/xilinx/w/src/socket_worker_full.py"),
 ])
 def test_version_4_refuses_the_eleven_channel_paired_runners(changes):
-    with pytest.raises(ValueError, match="eleven-channel paired runner"):
+    with pytest.raises(ValueError, match="eleven-channel paired runner.*src.socket_worker_hand"):
         deploy_service.options_from(_module_runner(**changes))
     # The same runners deploy as before with version 3.
     assert "runner" in deploy_service.options_from(_module_runner(sensor_version=3, **changes))
 
 
-@pytest.mark.parametrize("changes", [dict(), dict(runner_module=None, runner="/home/xilinx/w/ultra96/hand_runner.py")])
-def test_the_hand_runner_needs_version_4(changes):
+@pytest.mark.parametrize("changes", [dict(), dict(runner_module=None, runner="/home/xilinx/w/src/socket_worker_hand.py")])
+def test_the_hand_worker_needs_version_4(changes):
     assert "runner" in deploy_service.options_from(_module_runner(**changes))
     with pytest.raises(ValueError, match="deploy it with --sensor-version 4"):
         deploy_service.options_from(_module_runner(sensor_version=3, **changes))
@@ -382,7 +382,7 @@ def test_replace_runner_needs_a_runner(monkeypatch, capsys):
 def test_the_plan_names_each_runner_it_replaces(monkeypatch, capsys):
     monkeypatch.setattr(deploy_service, "_connect", lambda *a: pytest.fail("connected"))
     assert deploy_service.main(["--sensor-version", "4", "--model", "ultra96.model_bridge",
-                                "--runner-module", "ultra96.hand_runner", "--runner-cwd", "/home/xilinx/ltc",
+                                "--runner-module", "src.socket_worker_hand", "--runner-cwd", "/home/xilinx/ltc",
                                 "--replace-runner", "177087:611890431", "--replace-runner", "42:7",
                                 "--dry-run"]) == 0
     out = capsys.readouterr().out
@@ -423,7 +423,7 @@ def test_deploy_reports_each_replaced_runner(monkeypatch, tmp_path, capsys, code
     monkeypatch.setattr(deploy_service, "_connect",
                         lambda jump_user, board_user, want_sudo: (board, board, "sudo-pw"))
     assert deploy_service.main(["--sensor-version", "4", "--model", "ultra96.model_bridge",
-                                "--runner-module", "ultra96.hand_runner", "--runner-cwd", "/home/xilinx/ltc",
+                                "--runner-module", "src.socket_worker_hand", "--runner-cwd", "/home/xilinx/ltc",
                                 "--replace-runner", "177087:611890431"]) == result
     output = capsys.readouterr()
     for message in messages:

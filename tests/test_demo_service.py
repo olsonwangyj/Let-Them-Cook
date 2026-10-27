@@ -273,7 +273,8 @@ def test_status_lists_every_model_runner_process_as_pid_and_start_ticks(service,
     proc = tmp_path / "proc dir"
     fake_process(proc, 177087, ["/usr/local/share/pynq-venv/bin/python", "-m", "src.socket_worker",
                                 "--socket", "/var/tmp/x.sock"], "611890431", name="py (thon) x")
-    fake_process(proc, 2001, ["sudo", "-E", "python3", "-m", "ultra96.hand_runner"], "700")
+    fake_process(proc, 2001, ["sudo", "-E", "python3", "-m", "src.socket_worker_hand", "--socket",
+                              "/var/tmp/x.sock"], "700")
     fake_process(proc, 3001, ["/usr/bin/python3", "-u", "-m", "ultra96.server"], "800")
     fake_process(proc, 4001, [], "900", name="kworker/0:1")
     (proc / "5001").mkdir()  # a process that ended while the list was read
@@ -286,7 +287,7 @@ def test_status_lists_every_model_runner_process_as_pid_and_start_ticks(service,
     assert lines[1].startswith("Model runner processes of any user, as PID:TICKS")
     assert sorted(lines[2:]) == [
         "  177087:611890431 /usr/local/share/pynq-venv/bin/python -m src.socket_worker --socket /var/tmp/x.sock",
-        "  2001:700 sudo -E python3 -m ultra96.hand_runner"]
+        "  2001:700 sudo -E python3 -m src.socket_worker_hand --socket /var/tmp/x.sock"]
 
 
 def test_status_says_none_when_no_model_runner_runs_and_never_lists_itself(service, local_shell, tmp_path):
@@ -298,7 +299,7 @@ def test_status_says_none_when_no_model_runner_runs_and_never_lists_itself(servi
                             timeout=10)
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[2:] == ["  none"]
-    assert "socket_worker" not in script and "hand_runner" not in script
+    assert "socket_worker" not in script
     assert service.runner_processes_script().count("/proc/[0-9]*") == 1
 
 

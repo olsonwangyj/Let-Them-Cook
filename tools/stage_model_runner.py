@@ -10,13 +10,16 @@ Three runners are known (--runner):
                     of this checkout (--from-git, default upstream/main: run `git fetch upstream`
                     first), uploaded and moved into place, in the repository's own layout. With
                     --source it copies a board folder in that layout instead.
-  hand12            The Comms adapter runner ultra96.hand_runner, which runs Wen Ree's
-                    independent-hand model (sensor protocol v4, one model per hand) on the
-                    cnn_hand12_v1 overlay. Its files (the adapter, Wen Ree's src/hand_*.py runtime,
-                    the common/ modules they import, the overlay .bit, .hwh and its manifest) are
-                    uploaded from a commit like the full runner, default HEAD: the adapter is only
-                    in this fork. The overlay must be Wen Ree's board-verified pair (its SHA-256 is
-                    checked before anything is uploaded).
+  hand12            Wen Ree's independent-hand worker src.socket_worker_hand (sensor protocol v4,
+                    one model per hand) on the cnn_hand12_v1 overlay, with the compat delivery
+                    Communications added to it (edited with his agreement): it sends results back
+                    to the model bridge. Its files (the worker, his src/hand_*.py runtime, the
+                    common/ modules they import, the overlay .bit, .hwh and its manifest) are
+                    uploaded from a commit like the full runner, default HEAD: the team repo still
+                    has his observe-only worker, which is refused. The overlay must be Wen Ree's
+                    board-verified pair (its SHA-256 is checked before anything is uploaded). The
+                    copy gets an empty logs/ folder, where the worker writes a new JSONL record
+                    file at each start (--out).
 The copy goes to BOARD_ROOT/model-runner/<name>; the SHA-256 of every file is checked against the
 original (and, for an upload, against the commit), and the tool prints the deploy command that
 starts the runner from the copy. It changes nothing else: the originals, the running service and
@@ -27,7 +30,7 @@ whose files differ is never overwritten (give another --name).
 --weights picks the weights the printed command uses: a path relative to the runner folder is
 copied with the runner; an absolute board path (weights staged on their own) is only printed.
 
---bundle (hand12 only, in place of --weights) picks the model bundle the hand runner reads. A local
+--bundle (hand12 only, in place of --weights) picks the model bundle the hand worker reads. A local
 folder is first checked as the runner checks it (src.hand_runtime.ModelBundle) and uploaded into
 <copy>/bundle, every file's SHA-256 checked on the board; an absolute board path is only printed.
 Trained LEFT/RIGHT bundles come from Wen Ree. A synthetic test bundle (python -m
@@ -58,19 +61,24 @@ from tools.deploy_service import RECORDS, _connect, _git_bash_hint, replace_entr
 from tools.ssh_tunnel import default_jump_user
 
 ROOT = Path(__file__).resolve().parents[1]
+# The hand worker's --out in its copy: a folder, so each start writes a new record file there.
+LOGS = "logs"
 
 
 class Runner:
     """Where a runner's files sit in its copy and how the deploy tool starts it.
 
     A runner without weights (hand12) reads a model bundle instead (--bundle). overlay_sha256
-    pins the overlay files a runner may be uploaded with; extra files are copied beside them."""
+    pins the overlay files a runner may be uploaded with; extra files are copied beside them.
+    markers names text a code file must contain (the version the runner needs); folders are
+    empty folders made in the copy for the runner to write into."""
 
     def __init__(self, source, name, folder, module, weights, bitstream, code, git_ref=None,
-                 extra=(), overlay_sha256=None):
+                 extra=(), overlay_sha256=None, markers=None, folders=()):
         self.source, self.name, self.folder, self.module = source, name, folder, module
         self.weights, self.bitstream, self.code, self.git_ref = weights, bitstream, code, git_ref
         self.extra, self.overlay_sha256 = tuple(extra), dict(overlay_sha256 or {})
+        self.markers, self.folders = dict(markers or {}), tuple(folders)
 
     def path(self, relative):
         """A path inside the runner folder, relative to the copy."""
@@ -96,17 +104,19 @@ RUNNERS = {
                    "fpga/overlays/full_cnn/cnn_full_20261020.bit",
                    ("src/ai_common.py", "src/export_full_cnn.py", "src/full_cnn_backend.py",
                     "src/socket_worker_full.py"), git_ref="upstream/main"),
-    # The Comms adapter (only in this fork, so HEAD) and everything it imports: Wen Ree's
-    # independent-hand runtime and the common/ modules (common/__init__.py imports common.sensor,
-    # which reads dummy_fixtures.json). The model bundle is not here: see --bundle.
-    "hand12": Runner(None, "hand12_v1", "", "ultra96.hand_runner", None,
+    # Wen Ree's worker with the compat delivery (only in this fork so far, so HEAD) and everything
+    # it imports: his independent-hand runtime and the common/ modules (common/__init__.py imports
+    # common.sensor, which reads dummy_fixtures.json). The model bundle is not here: see --bundle.
+    "hand12": Runner(None, "hand12_v1", "", "src.socket_worker_hand", None,
                      "fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit",
-                     ("ultra96/__init__.py", "ultra96/hand_runner.py", "src/hand_runtime.py",
-                      "src/hand_backend.py", "src/hand_events.py", "src/hand_ai_flex3/__init__.py",
-                      "src/hand_ai_flex3/core.py", "common/__init__.py", "common/sensor.py",
-                      "common/dummy_fixtures.json", "common/hand_contract.py", "common/wire.py"),
+                     ("src/socket_worker_hand.py", "src/hand_runtime.py", "src/hand_backend.py",
+                      "src/hand_events.py", "src/hand_ai_flex3/__init__.py", "src/hand_ai_flex3/core.py",
+                      "common/__init__.py", "common/sensor.py", "common/dummy_fixtures.json",
+                      "common/hand_contract.py", "common/wire.py"),
                      git_ref="HEAD",
                      extra=("fpga/overlays/independent_hand_v1/artifact_manifest.json",),
+                     markers={"src/socket_worker_hand.py": "compat_v3_gesture_result"},
+                     folders=(LOGS,),
                      # Wen Ree's board-verified pair.
                      overlay_sha256={
                          "fpga/overlays/independent_hand_v1/cnn_hand12_v1.bit":
@@ -121,8 +131,6 @@ NO_BUNDLE = ("the hand12 runner needs --bundle: a folder with the LEFT and RIGHT
              "folder, or an absolute board path). Trained bundles come from Wen Ree; a synthetic "
              "test bundle, which is not a trained model, can be made with `python -m "
              "tools.hand_hls_prepare --synthetic --out <new folder>` and needs --allow-synthetic")
-# Files only this fork has (the Comms adapter): fetching the team repo never brings them.
-FORK_ONLY = ("ultra96/hand_runner.py",)
 HAND_STARTED = ("Note: the paired runner Wen Ree restored by hand (PID 177087, start_ticks "
                 "611890431 on 2026-10-27) was not started by the deploy tool and must be replaced "
                 "this way (--replace-runner 177087:611890431 while it still runs); "
@@ -147,6 +155,8 @@ expected = json.loads(sys.argv[4]); evidence = Path(sys.argv[5])
 # "copy" leaves the source as it is; "move" renames an uploaded folder into place and
 # removes it in every other case. A dict of expected files must match exactly (size, SHA-256).
 move = len(sys.argv) > 6 and sys.argv[6] == "move"
+# Empty folders made in the copy for the runner to write into, once its files are in place.
+folders = json.loads(sys.argv[7]) if len(sys.argv) > 7 else []
 SKIP = "__pycache__"
 
 
@@ -170,6 +180,11 @@ def listing(root):
             name = os.path.relpath(path, str(root)).replace(os.sep, "/")
             files[name] = [os.path.getsize(path), digest.hexdigest()]
     return files
+
+
+def make_folders():
+    for name in folders:
+        (dest / name).mkdir(mode=0o755, exist_ok=True)
 
 
 def finish(status, code, **extra):
@@ -202,6 +217,7 @@ try:
         if dest.is_dir() and not dest.is_symlink():
             present = listing(dest)
             if all(present.get(name) == entry for name, entry in files.items()):
+                make_folders()
                 finish("already_staged", 0, files=files)
         finish("failed", 1, error="the destination exists with other files; it was not changed. "
                                   "Use another --name", files=files)
@@ -210,6 +226,7 @@ try:
         os.rename(str(source), str(dest))
         if listing(dest) != files:
             finish("failed", 1, error="the moved folder does not match the upload: " + str(dest))
+        make_folders()
         finish("staged", 0, files=files)
     partial = dest.parent / (dest.name + ".partial-" + stamp)
     try:
@@ -222,6 +239,7 @@ try:
     except BaseException:
         shutil.rmtree(str(partial), ignore_errors=True)
         raise
+    make_folders()
     finish("staged", 0, files=files)
 except SystemExit:
     raise
@@ -242,13 +260,17 @@ def deploy_command(dest, runner="conv1d", weights=None, bundle=None, allow_synth
     runner = RUNNERS[runner]
     cwd = dest + ("/" + runner.folder if runner.folder else "")
     if runner.weights is None:
-        # The hand runner reads sensor protocol v4 and a model bundle, on the FPGA.
+        # The hand worker reads sensor protocol v4 and a model bundle, on the FPGA, from the
+        # service's model socket (ultra96.model_bridge: model-runner.sock in BOARD_ROOT), and
+        # writes a new record file in the copy's logs folder at each start.
         parts = ["python", "-m", "tools.deploy_service", "--sensor-version", "4",
                  "--model", "ultra96.model_bridge", "--runner-module", runner.module,
                  "--runner-cwd", cwd,
                  "--runner-arg=--bundle", "--runner-arg", BUNDLE if bundle is None else bundle,
                  "--runner-arg=--backend", "--runner-arg", "fpga",
-                 "--runner-arg=--bit", "--runner-arg", dest + "/" + runner.bitstream]
+                 "--runner-arg=--bit", "--runner-arg", dest + "/" + runner.bitstream,
+                 "--runner-arg=--socket", "--runner-arg", BOARD_ROOT + "/model-runner.sock",
+                 "--runner-arg=--out", "--runner-arg", dest + "/" + LOGS]
         if allow_synthetic:
             parts.append("--runner-arg=--allow-synthetic")
         for process in replace:
@@ -261,11 +283,15 @@ def deploy_command(dest, runner="conv1d", weights=None, bundle=None, allow_synth
     return " ".join(parts)
 
 
-def remote_command(source, dest, stamp, expected=EXPECTED, move=False):
+def remote_command(source, dest, stamp, expected=EXPECTED, move=False, folders=()):
     parts = ["/usr/bin/python3", "-I", "-c", REMOTE_PROGRAM, source, dest, stamp,
              json.dumps(expected if isinstance(expected, dict) else list(expected)),
              BOARD_ROOT + "/evidence"]
-    return " ".join(shlex.quote(part) for part in parts + (["move"] if move else []))
+    if move or folders:
+        parts.append("move" if move else "copy")
+    if folders:
+        parts.append(json.dumps(list(folders)))
+    return " ".join(shlex.quote(part) for part in parts)
 
 
 def git_files(ref, names, root=ROOT):
@@ -275,10 +301,7 @@ def git_files(ref, names, root=ROOT):
         done = subprocess.run(["git", "-C", str(root), "cat-file", "blob", ref + ":" + name],
                               capture_output=True)
         if done.returncode:
-            if name in FORK_ONLY:
-                hint = ("it is only in this fork: commit it first, then stage from a commit that has "
-                        "it, such as HEAD, the hand12 default")
-            elif ref == "HEAD":
+            if ref == "HEAD":
                 hint = "commit it first, or give another --from-git"
             else:
                 hint = "run `git fetch upstream` first, or give another --from-git"
@@ -299,6 +322,17 @@ def check_overlay(runner, files):
         if actual != pinned:
             raise ValueError("{} has SHA-256 {}, not {} (Wen Ree's board-verified overlay); "
                              "nothing was uploaded".format(name, actual, pinned))
+
+
+def check_code(runner, files, ref):
+    """Refuse a code file of another version than the runner needs (its markers)."""
+    for name, marker in sorted(runner.markers.items()):
+        if marker.encode() not in files[name]:
+            raise ValueError("{} at {} has no {!r}: it is not the worker with the compat delivery "
+                             "(the team repo still has Wen Ree's observe-only worker, which sends no "
+                             "results). {}; nothing was uploaded".format(
+                                 name, ref, marker, "Commit it first" if ref == "HEAD" else
+                                 "Stage from a commit that has it, such as HEAD"))
 
 
 def bundle_files(folder, allow_synthetic=False):
@@ -413,6 +447,7 @@ def stage(args):
     files = None
     if git_ref is not None:
         files = git_files(git_ref, expected)
+        check_code(runner, files, git_ref)
         check_overlay(runner, files)
         files.update(uploads)
         print("Upload from {} of this checkout -> {}".format(git_ref, dest))
@@ -428,6 +463,8 @@ def stage(args):
     elif reads_bundle:
         print("Bundle: board path {}, only named in the deploy command (not uploaded or checked "
               "here; the runner checks it when it starts)".format(bundle))
+    for name in runner.folders:
+        print("The copy gets an empty folder {}/{}; the runner writes its records there".format(dest, name))
     if synthetic:
         print("SYNTHETIC test bundle allowed (--allow-synthetic): it is not a trained model, so its "
               "gestures mean nothing.")
@@ -454,7 +491,7 @@ def stage(args):
                 _run(board, "rm -rf -- " + shlex.quote(upload))
                 raise
             result, errors, code = _run(board, remote_command(upload, dest, stamp, listing(files),
-                                                              move=True))
+                                                              move=True, folders=runner.folders))
     finally:
         board.close()
         jump.close()

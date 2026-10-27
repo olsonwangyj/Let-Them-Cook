@@ -40,7 +40,7 @@ folder is source-co-v4-<stamp>; a v3 deploy keeps source-co-v3-<stamp> and the s
     python -m tools.deploy_service --model ultra96.model_bridge --runner-module src.socket_worker \
         --runner-cwd /tmp/cnn_conv1d/ai_integration --runner-arg=--weights --runner-arg <file> ...
     python -m tools.deploy_service --sensor-version 4 --model ultra96.model_bridge \
-        --runner-module ultra96.hand_runner --runner-cwd <board checkout> ... \
+        --runner-module src.socket_worker_hand --runner-cwd <board checkout> ... \
         --replace-runner 177087:611890431
 """
 import argparse
@@ -73,9 +73,9 @@ REPLACED_STOPS = {
     "already_gone": "already gone, nothing signalled",
     "failed": "NOT stopped (see the error below); it may still be running and hold the bridge connection",
 }
-# The paired runners read eleven channels (sensor v3); the hand runner reads twelve (v4).
+# The paired runners read eleven channels (sensor v3); the hand worker reads twelve (v4).
 ELEVEN_CHANNEL_RUNNERS = ("src.socket_worker", "src.socket_worker_full")
-HAND_RUNNER = "ultra96.hand_runner"
+HAND_RUNNER = "src.socket_worker_hand"
 
 REMOTE_PROGRAM = r'''
 import compileall, json, os, shutil, signal, ssl, subprocess, sys, time
@@ -445,7 +445,7 @@ def _check_runner_version(module, script, sensor_version):
         raise ValueError("--sensor-version 4 sends twelve channels, but {} is an eleven-channel paired "
                          "runner; give the twelve-channel runner ({}) or deploy with --sensor-version 3"
                          .format(name, HAND_RUNNER))
-    if sensor_version == 3 and name in (HAND_RUNNER, "hand_runner.py"):
+    if sensor_version == 3 and name in (HAND_RUNNER, "socket_worker_hand.py"):
         raise ValueError("{} reads the twelve sensor-v4 channels: deploy it with --sensor-version 4"
                          .format(name))
 

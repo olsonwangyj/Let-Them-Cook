@@ -167,6 +167,8 @@ def test_a_gone_reused_or_zombie_pid_is_already_gone_and_never_signalled(process
     (42, ["/usr/bin/python3", "/home/xilinx/w/ultra96/server.py", "--socket_worker"], "an ultra96.server"),
     (42, ["/usr/bin/python3", "-m", "http.server", "8888"], "no argument names"),
     (42, ["/usr/bin/python3_socket_worker"], "no argument names"),
+    # The Comms adapter runner is gone (Wen Ree's worker delivers); its name is no longer a marker.
+    (42, ["/usr/bin/python3", "-m", "ultra96.hand_runner"], "no argument names socket_worker, model_runner"),
 ])
 def test_a_process_that_is_not_a_python_model_runner_is_refused_and_never_signalled(
         processes, pid, argv, reason):
@@ -179,7 +181,7 @@ def test_a_process_that_is_not_a_python_model_runner_is_refused_and_never_signal
 
 
 @pytest.mark.parametrize("argv", [
-    RUNNER, ["python3", "-m", "src.socket_worker_full"], ["python", "-m", "ultra96.hand_runner"],
+    RUNNER, ["python3", "-m", "src.socket_worker_full"], ["python", "-m", "src.socket_worker_hand"],
     ["/usr/bin/python3.10", "/home/xilinx/w/ultra96/model_runner_example.py", "--every", "1"],
 ])
 def test_python_model_runners_may_be_replaced(argv):

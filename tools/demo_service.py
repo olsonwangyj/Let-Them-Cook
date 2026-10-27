@@ -34,8 +34,9 @@ fi
 
 def runner_processes_script(proc="/proc"):
     """Read-only POSIX sh: every process of any user whose command line names socket_worker
-    or hand_runner, as PID:TICKS (start ticks: stat field 22) and its arguments, so a runner
-    started by hand can be named in tools.deploy_service --replace-runner PID:TICKS.
+    (Wen Ree's workers, socket_worker_hand among them), as PID:TICKS (start ticks: stat field 22)
+    and its arguments, so a runner started by hand can be named in tools.deploy_service
+    --replace-runner PID:TICKS.
 
     The patterns are bracketed, like pgrep's '[u]ltra96.server', so the shells that run this
     script (their command lines hold the script) never match themselves.
@@ -45,7 +46,7 @@ b07_runners=0
 for b07_proc in {shlex.quote(proc)}/[0-9]*; do
   b07_args=$(tr '\\0' ' ' 2>/dev/null < "$b07_proc/cmdline") || continue
   case "$b07_args" in
-    *socket[_]worker*|*hand[_]runner*) ;;
+    *socket[_]worker*) ;;
     *) continue ;;
   esac
   # Field 22 counts from after the parenthesised command name, which may hold spaces.

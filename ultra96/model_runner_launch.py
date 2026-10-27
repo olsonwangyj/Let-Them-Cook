@@ -15,12 +15,13 @@ A runner it did not start (one started by hand) it stops only when the options
 name it in "replace" by PID and start ticks (/proc/PID/stat field 22). Before
 anything is stopped, each such entry must be gone (or its PID reused: other
 start ticks) or look like a Python model runner: argv[0] names python, an
-argument names socket_worker, hand_runner or model_runner, and it is not PID 1,
-this launcher or an ultra96.server. Otherwise the status is "failed" and nothing
-is signalled or started. After the recorded runner has stopped and before the new
-one starts, each named runner gets SIGTERM (that PID only, not its group) and,
-only while it is still the same PID and start ticks after the wait, SIGKILL; the
-JSON line reports each in "replaced" (stop: sigterm, sigkill or already_gone).
+argument names socket_worker (Wen Ree's workers, socket_worker_hand among them)
+or model_runner, and it is not PID 1, this launcher or an ultra96.server.
+Otherwise the status is "failed" and nothing is signalled or started. After the
+recorded runner has stopped and before the new one starts, each named runner
+gets SIGTERM (that PID only, not its group) and, only while it is still the same
+PID and start ticks after the wait, SIGKILL; the JSON line reports each in
+"replaced" (stop: sigterm, sigkill or already_gone).
 If the bridge reports that a second runner took over the connection, the new
 runner is stopped again, so the two do not keep replacing each other, and the
 status is "conflict". When it fails before it reaches the previous runner,
@@ -51,7 +52,7 @@ CONFLICT = ("another model runner is connected to the bridge (one started by han
             "its PID and start ticks with 'python demo.py service' and deploy again with "
             "--replace-runner PID:TICKS")
 # An argument of a process that may be replaced as a model runner names one of these.
-RUNNER_MARKERS = ("socket_worker", "hand_runner", "model_runner")
+RUNNER_MARKERS = ("socket_worker", "model_runner")
 _TICKS = re.compile(r"[0-9]+")
 
 
