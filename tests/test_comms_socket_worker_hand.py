@@ -1009,6 +1009,30 @@ def test_offered_a_second_result_for_one_sample_still_sends_its_hand_event():
     check_hand_lines(run.lines)
 
 
+def test_offered_a_glove_reboot_sends_the_old_state_end_before_any_event_of_the_new_boot():
+    run = Run(offered=True)
+    run.play(3.0, left="CHOP", right="PICKUP")
+    run.left = Glove(LEFT, 12)  # the left glove rebooted: new boot_id, seq from 0
+    run.play(3.0, left="CHOP", right="PICKUP")
+    check_hand_lines(run.lines)
+    events = hand_events_sent(run.lines)
+    left = [e for e in events if e["device_id"] == LEFT]
+    starts = [e for e in left if e["kind"] == "state_start"]
+    [end] = [e for e in left if e["kind"] == "state_end"]
+    # The old state ends (source_reset) naming its own state and a sample of the old boot,
+    # after every event of the old boot and before every event of the new one.
+    cut = left.index(end)
+    assert (end["reason"], end["state_id"], end["source"]["boot_id"]) == ("source_reset", starts[0]["state_id"], 11)
+    assert {e["source"]["boot_id"] for e in left[:cut + 1]} == {11}
+    assert {e["source"]["boot_id"] for e in left[cut + 1:]} == {12}
+    assert [s["source"]["boot_id"] for s in starts] == [11, 12]
+    assert left[cut + 1] == starts[1] and starts[1]["state_id"] == starts[1]["event_id"] != starts[0]["state_id"]
+    # The other hand is untouched: its one PICKUP pulse, nothing more.
+    assert [(e["kind"], e["gesture"]) for e in events if e["device_id"] == RIGHT] == [("pulse", "PICKUP")]
+    assert {r["hand_delivery"] for r in run.events()} == {"sent"}
+    assert_compat(run)
+
+
 class ScriptedBridge(threading.Thread):
     """The bridge end, step by step: send a step's data, then read until that many lines in all
     have come; after the last step end the stream and read whatever else arrives."""
