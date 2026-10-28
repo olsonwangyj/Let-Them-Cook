@@ -54,6 +54,57 @@ async def blocking(function, *args):
     return await asyncio.get_running_loop().run_in_executor(None, function, *args)
 
 
+# --- ultra96.server.ResultQueue: a full queue drops hand events first ---------------------------
+
+def test_a_full_queue_drops_hand_events_first_so_results_fare_as_for_a_version_1_subscriber():
+    from ultra96.server import ResultQueue
+
+    def result(seq):
+        return dict(v=3, type="GESTURE_RESULT", session_id=SESSION, device_id=LEFT, boot_id=7, seq=seq,
+                    request_id=None, result_id="1:7:%d" % seq, gesture="CHOP", confidence=0.9)
+
+    def hand(seq):
+        return dict(type="HAND_EVENT", session_id=SESSION, device_id=RIGHT, event_seq=seq, kind="pulse")
+
+    async def scenario():
+        events = []
+        queue = ResultQueue(observer=lambda event, **fields: events.append((event, fields.get("reason"))),
+                            hand_events=True)
+        for seq in range(1, 21):
+            queue.put(result(seq))
+        for seq in range(1, 13):
+            queue.put(hand(seq))
+        queue.put(result(21))  # full: the oldest hand event gives way, no result is lost
+        assert (queue.dropped, queue.hand_dropped) == (0, 1)
+        for seq in range(22, 33):
+            queue.put(result(seq))  # each pushes out one more hand event
+        assert (queue.dropped, queue.hand_dropped) == (0, 12)
+        queue.put(hand(13))  # only results are queued: the new hand event is dropped itself
+        assert (queue.dropped, queue.hand_dropped) == (0, 13)
+        queue.put(result(33))  # and a new result drops the oldest result, as on version 1
+        assert (queue.dropped, queue.hand_dropped) == (1, 13)
+        taken = [(await queue.get())["seq"] for _ in range(32)]
+        assert taken == list(range(2, 34))  # arrival order kept
+        assert ("hand_event_dropped", "drop_new") in events
+        assert sum(1 for event in events if event == ("hand_event_dropped", "drop_oldest")) == 12
+        assert sum(1 for event in events if event[0] == "result_drop_oldest") == 1
+
+    asyncio.run(scenario())
+
+
+def test_a_version_1_queue_drops_its_oldest_result_as_before():
+    from ultra96.server import ResultQueue
+
+    async def scenario():
+        queue = ResultQueue()
+        for seq in range(1, 34):
+            queue.put(dict(type="GESTURE_RESULT", device_id=LEFT, seq=seq))
+        assert (queue.dropped, queue.hand_dropped) == (1, 0)
+        assert [(await queue.get())["seq"] for _ in range(32)] == list(range(2, 34))
+
+    asyncio.run(scenario())
+
+
 # --- ultra96.protocol: SUBSCRIBE and SUBSCRIBED versions 1 and 2 ----------------------------------
 
 def test_subscription_versions_1_and_2_have_exact_fields_in_either_sensor_mode():

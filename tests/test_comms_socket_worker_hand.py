@@ -1329,7 +1329,10 @@ async def glove(server, context, device, boot, label_at, acks, start):
             writer.transport.abort()
 
 
-async def scenario(pki):
+async def scenario(pki, hand_events=False):
+    """hand_events: the bridge offers hand events as in the service's v4 mode, and the phone
+    subscribes with version 2; otherwise the bridge's channels are set by hand (no offer) and
+    the phone subscribes with version 1, as before."""
     from common.sensor_v4 import CHANNELS as V4_CHANNELS
     from common.tls import TLS_SERVER_NAME, client_context, server_context
     from common.wire import read_frame, write_frame
@@ -1345,7 +1348,10 @@ async def scenario(pki):
 
         def configure_sensor_version(self, version):
             assert version == 4
-            self.bridge.channels = tuple(V4_CHANNELS)
+            if hand_events:
+                self.bridge.configure_sensor_version(version)
+            else:
+                self.bridge.channels = tuple(V4_CHANNELS)
 
         def start(self, emit):
             self.bridge.start(emit)
@@ -1353,6 +1359,8 @@ async def scenario(pki):
         def on_sample(self, device_id, boot_id, seq, uptime_ms, values):
             self.bridge.on_sample(device_id, boot_id, seq, uptime_ms, values)
 
+    if hand_events:
+        BridgeModel.start_hand_events = lambda self, emit_hand: self.bridge.start_hand_events(emit_hand)
     model = BridgeModel()
     server = CommsServer(server_context(pki / "server-cert.pem", pki / "server-key.pem"),
                          ingest_port=0, gateway_port=0, model=model, sensor_version=4)
@@ -1382,8 +1390,12 @@ async def scenario(pki):
         context = client_context(pki / "ca-cert.pem")
         phone, phone_writer = await asyncio.open_connection(
             "127.0.0.1", server.gateway_port, ssl=context, server_hostname=TLS_SERVER_NAME)
-        await write_frame(phone_writer, dict(v=1, type="SUBSCRIBE", session_id=SESSION))
-        assert await read_frame(phone) == dict(v=1, type="SUBSCRIBED", session_id=SESSION)
+        if hand_events:
+            await write_frame(phone_writer, dict(v=2, type="SUBSCRIBE", session_id=SESSION, event_format=1))
+            assert await read_frame(phone) == dict(v=2, type="SUBSCRIBED", session_id=SESSION, event_format=1)
+        else:
+            await write_frame(phone_writer, dict(v=1, type="SUBSCRIBE", session_id=SESSION))
+            assert await read_frame(phone) == dict(v=1, type="SUBSCRIBED", session_id=SESSION)
 
         async def receive():
             while True:
@@ -1393,9 +1405,11 @@ async def scenario(pki):
         start = asyncio.get_running_loop().time() + 0.1
         await asyncio.gather(glove(server, context, LEFT, 11, left_label, acks, start),
                              glove(server, context, RIGHT, 22, right_label, acks, start))
-        # Let the last inferences finish, then wait until the subscriber has every result.
+        # Let the last inferences finish, then wait until the subscriber has every result
+        # (and, with hand events, every published hand event).
         settled, deadline = time.monotonic() + 0.5, time.monotonic() + 3
-        while time.monotonic() < settled or len(results) < server.metrics.get("model_results", 0):
+        while time.monotonic() < settled or len(results) < (
+                server.metrics.get("model_results", 0) + server.metrics.get("hand_events_published", 0)):
             assert time.monotonic() < deadline, "results did not reach the subscriber"
             await asyncio.sleep(0.02)
     finally:
@@ -1421,6 +1435,20 @@ def loopback(tmp_path_factory):
     from tools.generate_comms_pki import generate_pki
     pki = generate_pki(tmp_path_factory.mktemp("hand-worker-loopback") / "pki")
     return asyncio.run(scenario(pki))
+
+
+@pytest.fixture(scope="module")
+def hand_loopback(tmp_path_factory):
+    """The same run with hand events offered and a version-2 subscriber."""
+    pytest.importorskip("cryptography")
+    from tools.generate_comms_pki import generate_pki
+    pki = generate_pki(tmp_path_factory.mktemp("hand-worker-hand-loopback") / "pki")
+    run = asyncio.run(scenario(pki, hand_events=True))
+    frames = run["results"]
+    run["results"] = [frame for frame in frames if frame["type"] == "GESTURE_RESULT"]
+    run["hand_frames"] = [frame for frame in frames if frame["type"] == "HAND_EVENT"]
+    run["other_frames"] = [frame for frame in frames if frame["type"] not in ("GESTURE_RESULT", "HAND_EVENT")]
+    return run
 
 
 def loop_events(run, device, kind=None, delivery=None):
@@ -1500,3 +1528,68 @@ def test_loopback_a_glove_reconnect_leaves_the_other_hand_alone(loopback):
     refreshes = [e for e in loop_events(loopback, LEFT, "state_refresh") if e["state_id"] == chop[0]["state_id"]]
     assert any(150 <= e["source"]["seq"] < 215 for e in refreshes)
     assert not loop_events(loopback, RIGHT, "state_end") and not loop_events(loopback, RIGHT, "reset")
+
+
+# --- loopback with hand events: the same run, the bridge offers them, a version-2 phone -------
+
+def test_hand_loopback_ran_cleanly_with_no_refused_hand_event(hand_loopback):
+    run = hand_loopback
+    assert not run["failures"] and not run["worker_alive"] and not run["other_frames"]
+    metrics, counts = run["server"].metrics, run["bridge"].counts
+    assert metrics["hand_hellos"] == 1 and metrics["hand_events_refused"] == 0
+    assert metrics["hand_gate_errors"] == 0 and metrics["hand_events_dropped"] == 0
+    assert counts["bad_lines"] == 0 and counts["hand_refused"] == 0 and counts["results_refused"] == 0
+    assert not any(r["type"] in ("connection_lost", "receive_error", "encoder_error") for r in run["records"])
+
+
+def test_hand_loopback_keeps_the_compat_results_exactly(hand_loopback):
+    run = hand_loopback
+    results = run["results"]
+    forwarded = sum(counts["forwarded"] for counts in run["delivery"].summary().values())
+    assert results and len(results) == forwarded == run["server"].metrics["model_results"]
+    for result in results:
+        assert set(result) == RESULT_FIELDS and result["v"] == 3
+    sent = [(e["device_id"], e["source"]["boot_id"], e["source"]["seq"])
+            for e in run["records"] if e["type"] == "hand_event" and e["delivery"] == "forwarded"]
+    assert sorted(sent) == sorted((r["device_id"], r["boot_id"], r["seq"]) for r in results)
+
+
+def test_hand_loopback_every_hand_event_sent_arrives_once_unchanged_and_in_order(hand_loopback):
+    from common.hand_contract import validate_event
+    from phone.receiver import validate_hand_event
+    run = hand_loopback
+    hello = run["delivery"].encoder.hello
+    sent = [r for r in run["records"] if r["type"] == "hand_event" and r["hand_delivery"] == "sent"]
+    received = run["hand_frames"]
+    assert received and len(received) == len(sent) == run["server"].metrics["hand_events_accepted"]
+    assert len(received) == run["server"].metrics["hand_events_published"]
+    assert [e["event_id"] for e in received] == [r["event_id"] for r in sent]
+    for event, record in zip(received, sent):
+        validate_event(event, hello)  # Wen Ree's contract, against the worker's own hello
+        validate_hand_event(event, SESSION)  # the phone-side rules
+        for key in ("device_id", "kind", "gesture", "state_id", "reason", "source"):
+            assert event[key] == record[key]
+    for device in (LEFT, RIGHT):
+        sequence = [e["event_seq"] for e in received if e["device_id"] == device]
+        assert sequence == list(range(1, len(sequence) + 1))  # per hand, no gap, no repeat
+
+
+def test_hand_loopback_a_phone_tracker_sees_both_hands_and_the_transition(hand_loopback):
+    from phone.receiver import HandStateTracker
+    received = hand_loopback["hand_frames"]
+    tracker = HandStateTracker(SESSION, clock=lambda: 0.0)  # no lease runs out in this replay
+    outcomes = [tracker.apply(event) for event in received]
+    assert not {"duplicate", "out_of_order", "orphan_refresh", "orphan_end", "stale_epoch"} & set(outcomes)
+    left = [e for e in received if e["device_id"] == LEFT]
+    right = [e for e in received if e["device_id"] == RIGHT]
+    assert {e["kind"] for e in right} == {"pulse"} and {e["gesture"] for e in right} == {"PICKUP"}
+    starts = [e for e in left if e["kind"] == "state_start"]
+    assert [e["gesture"] for e in starts] == ["CHOP", "POURING"]
+    chop_end = next(e for e in left if e["kind"] == "state_end" and e["gesture"] == "CHOP")
+    assert chop_end["state_id"] == starts[0]["state_id"]
+    assert left.index(chop_end) < left.index(starts[1])  # the old state ends before the new one starts
+    if chop_end["reason"] == "confirmed_transition":  # both events name the transition sample
+        assert chop_end["source"] == starts[1]["source"]
+    refreshes = [e for e in left if e["kind"] == "state_refresh"]
+    assert refreshes and all(e["state_id"] in {s["state_id"] for s in starts} for e in refreshes)
+

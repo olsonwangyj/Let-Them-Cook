@@ -44,6 +44,7 @@ _HAND_QUEUE_EVENTS = {
     "result_enqueued": ("hand_event_enqueued", None),
     "result_write_complete": ("hand_event_write_complete", None),
     "result_drop_oldest": ("hand_event_dropped", "drop_oldest"),
+    "result_drop_new": ("hand_event_dropped", "drop_new"),
     "result_drop_stale": ("hand_event_dropped", "stale"),
     "result_abandoned": ("hand_event_dropped", "abandoned"),
     "result_send_failed": ("hand_event_dropped", "send_failed"),
@@ -107,7 +108,8 @@ class ResultQueue:
     It also carries HAND_EVENT frames for a subscriber that asked for them
     (hand_events), under the same age and size rules. Those never touch the
     monitor's per-glove counters or the result metrics (dropped, stale), and are
-    observed under their own event names.
+    observed under their own event names. When the queue is full they give way
+    first (_make_room), so results are dropped only as for a version-1 subscriber.
     """
     def __init__(self, *, observer=None, subscriber_id=None, monitor=None, hand_events=False):
         self._queue = asyncio.Queue(maxsize=32)
@@ -155,17 +157,35 @@ class ResultQueue:
             self.stale += 1
 
     def put(self, message, received_at=None):
-        if self._queue.full():
-            old_at, old = self._queue.get_nowait()
-            if _hand_event(old):
-                self.hand_dropped += 1
-            else:
-                self.dropped += 1
-            self.count("unsent", old)
-            self.observe("result_drop_oldest", old, old_at)
         received_at = time.monotonic() if received_at is None else received_at
+        if self._queue.full() and not self._make_room(message, received_at):
+            return
         self._queue.put_nowait((received_at, message))
         self.observe("result_enqueued", message, received_at)
+
+    def _make_room(self, message, received_at):
+        """The queue is full. A HAND_EVENT never pushes a result out: the oldest queued
+        HAND_EVENT goes first; with only results queued, a new HAND_EVENT is itself dropped
+        and a new result drops the oldest result, exactly as for a version-1 subscriber.
+        Returns False when message itself is dropped."""
+        items = [self._queue.get_nowait() for _ in range(self._queue.qsize())]
+        index = next((i for i, (_, old) in enumerate(items) if _hand_event(old)), None)
+        if index is None and _hand_event(message):
+            for item in items:
+                self._queue.put_nowait(item)
+            self.hand_dropped += 1
+            self.observe("result_drop_new", message, received_at)
+            return False
+        old_at, old = items.pop(0 if index is None else index)
+        for item in items:
+            self._queue.put_nowait(item)
+        if _hand_event(old):
+            self.hand_dropped += 1
+        else:
+            self.dropped += 1
+        self.count("unsent", old)
+        self.observe("result_drop_oldest", old, old_at)
+        return True
 
     async def get(self, now=None):
         _, message = await self.get_timed(now=now)
