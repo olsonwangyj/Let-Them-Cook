@@ -77,6 +77,21 @@ def test_subscription_versions_1_and_2_have_exact_fields_in_either_sensor_mode()
         v=2, type="SUBSCRIBED", session_id=SESSION, event_format=1)
 
 
+def test_a_client_accepts_only_the_subscribed_of_the_version_it_sent():
+    from common.wire import ProtocolError
+    from ultra96.protocol import validate_subscribed
+    first = dict(v=1, type="SUBSCRIBE", session_id=SESSION)
+    second = dict(v=2, type="SUBSCRIBE", session_id=SESSION, event_format=1)
+    answers = (dict(first, type="SUBSCRIBED"), dict(second, type="SUBSCRIBED"))
+    assert validate_subscribed(answers[0], first) is answers[0]
+    assert validate_subscribed(answers[1], second) is answers[1]
+    # validate_message takes either version; a client must not take the other one's answer.
+    for answer, request in ((answers[1], first), (answers[0], second), (dict(answers[1], event_format=2), second),
+                            (dict(answers[0], session_id="elsewhere"), first), (dict(answers[0], v=3), first)):
+        with pytest.raises(ProtocolError):
+            validate_subscribed(answer, request)
+
+
 # --- ultra96.model: the optional start_hand_events(emit_hand) ------------------------------------
 
 class HandModel:
@@ -564,6 +579,95 @@ def test_hand_events_change_neither_the_monitor_counts_nor_the_result_evidence_o
                       for run in (with_hands, without)]
     assert result_metrics[0] == result_metrics[1]
     assert without["server"].metrics["hand_events_accepted"] == 0
+
+
+def test_a_v1_subscriber_of_a_v4_service_sees_the_same_bytes_and_evidence_as_without_hand_events(pki):
+    # The installed phone app subscribes at version 1: the runner's hand lines must change
+    # nothing it receives, nothing the monitor counts and no result evidence, in v4 or v3 mode.
+    with_hands = asyncio.run(scenario(pki, subscription=1))
+    without = asyncio.run(scenario(pki, subscription=1, hand_lines=False))
+    version_3 = asyncio.run(scenario(pki, subscription=1, version=3))
+    assert with_hands["frames"] == without["frames"] == version_3["frames"]
+    assert len(with_hands["frames"]) == len(with_hands["results"]) == 4
+    assert with_hands["devices"] == without["devices"] == version_3["devices"]
+    assert result_path(with_hands) == result_path(without) == result_path(version_3)
+    timing = ("model_max_call_ms", "model_slow_calls")
+    result_metrics = [{key: value for key, value in run["server"].metrics.items()
+                       if not key.startswith(("hand_", "model_hand")) and key not in timing}
+                      for run in (with_hands, without, version_3)]
+    assert result_metrics[0] == result_metrics[1] == result_metrics[2]
+    assert with_hands["server"].metrics["hand_events_unrequested"] == 5
+
+
+def test_only_new_stream_samples_reach_the_gate_and_a_new_boot_resets_only_that_hand(pki):
+    async def check():
+        events = []
+        model = BridgeModel()
+        server = await start_server(pki, model=model, sensor_version=4,
+                                    observer=lambda event, **fields: events.append((event, fields)))
+        writers, runner = [], None
+        try:
+            phone, phone_writer = await subscribe(pki, server, 2)
+            writers.append(phone_writer)
+            laptop, laptop_writer = await connect(pki, server.ingest_port)
+            writers.append(laptop_writer)
+            runner = await blocking(Runner, model.bridge)
+            glove = Glove(laptop, laptop_writer, 4)
+            script = Script(EPOCHS[0])
+            await blocking(runner.send, dict(type="hand_hello", hello=script.hello))
+            left = await glove.send(runner, LEFT, 11, 0)
+            right = await glove.send(runner, RIGHT, 22, 0)
+            # A retransmission and a command are accepted by the service but never reach the gate.
+            await write_frame(laptop_writer, left)
+            assert (await read_frame(laptop))["status"] == "duplicate"
+            await write_frame(laptop_writer, dict(sample(4, LEFT, 11, 1), request_id=1))
+            assert (await read_frame(laptop))["status"] == "accepted"
+            assert json.loads(await frame_body(phone))["request_id"] == 1  # the command's echo
+            gate = server._hand_gate
+            assert [[message["seq"] for message, _ in gate._replay[device]] for device in (LEFT, RIGHT)] == [[0], [0]]
+            chop, wash = script.event("state_start", LEFT, left, "CHOP"), script.event("state_start", RIGHT, right, "WASH")
+            await blocking(runner.send, dict(type="hand_event", event=chop), dict(type="hand_event", event=wash))
+            assert [json.loads(await frame_body(phone)) for _ in range(2)] == [chop, wash]
+            # The left glove reboots: its first sample of the new boot ends only the left state.
+            rebooted = await glove.send(runner, LEFT, 12, 0)
+            assert gate.active_state(LEFT) is None and gate.active_state(RIGHT)["state_id"] == wash["state_id"]
+            assert [(fields["device_id"], fields["reason"]) for event, fields in events
+                    if event == "hand_state_ended"] == [(LEFT, "source_reset")]
+            # The worker's own end of the reset state still reaches the phone.
+            end = script.event("state_end", LEFT, rebooted, "CHOP", confidence=None, reason="source_reset")
+            await blocking(runner.send, dict(type="hand_event", event=end))
+            assert json.loads(await frame_body(phone)) == end
+            metrics = server.metrics
+            assert (metrics["hand_resets"], metrics["hand_gate_errors"], metrics["hand_events_published"],
+                    metrics["hand_events_refused"]) == (1, 0, 3, 0)
+        finally:
+            for writer in writers:
+                await disconnect(writer)
+            if runner is not None:
+                runner.close()
+            await server.close()
+    asyncio.run(check())
+
+
+def test_the_phone_simulator_refuses_a_version_2_subscribed_to_its_version_1_subscribe(pki):
+    from common.tls import server_context
+    from common.wire import ProtocolError
+    from laptop.phone_simulator import receive_results
+
+    async def check():
+        async def peer(reader, writer):
+            await read_frame(reader)
+            await write_frame(writer, dict(v=2, type="SUBSCRIBED", session_id=SESSION, event_format=1))
+            await disconnect(writer)
+        server = await asyncio.start_server(peer, "127.0.0.1", 0,
+                                            ssl=server_context(pki / "server-cert.pem", pki / "server-key.pem"))
+        try:
+            with pytest.raises(ProtocolError, match="SUBSCRIBE that was sent"):
+                await receive_results("127.0.0.1", server.sockets[0].getsockname()[1], pki / "ca-cert.pem", count=1)
+        finally:
+            server.close()
+            await server.wait_closed()
+    asyncio.run(check())
 
 
 def test_a_subscribe_with_an_unknown_event_format_gets_no_subscribed(pki):

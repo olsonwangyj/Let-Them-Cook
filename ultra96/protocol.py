@@ -211,6 +211,18 @@ def subscribed(subscribe):
     return answer
 
 
+def validate_subscribed(message, subscribe):
+    """A client's check of the service's answer: exactly the SUBSCRIBED of the SUBSCRIBE it sent.
+
+    validate_message alone accepts SUBSCRIBED of either version; a client that asked at
+    version 1 must not accept a version-2 answer (or the reverse).
+    """
+    validate_message(message, "SUBSCRIBED", subscribe["session_id"])
+    if message != subscribed(subscribe):
+        raise ProtocolError("SUBSCRIBED does not answer the SUBSCRIBE that was sent")
+    return message
+
+
 def trace_fields(message):
     return {key: message[key] for key in ("session_id", "device_id", "boot_id", "seq", "request_id")}
 
