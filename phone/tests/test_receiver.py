@@ -644,6 +644,20 @@ class HandStateTrackerTests(unittest.TestCase):
         self.clock.now = 0.25
         self.assertEqual(self.hand(1)["expires_in_ms"], 1000)
 
+    def test_memory_stays_bounded(self):
+        # 71 worker epochs: only the latest 64 retired ones and the latest 64 ends are kept.
+        epochs = ["{:032x}".format(number) for number in range(1, 72)]
+        for epoch in epochs:
+            start = one_event(EventEncoder(hand_hello(epoch)), "state_start", "CHOP")
+            self.assertEqual(self.apply(start), "state_started")
+        self.assertEqual(list(self.tracker.retired), epochs[-65:-1])
+        self.assertEqual(len(self.tracker.ends), 64)
+        self.assertEqual(self.tracker.ends[-1]["state_id"], epochs[-2] + ":1:1")
+        # A remembered retired epoch is still refused and changes nothing.
+        late = one_event(EventEncoder(hand_hello(epochs[-2])), "action", "PICKUP", device=2)
+        self.assertEqual(self.apply(late), "stale_epoch")
+        self.assertEqual((self.hand(1)["state_id"], self.hand(2)["last_pulse"]), (epochs[-1] + ":1:1", None))
+
 
 class ReceiverCloseTests(unittest.IsolatedAsyncioTestCase):
     async def receiver_with_writer(self, writer):
@@ -777,8 +791,9 @@ class HandReceiverTests(unittest.IsolatedAsyncioTestCase):
         broken = dict(events["pulse"], event_id=EPOCH + ":2:9")
         stranger = dict(events["idle"], session_id="elsewhere")
         right = dict(result(), device_id=2, boot_id=12, seq=1, result_id="2:12:1", gesture="THROW", confidence=0.9)
+        # The repeated result() is still deduplicated by result_id, as on version 1.
         stream = stream_of(SUBSCRIBED_V2, events["state_start"], result(), events["pulse"], broken, events["pulse"],
-                           stranger, events["state_refresh"], right)
+                           result(), stranger, events["state_refresh"], right)
         run = await self.run_receiver([stream], count=2, hand_events=True)
         # Invalid hand events are counted and skipped; the results around them still arrive.
         self.assertEqual(run.lines, [events["state_start"], result(), events["pulse"], events["state_refresh"], right])
