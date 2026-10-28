@@ -3,8 +3,11 @@
 For Jie Ling, from Communications (olsonwangyj). Written on 2026-10-28.
 
 **Status:** built and tested on the laptop and in a Linux Swift build, then run with both test
-boards against a service on the laptop. **Not yet deployed on the Ultra96, and not yet in a game
-build.** The full specification is the section "Hand events (`HAND_EVENT`, opt-in)" of
+boards against a service on the laptop. On the night of 2026-10-28 it was also tested on macOS and
+built for iOS on the owner's Mac: your export `SinkTest_V1 2`, rebuilt with it, defines both
+functions below and is installed on the owner's iPhone (as `com.CG4002.unityTutorial.olson`, no
+Connect yet); your code does not call them yet. **Not yet deployed on the Ultra96.** The full
+specification is the section "Hand events (`HAND_EVENT`, opt-in)" of
 [co-protocol-v3.md](co-protocol-v3.md); this page is what the game needs.
 
 ## What changes for the game
@@ -119,7 +122,9 @@ reach the queue. At most 64 events wait, and an event waits at most 2 s.
 
 1. **Ultra96 service:** the service on the Ultra96 is redeployed with this version (the owner's
    go-ahead).
-2. **CommsNative build:** CommsNative is rebuilt into the game's Xcode export on the owner's Mac.
+2. **CommsNative build:** done on 2026-10-28 for your export `SinkTest_V1 2` (its `UnityFramework`
+   defines `CommsHandState` and `CommsNextHandEvent`). Each later export of yours is rebuilt the
+   same way on the owner's Mac with `build_game_ios.sh`, which refuses a build without them.
 3. **Game code:** the game calls the new functions. That is a change in your `CommsBridge.cs`;
    Communications does not edit it.
 
