@@ -3,10 +3,13 @@
 Most tests drive his HandEngine and the worker's Delivery the way observe_socket does
 (samples in, then run_due), on a fake clock with a scripted backend: both hands, no FPGA.
 Socket tests run observe_socket and main() over a socket pair (Windows has no AF_UNIX),
-and the loopback runs a real TLS version-4 service and the real model bridge.
+and the loopback runs a real TLS version-4 service and the real model bridge. The hand
+event tests have the bridge offer hand events ("hand_events":1 in its hello) and check
+the hand_hello and hand_event lines against Wen Ree's common.hand_contract.
 """
 import asyncio
 import contextlib
+import copy
 import io
 import json
 from pathlib import Path
@@ -20,11 +23,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from common.hand_contract import ProtocolError, make_hello
+from common.hand_contract import ProtocolError, make_hello, validate_event, validate_hello
 from src import socket_worker_hand as worker
 from src.hand_runtime import CHANNELS, LABELS, HandEngine
 
 HELLO = dict(type="hello", format=1, channels=list(CHANNELS))
+HAND_HELLO = dict(HELLO, hand_events=1)  # a bridge in sensor-version-4 mode that offers hand events
 LEFT, RIGHT = 1, 2
 SESSION = "ltc-comms"
 EPOCH = "{:032x}".format(1)
@@ -99,18 +103,28 @@ def hello(threshold=0.70, confirmations=3):
 
 class Run:
     """The engine and the delivery driven as observe_socket drives them: every 20 ms the new
-    samples arrive (HandEngine.add, stamped with their arrival), then one run_due."""
+    samples arrive (HandEngine.add, stamped with their arrival), then one run_due. With
+    offered, the bridge offered hand events and the hand_hello has gone, as in observe_socket."""
 
-    def __init__(self, delay=0.0, threshold=0.70, confirmations=3):
+    def __init__(self, delay=0.0, threshold=0.70, confirmations=3, offered=False):
         self.clock = Clock()
         self.backend = ScriptedBackend(self.clock, delay)
         self.engine = HandEngine(self.backend, threshold, confirmations)
         self.records = []
         self.delivery = worker.Delivery(hello(threshold, confirmations), self.records.append)
         self.results = []
+        self.lines = []  # every line sent: the result lines, and the hand lines when offered
         self.ignored = 0  # samples HandEngine.add did not take (repeated or older seq)
         self.left = Glove(LEFT, 11)
         self.right = Glove(RIGHT, 22)
+        if offered:
+            self.delivery.offer(1)
+            self.delivery.greet(self.send)
+
+    def send(self, line):
+        self.lines.append(line)
+        if line["type"] == "result":
+            self.results.append(line)
 
     def step(self, *samples, clock=False):
         """Returns the result lines this step sent."""
@@ -119,7 +133,7 @@ class Run:
             self.ignored += not self.engine.add(message, self.clock())
         before = len(self.results)
         worker.run_due(self.engine, self.clock(), self.records.append, self.delivery,
-                       self.clock if clock else None, self.results.append)
+                       self.clock if clock else None, self.send)
         return self.results[before:]
 
     def play(self, seconds, left=None, right=None, left_confidence=None, right_confidence=None,
@@ -462,8 +476,8 @@ def test_records_the_encoder_does_not_read_give_nothing():
 
 # --- observe_socket and main() over a socket pair ------------------------------------------
 
-def bridge_lines(*gloves, ticks=101):
-    lines = [json.dumps(HELLO)]
+def bridge_lines(*gloves, ticks=101, hello=HELLO):
+    lines = [json.dumps(hello)]
     for _ in range(ticks):
         for glove, gesture in gloves:
             lines.append(json.dumps(glove.sample(gesture)))
@@ -542,10 +556,11 @@ def test_observe_socket_sends_one_compact_line_per_result_and_nothing_after_the_
 
 
 class FailingClient:
-    """A bridge connection whose sends fail, as when the service has gone."""
+    """A bridge connection whose sends fail (after the first `after`), as when the service has gone."""
 
-    def __init__(self, sock):
+    def __init__(self, sock, after=0):
         self.sock = sock
+        self.after = after
         self.sends = 0
 
     def __enter__(self):
@@ -556,6 +571,8 @@ class FailingClient:
 
     def sendall(self, data):
         self.sends += 1
+        if self.sends <= self.after:
+            return self.sock.sendall(data)
         raise BrokenPipeError(32, "Broken pipe")
 
     def __getattr__(self, name):
@@ -868,6 +885,374 @@ def test_the_cli_refuses_delivery_settings_and_observe_only_misuse_before_the_bu
                                                          "--observe-only", "--out", "o")
     client.close()
     peer.close()
+
+
+# --- hand events: the bridge offers them ("hand_events":1) ---------------------------------
+
+NO_HAND = dict(sent=0, unsent=0, not_offered=0)
+
+
+def compact(line):
+    return json.dumps(line, separators=(",", ":")).encode("utf-8")
+
+
+def sample_lines(*samples):
+    return "".join(json.dumps(message) + "\n" for message in samples).encode("utf-8")
+
+
+def check_hand_lines(lines):
+    """The worker's lines on one offered connection: the hand_hello first and only once; every
+    hand_event valid against that hello (Wen Ree's validate_event), each hand's event_seq 1, 2,
+    3, ...; every result line straight after the hand_event of its own event. Returns the hello."""
+    assert lines[0]["type"] == "hand_hello" and set(lines[0]) == {"type", "hello"}
+    hello = validate_hello(lines[0]["hello"])
+    expected = {LEFT: 1, RIGHT: 1}
+    for index, line in enumerate(lines[1:], 1):
+        if line["type"] == "hand_event":
+            assert set(line) == {"type", "event"}
+            event = validate_event(line["event"], hello)
+            assert event["event_seq"] == expected[event["device_id"]]
+            expected[event["device_id"]] += 1
+            continue
+        assert line["type"] == "result" and list(line) == RESULT_KEYS
+        before = lines[index - 1]
+        assert before["type"] == "hand_event" and before["event"]["kind"] in worker.FORWARDED
+        event = before["event"]
+        assert (line["gesture"], line["confidence"], line["device_id"], line["boot_id"], line["seq"]) == (
+            event["gesture"], event["confidence"], event["device_id"], event["source"]["boot_id"],
+            event["source"]["seq"])
+    return hello
+
+
+def hand_events_sent(lines):
+    return [line["event"] for line in lines if line["type"] == "hand_event"]
+
+
+def test_offered_hand_events_carry_every_kind_and_leave_the_results_as_they_were():
+    plain, offered = Run(), Run(offered=True)
+    for run in (plain, offered):
+        run.play(3.0, left="CHOP", right="PICKUP")
+        run.play(2.0, left="POURING", right="IDLE")
+        run.play(3.0)  # both silent: the POURING state times out
+    # The compat stream and the records are exactly as without the offer.
+    assert offered.results == plain.results and offered.results
+    without = [{k: v for k, v in r.items() if k != "hand_delivery"} for r in offered.events()]
+    assert without == [{k: v for k, v in r.items() if k != "hand_delivery"} for r in plain.events()]
+    assert plain.lines == plain.results and {r["hand_delivery"] for r in plain.events()} == {"not_offered"}
+    assert_compat(offered)
+    # Every event is a hand line, in encoder order, and each result follows its own event's line.
+    assert check_hand_lines(offered.lines) == offered.delivery.encoder.hello
+    events = hand_events_sent(offered.lines)
+    assert [e["event_id"] for e in events] == [r["event_id"] for r in offered.events()]
+    assert {r["hand_delivery"] for r in offered.events()} == {"sent"}
+    assert {e["kind"] for e in events} == {"pulse", "state_start", "state_refresh", "state_end", "idle"}
+    left = [e for e in events if e["device_id"] == LEFT]
+    right = [e for e in events if e["device_id"] == RIGHT]
+    assert [(e["kind"], e["gesture"]) for e in right] == [("pulse", "PICKUP"), ("idle", "IDLE")]
+    # Both hands in one stream: the right hand's events come between the left hand's.
+    devices = [e["device_id"] for e in events]
+    assert devices.index(RIGHT) < len(devices) - 1 - devices[::-1].index(LEFT)
+    # CHOP to POURING on one sample: state_end CHOP, then state_start POURING, one result (the start's).
+    [end] = [e for e in left if e["kind"] == "state_end" and e["gesture"] == "CHOP"]
+    start = left[left.index(end) + 1]
+    assert end["reason"] == "confirmed_transition" and end["state_id"] == left[0]["event_id"]
+    assert end["confidence"] is None and end["lease_ms"] == 0
+    assert (start["kind"], start["gesture"], start["source"]) == ("state_start", "POURING", end["source"])
+    assert start["state_id"] == start["event_id"] != end["event_id"]
+    assert [(r["gesture"], r["seq"]) for r in offered.hand(LEFT) if r["seq"] == start["source"]["seq"]] == [
+        ("POURING", start["source"]["seq"])]
+    # The silence ends the POURING state: a hand line, and no result.
+    assert (left[-1]["kind"], left[-1]["gesture"], left[-1]["reason"]) == ("state_end", "POURING",
+                                                                           "prediction_timeout")
+    assert offered.lines[-1] == dict(type="hand_event", event=left[-1])
+    assert offered.delivery.hand_summary() == dict(
+        hello=dict(NO_HAND, sent=1), hands={"1": dict(NO_HAND, sent=len(left)), "2": dict(NO_HAND, sent=2)})
+
+
+def test_offered_an_encoder_error_sends_its_reset_as_a_hand_event(monkeypatch):
+    run = Run(offered=True)
+    run.play(2.5, left="CHOP", right="CHOP")
+    encoder = run.delivery.encoder
+    original = encoder.consume
+    failures = []
+
+    def consume(record):
+        if not failures and record["type"] == "prediction" and record["device_id"] == LEFT:
+            failures.append(record)
+            raise ProtocolError("scripted encoder failure")
+        return original(record)
+
+    monkeypatch.setattr(encoder, "consume", consume)
+    run.play(1.0, left="CHOP", right="CHOP")
+    check_hand_lines(run.lines)  # also: no result line follows the reset's line
+    [reset] = [e for e in hand_events_sent(run.lines) if e["kind"] == "reset"]
+    assert (reset["device_id"], reset["reason"], reset["lease_ms"]) == (LEFT, "manual_reset", 0)
+    assert all(reset[k] is None for k in ("gesture", "confidence", "state_id"))
+    # Wen Ree's encoder gives a reset the hand's last source sample (null only before any sample).
+    assert reset["source"]["boot_id"] == 11 and set(reset["source"]) == {"boot_id", "seq", "uptime_ms"}
+    [record] = run.events(kind="reset")
+    assert (record["delivery"], record["hand_delivery"]) == ("not_forwarded", "sent")
+    assert run.delivery.hand_summary()["hands"]["1"] == dict(NO_HAND, sent=len(run.events(LEFT)))
+    assert_compat(run)
+
+
+def test_offered_a_second_result_for_one_sample_still_sends_its_hand_event():
+    run = Run(offered=True)
+    run.play(3.0, left="PICKUP")
+    record = dict(type="idle", device_id=LEFT, gesture="IDLE", confidence=0.94, elapsed_s=run.clock(),
+                  boot_id=11, seq=120, uptime_ms=1000 + 120 * 20)
+    run.delivery.consume(record, run.send)
+    idle = run.events(LEFT, "idle")[-1]
+    assert (idle["delivery"], idle["hand_delivery"]) == ("collision", "sent")
+    assert run.lines[-1]["type"] == "hand_event" and run.lines[-1]["event"]["event_id"] == idle["event_id"]
+    assert len(run.results) == 1 and run.counts(LEFT)["collisions"] == 1
+    check_hand_lines(run.lines)
+
+
+class ScriptedBridge(threading.Thread):
+    """The bridge end, step by step: send a step's data, then read until that many lines in all
+    have come; after the last step end the stream and read whatever else arrives."""
+
+    def __init__(self, peer, *steps):
+        super().__init__(daemon=True)
+        self.peer, self.steps = peer, steps
+        self.received, self.rest, self.errors = b"", b"", []
+
+    def run(self):
+        try:
+            self.peer.settimeout(5)
+            for data, count in self.steps:
+                self.peer.sendall(data)
+                while self.received.count(b"\n") < count:
+                    chunk = self.peer.recv(65536)
+                    if not chunk:
+                        raise EOFError("the worker closed the connection early")
+                    self.received += chunk
+            self.peer.shutdown(socket.SHUT_WR)
+            while True:
+                chunk = self.peer.recv(65536)
+                if not chunk:
+                    break
+                self.rest += chunk
+        except Exception as error:  # reported by the test
+            self.errors.append(error)
+
+    def lines(self):
+        return [json.loads(line) for line in self.received.splitlines()]
+
+
+def observe(*steps, captured=None):
+    """observe_socket with a Delivery (one confirmation) against a ScriptedBridge. With captured,
+    a copy of every event the encoder makes is kept there, as it was made."""
+    client, peer = socket_pair()
+    engine = HandEngine(ScriptedBackend(), confirmations=1)
+    records = []
+    delivery = worker.Delivery(hello(confirmations=1), records.append)
+    if captured is not None:
+        original = delivery.encoder.consume
+
+        def consume(record):
+            events = original(record)
+            captured.extend(copy.deepcopy(events))
+            return events
+
+        delivery.encoder.consume = consume
+    bridge = ScriptedBridge(peer, *steps)
+    bridge.start()
+    try:
+        worker.observe_socket("fixture", engine, records.append, connection_factory=lambda path: client,
+                              deliver=delivery)
+    finally:
+        bridge.join(10)
+        peer.close()
+    assert not bridge.is_alive() and bridge.errors == [] and bridge.rest == b""
+    return bridge, delivery, records
+
+
+def hand_records(records):
+    return [r for r in records if r["type"] == "hand_event"]
+
+
+def test_offered_the_hand_hello_comes_first_and_each_event_line_before_its_result():
+    left = Glove(LEFT, 11)
+    chop = bridge_lines((left, "CHOP"), hello=HAND_HELLO)  # seq 0..100: the first window is at seq 100
+    pouring = sample_lines(left.sample("POURING"))  # seq 101, well within the 0.5 s receive gap
+    captured = []
+    bridge, delivery, records = observe((chop, 3), (pouring, 6), captured=captured)
+    raw = bridge.received.splitlines()
+    lines = bridge.lines()
+    assert [line["type"] for line in lines] == ["hand_hello", "hand_event", "result",
+                                                "hand_event", "hand_event", "result"]
+    assert check_hand_lines(lines) == delivery.encoder.hello == hello(confirmations=1)
+    events = hand_events_sent(lines)
+    assert [(e["kind"], e["gesture"], e["event_seq"], e["source"]["seq"]) for e in events] == [
+        ("state_start", "CHOP", 1, 100), ("state_end", "CHOP", 2, 101), ("state_start", "POURING", 3, 101)]
+    assert events[1]["state_id"] == events[0]["event_id"] and events[1]["reason"] == "confirmed_transition"
+    assert [(r["gesture"], r["seq"]) for r in lines if r["type"] == "result"] == [("CHOP", 100), ("POURING", 101)]
+    # Each line is the compact JSON of the encoder's own dict, unchanged, and well under 4096 bytes.
+    assert raw[0] == compact(dict(type="hand_hello", hello=hello(confirmations=1)))
+    assert [line for line in raw if line.startswith(b'{"type":"hand_event"')] == [
+        compact(dict(type="hand_event", event=event)) for event in captured[:3]]
+    assert all(len(line) < 1024 for line in raw)
+    # The stream's end ends the POURING state: recorded, nothing more sent (the bridge saw no rest).
+    assert [(r["kind"], r["delivery"], r["hand_delivery"]) for r in hand_records(records)] == [
+        ("state_start", "forwarded", "sent"), ("state_end", "not_forwarded", "sent"),
+        ("state_start", "forwarded", "sent"), ("state_end", "not_forwarded", "unsent")]
+    assert len(captured) == 4 and captured[3]["reason"] == "connection_reset"
+    assert [r["event_id"] for r in hand_records(records)] == [e["event_id"] for e in captured]
+    assert [r for r in records if r["type"] == "hand_hello"] == [
+        dict(type="hand_hello", worker_epoch=EPOCH, hand_delivery="sent")]
+    assert delivery.hand_summary() == dict(hello=dict(NO_HAND, sent=1),
+                                           hands={"1": dict(NO_HAND, sent=3, unsent=1), "2": NO_HAND})
+
+
+@pytest.mark.parametrize("offer", ["absent", True, 2, "1", 0], ids=lambda offer: "hand_events={}".format(offer))
+def test_a_bridge_that_does_not_offer_hand_events_gets_the_result_lines_alone(offer):
+    left = Glove(LEFT, 11)
+    bridge_hello = HELLO if offer == "absent" else dict(HELLO, hand_events=offer)
+    chop = bridge_lines((left, "CHOP"), hello=bridge_hello)
+    pouring = sample_lines(left.sample("POURING"))
+    bridge, delivery, records = observe((chop, 1), (pouring, 2))
+    assert bridge.received.splitlines() == [
+        b'{"type":"result","gesture":"CHOP","confidence":0.94,"device_id":1,"boot_id":11,"seq":100}',
+        b'{"type":"result","gesture":"POURING","confidence":0.94,"device_id":1,"boot_id":11,"seq":101}']
+    assert [(r["kind"], r["delivery"], r["hand_delivery"]) for r in hand_records(records)] == [
+        ("state_start", "forwarded", "not_offered"), ("state_end", "not_forwarded", "not_offered"),
+        ("state_start", "forwarded", "not_offered"), ("state_end", "not_forwarded", "not_offered")]
+    assert [r for r in records if r["type"] == "hand_hello"] == [
+        dict(type="hand_hello", worker_epoch=EPOCH, hand_delivery="not_offered")]
+    assert delivery.hand_summary() == dict(hello=dict(NO_HAND, not_offered=1),
+                                           hands={"1": dict(NO_HAND, not_offered=4), "2": NO_HAND})
+
+
+def test_offered_both_hands_interleave_on_one_connection_each_with_its_own_event_seq():
+    left, right = Glove(LEFT, 11), Glove(RIGHT, 22)
+    steps = [bridge_lines((left, "CHOP"), (right, "PICKUP"), hello=HAND_HELLO),
+             sample_lines(left.sample("POURING"), right.sample("IDLE")),
+             sample_lines(left.sample("WASH"), right.sample("THROW"))]
+    bridge, delivery, records = observe((steps[0], 5), (steps[1], 10), (steps[2], 15))
+    lines = bridge.lines()
+    assert len(lines) == 15
+    hello_sent = check_hand_lines(lines)
+    events = hand_events_sent(lines)
+    assert [(e["event_seq"], e["kind"], e["gesture"]) for e in events if e["device_id"] == LEFT] == [
+        (1, "state_start", "CHOP"), (2, "state_end", "CHOP"), (3, "state_start", "POURING"),
+        (4, "state_end", "POURING"), (5, "state_start", "WASH")]
+    assert [(e["event_seq"], e["kind"], e["gesture"]) for e in events if e["device_id"] == RIGHT] == [
+        (1, "pulse", "PICKUP"), (2, "idle", "IDLE"), (3, "pulse", "THROW")]
+    assert len({e["event_id"] for e in events}) == len(events)
+    assert {e["event_id"].split(":")[0] for e in events} == {hello_sent["worker_epoch"]}
+    # One ordered stream: every step's lines carry both hands.
+    devices = [line["device_id"] if line["type"] == "result" else line["event"]["device_id"] for line in lines[1:]]
+    assert [set(devices[0:4]), set(devices[4:9]), set(devices[9:14])] == [{LEFT, RIGHT}] * 3
+    assert sorted((r["device_id"], r["seq"], r["gesture"]) for r in lines if r["type"] == "result") == [
+        (1, 100, "CHOP"), (1, 101, "POURING"), (1, 102, "WASH"),
+        (2, 100, "PICKUP"), (2, 101, "IDLE"), (2, 102, "THROW")]
+    # The stream's end ends the WASH state (event_seq 6), recorded and not sent.
+    assert [(r["kind"], r["hand_delivery"]) for r in hand_records(records) if r["device_id"] == LEFT][-1] == (
+        "state_end", "unsent")
+    assert delivery.hand_summary()["hands"] == {"1": dict(NO_HAND, sent=5, unsent=1), "2": dict(NO_HAND, sent=3)}
+
+
+def test_offered_a_failed_hand_hello_ends_the_connection_and_nothing_is_sent():
+    client, peer = socket_pair()
+    failing = FailingClient(client)
+    engine = HandEngine(ScriptedBackend(), confirmations=1)
+    records = []
+    delivery = worker.Delivery(hello(confirmations=1), records.append)
+    bridge = Peer(peer, bridge_lines((Glove(LEFT, 11), "PICKUP"), (Glove(RIGHT, 22), "WASH"), hello=HAND_HELLO),
+                  done=lambda: failing.sends > 0)
+    bridge.start()
+    try:
+        worker.observe_socket("fixture", engine, records.append, connection_factory=lambda path: failing,
+                              deliver=delivery)  # returns: no exception
+    finally:
+        bridge.join(10)
+        peer.close()
+    assert bridge.errors == [] and bridge.rest == b"" and failing.sends == 1
+    [lost] = [r for r in records if r["type"] == "connection_lost"]
+    assert lost["error_type"] == "BrokenPipeError"
+    assert [r for r in records if r["type"] == "hand_hello"] == [
+        dict(type="hand_hello", worker_epoch=EPOCH, hand_delivery="unsent")]
+    before = records[:records.index(lost)]
+    assert lost["hand_events_unsent"] == sum(r["type"] == "hand_event" and r["hand_delivery"] == "unsent"
+                                             for r in before)
+    assert lost["results_unsent"] == sum(r["type"] == "hand_event" and r["delivery"] == "unsent" for r in before)
+    events = hand_records(records)
+    assert all(e["hand_delivery"] == "unsent" and e["delivery"] != "forwarded" for e in events)
+    summary = delivery.hand_summary()
+    assert summary["hello"] == dict(NO_HAND, unsent=1) and delivery.closed
+    assert sum(summary["hands"][h]["unsent"] for h in ("1", "2")) == len(events)
+    assert sum(summary["hands"][h]["sent"] for h in ("1", "2")) == 0
+
+
+def test_offered_a_failed_hand_event_send_tries_no_result_and_ends_the_connection():
+    client, peer = socket_pair()
+    failing = FailingClient(client, after=1)  # the hand_hello goes; the first hand_event line fails
+    engine = HandEngine(ScriptedBackend(), confirmations=1)
+    records = []
+    delivery = worker.Delivery(hello(confirmations=1), records.append)
+    bridge = Peer(peer, bridge_lines((Glove(LEFT, 11), "PICKUP"), hello=HAND_HELLO), done=lambda: failing.sends > 1)
+    bridge.start()
+    try:
+        worker.observe_socket("fixture", engine, records.append, connection_factory=lambda path: failing,
+                              deliver=delivery)
+    finally:
+        bridge.join(10)
+        peer.close()
+    assert bridge.errors == [] and failing.sends == 2  # the pulse's result line was never tried
+    assert [json.loads(line)["type"] for line in bridge.rest.splitlines()] == ["hand_hello"]
+    [lost] = [r for r in records if r["type"] == "connection_lost"]
+    assert (lost["error_type"], lost["hand_events_unsent"], lost["results_unsent"]) == ("BrokenPipeError", 1, 1)
+    [pulse] = hand_records(records)
+    assert (pulse["kind"], pulse["delivery"], pulse["hand_delivery"]) == ("pulse", "unsent", "unsent")
+    assert delivery.summary()["1"]["unsent"] == 1 and delivery.summary()["1"]["forwarded"] == 0
+    assert delivery.hand_summary() == dict(hello=dict(NO_HAND, sent=1),
+                                           hands={"1": dict(NO_HAND, unsent=1), "2": NO_HAND})
+
+
+def test_main_offered_each_connection_has_its_own_hand_hello_epoch_and_event_seq_from_1(
+        monkeypatch, synthetic_bundle, tmp_path, capsys):
+    (first, first_peer), (second, second_peer) = socket_pair(), socket_pair()
+    with_unix(monkeypatch, first, second)
+    left, right = Glove(LEFT, 11), Glove(RIGHT, 22)
+    bridges = [Peer(first_peer, bridge_lines((left, "THROW"), (right, "IDLE"), hello=HAND_HELLO), expect=5),
+               Peer(second_peer, bridge_lines((left, "THROW"), (right, "IDLE"), hello=HAND_HELLO), expect=5)]
+    for bridge in bridges:
+        bridge.start()
+    try:
+        worker.main(socket_argv(synthetic_bundle, tmp_path))
+    finally:
+        for bridge in bridges:
+            bridge.join(10)
+        first_peer.close()
+        second_peer.close()
+    assert all(bridge.errors == [] and bridge.rest == b"" for bridge in bridges)
+    sent = [[json.loads(line) for line in bridge.received.splitlines()] for bridge in bridges]
+    hellos = [check_hand_lines(lines) for lines in sent]
+    records = read_records(tmp_path)
+    opened = [r for r in records if r["type"] == "connection_open"]
+    assert [h["worker_epoch"] for h in hellos] == [r["worker_epoch"] for r in opened]
+    assert hellos[0]["worker_epoch"] != hellos[1]["worker_epoch"]
+    assert all(h == make_hello(SESSION, h["worker_epoch"], worker.LEASE_MS, 0.70, 1) for h in hellos)
+    for lines, results_at in zip(sent, (100, 201)):
+        events = hand_events_sent(lines)
+        assert sorted((e["device_id"], e["event_seq"], e["kind"], e["source"]["seq"]) for e in events) == [
+            (LEFT, 1, "pulse", results_at), (RIGHT, 1, "idle", results_at)]
+    # An event of the first connection is obsolete against the second connection's hello.
+    with pytest.raises(ProtocolError, match="obsolete"):
+        validate_event(hand_events_sent(sent[0])[0], hellos[1])
+    assert [(r["worker_epoch"], r["hand_delivery"]) for r in records if r["type"] == "hand_hello"] == [
+        (h["worker_epoch"], "sent") for h in hellos]
+    assert records[0]["hand_events"] == "when_offered"
+    summary = records[-1]
+    assert summary["status"] == "finished"
+    assert {hand: counts["forwarded"] for hand, counts in summary["delivery"].items()} == {"1": 2, "2": 2}
+    assert summary["hand_delivery"] == dict(hello=dict(NO_HAND, sent=2),
+                                            hands={"1": dict(NO_HAND, sent=2), "2": dict(NO_HAND, sent=2)})
+    # The operator's console shows each connection's hand_hello.
+    console = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [r["hand_delivery"] for r in console if r.get("type") == "hand_hello"] == ["sent", "sent"]
 
 
 # --- loopback: TLS service (v4) -> model bridge -> worker -> subscriber ---------------------
