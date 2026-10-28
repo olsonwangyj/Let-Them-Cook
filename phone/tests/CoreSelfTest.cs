@@ -167,7 +167,8 @@ public static class CoreSelfTest
         {
             var message = PhoneProtocol.ParseMessage(Result, "ltc-comms", version2);
             Check(message.HandEvent == null && message.Rejected == null && message.Result.ResultId == "1:4294967295:3" && message.Result.Confidence == 0.73 && message.Result.Json == Result, "GESTURE_RESULT dispatch " + version2);
-            foreach (string item in new[] { Swap(Result, "\"device_id\":1", "\"device_id\":3"), Swap(Result, "\"v\":3", "\"v\":4"), Swap(Result, "\"seq\":3", "\"seq\":3,\"source\":" + SourceJson), Swap(Result, "\"v\":3", "\"extra\":1,\"v\":3") })
+            foreach (string item in new[] { Swap(Result, "\"device_id\":1", "\"device_id\":3"), Swap(Result, "\"v\":3", "\"v\":4"), Swap(Result, "\"seq\":3", "\"seq\":3,\"source\":" + SourceJson), Swap(Result, "\"v\":3", "\"extra\":1,\"v\":3"),
+                Swap(Result, "\"seq\":3", "\"seq\":true"), Swap(Result, "\"confidence\":0.73", "\"confidence\":[0.73]"), Swap(Result, "\"gesture\":\"PICKUPHOLD\"", "\"gesture\":{\"g\":\"PICKUPHOLD\"}") })
                 Reject(() => PhoneProtocol.ParseMessage(item, "ltc-comms", version2), "bad GESTURE_RESULT stays fatal " + version2 + ": " + item);
         }
         var handMessage = PhoneProtocol.ParseMessage(Start, "ltc-comms", true);
@@ -235,11 +236,36 @@ public static class CoreSelfTest
             Swap(resetEvent, "\"reason\":\"connection_reset\"", "\"reason\":\"lease_expired\""), Swap(resetEvent, "\"reason\":\"connection_reset\"", "\"reason\":null")
         };
         foreach (string item in malformed) Dropped(item, item);
-        // JSON the strict parser cannot read has no readable type: fatal, as before.
-        string[] unreadable = {
+        // Well-formed JSON with values no flat message has (true, false, an array, a deeper
+        // object): the frame is intact and its type readable, so such a HAND_EVENT is dropped too.
+        // 65 nested arrays: one level more than the parser reads below the frame's object.
+        string nested = new string('[', 65) + "1" + new string(']', 65);
+        string[] wellFormed = {
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":false"), Swap(pulseEvent, "\"confidence\":0.93", "\"confidence\":true"),
+            Swap(pulseEvent, "\"confidence\":0.93", "\"confidence\":[0.93]"), Swap(pulseEvent, "\"gesture\":\"PICKUP\"", "\"gesture\":{\"name\":\"PICKUP\"}"),
+            Swap(pulseEvent, "\"kind\":\"pulse\"", "\"kind\":[\"pulse\"]"), Swap(pulseEvent, "\"event_seq\":3", "\"event_seq\":[]"),
+            Swap(pulseEvent, "\"state_id\":null", "\"state_id\":{}"), Swap(resetEvent, "\"gesture\":null", "\"gesture\":false"),
             Swap(pulseEvent, SourceJson, "{\"boot_id\":{\"x\":1},\"seq\":120,\"uptime_ms\":2400}"), Swap(pulseEvent, SourceJson, "[11,120,2400]"),
-            Swap(pulseEvent, SourceJson, "{\"boot_id\":11,\"boot_id\":11,\"seq\":120,\"uptime_ms\":2400}"), Swap(pulseEvent, "\"gesture\":\"PICKUP\"", "\"gesture\":{\"name\":\"PICKUP\"}"),
-            Swap(pulseEvent, "\"v\":4", "\"v\":4,\"v\":4"), Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":false"), Start.Substring(0, Start.Length - 1), Start + " {}"
+            Swap(pulseEvent, SourceJson, "{\"boot_id\":true,\"seq\":120,\"uptime_ms\":2400}"), Swap(pulseEvent, SourceJson, "{\"boot_id\":[11],\"seq\":120,\"uptime_ms\":2400}"),
+            Swap(resetEvent, "\"source\":null", "\"source\":[]"), Swap(endEvent, SourceJson, "{\"boot_id\":11,\"seq\":120,\"uptime_ms\":{\"ms\":2400}}"),
+            Swap(pulseEvent, "\"v\":4", "\"v\":[4]"), Swap(pulseEvent, "\"session_id\":\"ltc-comms\"", "\"session_id\":[\"ltc-comms\"]"),
+            Swap(pulseEvent, "\"v\":4", "\"extra\":[1, {\"a\" : [true, null, \"x\", -1.5e3, []]}, {}],\"v\":4"),
+            Swap(Swap(pulseEvent, ",\"reason\":\"confirmed\"", ""), "\"v\":4", "\"reason\":[\"confirmed\"],\"v\":4"),
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":" + nested.Substring(1, nested.Length - 2))
+        };
+        foreach (string item in wellFormed) Dropped(item, item);
+        // JSON the strict parser cannot read has no readable type: fatal, as before. So is a
+        // duplicate key at any depth, a non-JSON token, or nesting deeper than 64 levels.
+        string[] unreadable = {
+            Swap(pulseEvent, SourceJson, "{\"boot_id\":11,\"boot_id\":11,\"seq\":120,\"uptime_ms\":2400}"),
+            Swap(pulseEvent, "\"v\":4", "\"v\":4,\"v\":4"), Start.Substring(0, Start.Length - 1), Start + " {}",
+            Swap(pulseEvent, "\"v\":4", "\"extra\":[{\"a\":1,\"a\":2}],\"v\":4"), Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":True"),
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":tru"), Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":[0,]"),
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":[0"), Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":[0}"),
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":0]"), Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":[,]"),
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":{1:2}"), Swap(pulseEvent, "\"confidence\":0.93", "\"confidence\":NaN"),
+            Swap(pulseEvent, "\"lease_ms\":0", "\"lease_ms\":" + nested), Swap(pulseEvent, "\"type\":\"HAND_EVENT\"", "\"type\":[\"HAND_EVENT\"]"),
+            Swap(pulseEvent, "\"type\":\"HAND_EVENT\"", "\"type\":true")
         };
         foreach (string item in unreadable) Fatal(item, item);
     }
@@ -312,6 +338,11 @@ public static class CoreSelfTest
         try { new HandStateTracker(null); } catch (ArgumentNullException) { refused = true; }
         Check(refused, "a clock is required");
         Check(new HandStateTracker().Snapshot(2).ActiveGesture == null, "default monotonic clock");
+        // Memory stays bounded: only the 16 latest earlier epochs are remembered as retired.
+        var bounded = new HandStateTracker(() => 0);
+        for (int i = 0; i < 18; i++) Check(bounded.Apply(Parse(Hand(1, 1, "pulse", "PICKUP", 0, i.ToString("x32")))) == "pulse", "epoch " + i);
+        Check(bounded.Apply(Parse(Hand(1, 2, "pulse", "DROP", 0, 1.ToString("x32")))) == "retired_epoch", "an epoch among the 16 latest stays retired");
+        Check(bounded.Apply(Parse(Hand(1, 2, "pulse", "DROP", 0, 0.ToString("x32")))) == "pulse", "the oldest epoch is forgotten: the retired list is bounded");
     }
     public static async Task<string> Run()
     {
@@ -439,6 +470,7 @@ public static class CoreSelfTest
                 Check(await ReceiverIdle(valid, root), "receiver keeps a healthy idle subscription beyond five seconds");
                 Check(await ReceiverHandEvents(valid, root), "version-2 receiver tracks hand events, drops a bad one and keeps the connection and the result");
                 Check(await ReceiverFallback(valid, root), "version-2 receiver falls back to version 1 when the service refuses it");
+                Check(await ReceiverHandReconnect(valid, root), "version-2 receiver keeps hand events after a lost subscription and resets the hand states");
             }
         }
         return "PASS " + count + " C# contract/frame/freshness checks";
@@ -554,9 +586,10 @@ public static class CoreSelfTest
                     string subscription = await PhoneFrames.ReadAsync(tls, TimeSpan.FromSeconds(2), timeout.Token);
                     if (subscription != PhoneProtocol.Subscribe("ltc-comms", true)) throw new Exception("wrong version-2 subscription");
                     await PhoneFrames.WriteAsync(tls, "{\"v\":2,\"type\":\"SUBSCRIBED\",\"session_id\":\"ltc-comms\",\"event_format\":1}", TimeSpan.FromSeconds(2), timeout.Token);
-                    // One ordered stream: both hands, a bad hand event, a duplicate, then a result.
+                    // One ordered stream: both hands, two bad hand events (one with a value no
+                    // flat message has), a duplicate, then a result.
                     string pickup = Hand(2, 1, "pulse", "PICKUP");
-                    foreach (string frame in new[] { Start, Swap(pickup, "\"confidence\":0.93", "\"confidence\":\"0.93\""), pickup, pickup, Result })
+                    foreach (string frame in new[] { Start, Swap(pickup, "\"confidence\":0.93", "\"confidence\":\"0.93\""), Swap(pickup, "\"lease_ms\":0", "\"lease_ms\":false"), pickup, pickup, Result })
                         await PhoneFrames.WriteAsync(tls, frame, TimeSpan.FromSeconds(2), timeout.Token);
                     await release.Task;
                 }
@@ -577,7 +610,7 @@ public static class CoreSelfTest
                             // The server accepts once, so the result proves the connection survived the bad event.
                             HandSnapshot left = hands.Snapshot(1), right = hands.Snapshot(2);
                             delivered = result.Gesture == "PICKUPHOLD" && receiver.LastStatus == "Subscribed with hand events" && receiver.HandEventsRequested &&
-                                receiver.HandEventsDropped == 1 && left.ActiveGesture == "CHOP" && left.Accepted == 1 &&
+                                receiver.HandEventsDropped == 2 && left.ActiveGesture == "CHOP" && left.Accepted == 1 &&
                                 right.LastPulseGesture == "PICKUP" && right.Accepted == 1 && right.Duplicates == 1;
                             break;
                         }
@@ -641,6 +674,60 @@ public static class CoreSelfTest
                 finally { timeout.Cancel(); receiver.Close(); release.TrySetResult(true); }
                 try { await receiving; } finally { try { await server; } catch (SocketException) { } }
                 return requested && delivered;
+            }
+        }
+    }
+
+    // A version-2 subscription that ends AFTER SUBSCRIBED (a service restart) is no
+    // refusal: the next connection asks for hand events again, and the phone's own
+    // reconnect has reset the hand states (counts kept).
+    private static async Task<bool> ReceiverHandReconnect(X509Certificate2 serverCertificate, X509Certificate2 root)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+        var release = new TaskCompletionSource<bool>();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
+        using (timeout.Token.Register(() => listener.Stop()))
+        {
+            var server = Task.Run(async () => {
+                for (int attempt = 0; attempt < 2; attempt++)
+                {
+                    using (var tcp = await listener.AcceptTcpClientAsync())
+                    using (var tls = new SslStream(tcp.GetStream(), false))
+                    {
+                        await tls.AuthenticateAsServerAsync(serverCertificate, false, SslProtocols.Tls12, false);
+                        string subscription = await PhoneFrames.ReadAsync(tls, TimeSpan.FromSeconds(2), timeout.Token);
+                        if (subscription != PhoneProtocol.Subscribe("ltc-comms", true)) throw new Exception("version 1 after a lost version-2 subscription, attempt " + attempt);
+                        await PhoneFrames.WriteAsync(tls, "{\"v\":2,\"type\":\"SUBSCRIBED\",\"session_id\":\"ltc-comms\",\"event_format\":1}", TimeSpan.FromSeconds(2), timeout.Token);
+                        // The first connection starts a LEFT CHOP and ends; the second sends a result.
+                        await PhoneFrames.WriteAsync(tls, attempt == 0 ? Start : Result, TimeSpan.FromSeconds(2), timeout.Token);
+                        if (attempt == 1) await release.Task;
+                    }
+                }
+            });
+            var queue = new FreshResultQueue(32, TimeSpan.FromSeconds(2));
+            var hands = new HandStateTracker(() => 0);
+            using (var receiver = new PhoneReceiver(root.Export(X509ContentType.Cert), queue, "ltc-comms", ((IPEndPoint)listener.LocalEndpoint).Port, hands))
+            {
+                var receiving = receiver.RunAsync(timeout.Token);
+                bool delivered = false;
+                try
+                {
+                    while (!timeout.IsCancellationRequested && !receiving.IsCompleted)
+                    {
+                        GestureResult result;
+                        if (queue.TryDequeue(out result))
+                        {
+                            HandSnapshot left = hands.Snapshot(1);
+                            delivered = result.Gesture == "PICKUPHOLD" && receiver.HandEventsRequested && receiver.LastStatus == "Subscribed with hand events" &&
+                                left.Accepted == 1 && left.ActiveGesture == null && left.StateId == null;
+                            break;
+                        }
+                        await Task.Delay(10);
+                    }
+                }
+                finally { timeout.Cancel(); receiver.Close(); release.TrySetResult(true); }
+                try { await receiving; } finally { try { await server; } catch (SocketException) { } }
+                return delivered;
             }
         }
     }

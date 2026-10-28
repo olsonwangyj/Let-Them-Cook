@@ -281,27 +281,31 @@ namespace LetThemCook.Comms
             public bool IsString;
             public bool IsNull;
             public string Value;
-            public Dictionary<string, Atom> Fields; // only the HAND_EVENT "source" object
+            public Dictionary<string, Atom> Fields; // an object value, read only with hand (the HAND_EVENT "source")
         }
 
-        // The wire messages are flat. The one exception is the "source" member of
-        // HAND_EVENT (Parse with source true): a flat object of atoms, never deeper.
-        // Field validators decide where null is allowed. Arrays, bool and every
-        // other object are forbidden.
+        // The wire messages are flat: without hand, arrays, objects and bool are
+        // forbidden. A frame on a version-2 subscription is read with hand true: an
+        // object value is read into Fields (the HAND_EVENT "source"), and true, false,
+        // an array or any other object is kept as an atom that every field validator
+        // rejects, so a HAND_EVENT carrying one is dropped, not fatal (its framing is
+        // intact). Duplicate keys, non-JSON and nesting deeper than 64 levels stay fatal.
+        // Field validators decide where null is allowed.
         private sealed class FlatJson
         {
+            private const int MaximumDepth = 64;
             private readonly string input;
             private int index;
             private static readonly Regex Number = new Regex(@"\A-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\z", RegexOptions.CultureInvariant);
             private FlatJson(string input) { this.input = input; }
-            public static Dictionary<string, Atom> Parse(string input, bool source = false)
+            public static Dictionary<string, Atom> Parse(string input, bool hand = false)
             {
                 if (input == null || input.Length > PhoneFrames.MaximumBytes) throw new InvalidDataException("Invalid JSON size");
                 var parser = new FlatJson(input);
-                var fields = parser.Object(source);
+                var fields = parser.Object(hand, 0);
                 parser.Space(); if (parser.index != input.Length) Fail(); return fields;
             }
-            private Dictionary<string, Atom> Object(bool source)
+            private Dictionary<string, Atom> Object(bool hand, int depth)
             {
                 var fields = new Dictionary<string, Atom>(StringComparer.Ordinal);
                 Space(); Take('{'); Space();
@@ -309,23 +313,40 @@ namespace LetThemCook.Comms
                 while (true)
                 {
                     string key = String(); Space(); Take(':'); Space();
-                    Atom atom;
-                    if (Peek('"')) atom = new Atom { IsString = true, Value = String() };
-                    else if (source && key == "source" && Peek('{')) atom = new Atom { Fields = Object(false) };
-                    else
-                    {
-                        int start = index;
-                        while (index < input.Length && !Peek(',') && !Peek('}') && !IsSpace(input[index])) index++;
-                        string value = input.Substring(start, index - start);
-                        if (value != "null" && !Number.IsMatch(value)) Fail();
-                        atom = new Atom { IsString = false, IsNull = value == "null", Value = value };
-                    }
+                    Atom atom = Value(hand, depth);
                     if (fields.ContainsKey(key)) throw new InvalidDataException("Duplicate JSON key");
                     fields.Add(key, atom); Space();
                     if (Peek('}')) { index++; break; }
                     Take(','); Space();
                 }
                 return fields;
+            }
+            private Atom Value(bool hand, int depth)
+            {
+                if (Peek('"')) return new Atom { IsString = true, Value = String() };
+                if (hand && (Peek('{') || Peek('[')))
+                {
+                    if (depth + 1 > MaximumDepth) Fail();
+                    if (Peek('{')) return new Atom { Fields = Object(true, depth + 1) };
+                    SkipArray(depth + 1); return new Atom();
+                }
+                int start = index;
+                while (index < input.Length && !Peek(',') && !Peek('}') && !(hand && Peek(']')) && !IsSpace(input[index])) index++;
+                string value = input.Substring(start, index - start);
+                if (value != "null" && !Number.IsMatch(value) && !(hand && (value == "true" || value == "false"))) Fail();
+                return new Atom { IsString = false, IsNull = value == "null", Value = value };
+            }
+            // An array (hand only): its values are read as strictly as any other, then discarded.
+            private void SkipArray(int depth)
+            {
+                Take('['); Space();
+                if (Peek(']')) { index++; return; }
+                while (true)
+                {
+                    Value(true, depth); Space();
+                    if (Peek(']')) { index++; return; }
+                    Take(','); Space();
+                }
             }
             private string String()
             {
