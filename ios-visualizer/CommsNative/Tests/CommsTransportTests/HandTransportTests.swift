@@ -42,9 +42,14 @@ final class HandTransportTests: XCTestCase {
         var second = frame(LocalPeers.result, channel)
         coalesced.writeBuffer(&second)
         _ = try channel.writeInbound(coalesced)
+        // A hand event whose strict parse stops before its type (here a non-flat v) is dropped too.
+        var early = frame(#"{"v":[4],"type":"HAND_EVENT"}"#, channel)
+        var third = frame(LocalPeers.result, channel)
+        early.writeBuffer(&third)
+        _ = try channel.writeInbound(early)
         let epoch = LocalPeers.epoch
         XCTAssertEqual(log.entries, ["subscribed", "result 1:7:42", "hand \(epoch):1:1", "invalid", "hand \(epoch):2:1", "result 1:7:42",
-                                     "invalid", "result 1:7:42"])
+                                     "invalid", "result 1:7:42", "invalid", "result 1:7:42"])
         XCTAssertFalse(log.entries.contains { $0.hasPrefix("failure") }, "An invalid HAND_EVENT must not fail the subscription")
         // Any other type still fails the connection, as on version 1.
         _ = try? channel.writeInbound(frame(#"{"v":1,"type":"MONITOR_UPDATE","session_id":"ltc-comms"}"#, channel))
@@ -113,6 +118,7 @@ final class HandTransportTests: XCTestCase {
     }
 
     func testServiceWithoutHandEventsMakesTheClientUseVersion1ForTheRestOfItsLife() throws {
+        XCTAssertTrue(TransportOptions().handEvents, "A new client subscribes with version 2 until a service shows it has no hand events")
         // The fixture closes on version 2, then also closes the first version 1 subscription.
         let peers = try LocalPeers(pki: Self.pki, behavior: .closeFirst)
         var options = peers.options; options.handEvents = true

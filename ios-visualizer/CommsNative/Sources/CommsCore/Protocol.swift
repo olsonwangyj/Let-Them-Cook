@@ -170,6 +170,8 @@ public enum CommsProtocol {
     /// version 1 subscription. A frame whose top-level type is HAND_EVENT never throws:
     /// an invalid one comes back as invalidHandEvent, to be counted and dropped while the
     /// connection stays up (the framing is intact, and results must not be lost to it).
+    /// The type counts once the strict parse has read it or, when that parse stopped
+    /// earlier, when the frame is well-formed JSON (skimType); other bytes still fail.
     public static func subscribedFrame(_ body: [UInt8], session: String) throws -> SubscribedFrame {
         if (1...maximumFrameBytes).contains(body.count), let json = String(bytes: body, encoding: .utf8), Array(json.utf8) == body {
             var parser = FlatJSON(json, maximumKeys: handEventFields.count, nested: "source", nestedKeys: sourceFields.count)
@@ -183,6 +185,14 @@ public enum CommsProtocol {
                 // The parse stopped after the top-level type was read: still a HAND_EVENT.
                 if let type = parser.topLevelType, exact(type, "HAND_EVENT") {
                     return .invalidHandEvent(error as? CommsProtocolError ?? .malformedJSON)
+                }
+                // It stopped before the type (a non-flat value, too many keys, another key
+                // order): a well-formed object whose top-level type is HAND_EVENT is still one.
+                if parser.topLevelType == nil {
+                    var skim = FlatJSON(json)
+                    if let type = skim.skimType(), exact(type, "HAND_EVENT") {
+                        return .invalidHandEvent(error as? CommsProtocolError ?? .malformedJSON)
+                    }
                 }
             }
         }
@@ -470,6 +480,71 @@ private struct FlatJSON {
         return fields
     }
 
+    /// Only for telling a HAND_EVENT the strict parse stopped on from any other bad frame:
+    /// the top-level "type" string of a well-formed JSON object (any values, unique keys,
+    /// at most 64 levels of nesting, nothing after it), or nil.
+    mutating func skimType() -> String? {
+        do {
+            space()
+            let type = try skimObject(depth: 1, topLevel: true)
+            space()
+            return index == input.count ? type : nil
+        } catch { return nil }
+    }
+
+    private mutating func skimObject(depth: Int, topLevel: Bool) throws -> String? {
+        guard depth <= 64 else { throw CommsProtocolError.malformedJSON }
+        try take(123)
+        space()
+        var keys: Set<String> = []
+        var type: String?
+        if peek(125) { index += 1; return nil }
+        while true {
+            let key = try string()
+            guard keys.insert(key).inserted else { throw CommsProtocolError.invalidSchema }
+            space()
+            try take(58)
+            space()
+            if topLevel, key.unicodeScalars.elementsEqual("type".unicodeScalars), peek(34) {
+                type = try string()
+            } else {
+                try skimValue(depth: depth + 1)
+            }
+            space()
+            if peek(125) { index += 1; return type }
+            try take(44)
+            space()
+        }
+    }
+
+    private mutating func skimValue(depth: Int) throws {
+        if peek(123) {
+            _ = try skimObject(depth: depth, topLevel: false)
+        } else if peek(91) {
+            guard depth <= 64 else { throw CommsProtocolError.malformedJSON }
+            index += 1
+            space()
+            if peek(93) { index += 1; return }
+            while true {
+                try skimValue(depth: depth + 1)
+                space()
+                if peek(93) { index += 1; return }
+                try take(44)
+                space()
+            }
+        } else if peek(34) {
+            _ = try string()
+        } else if peek(116) {
+            for scalar in [UInt32(116), 114, 117, 101] { try take(scalar) }
+        } else if peek(102) {
+            for scalar in [UInt32(102), 97, 108, 115, 101] { try take(scalar) }
+        } else if peek(110) {
+            for scalar in [UInt32(110), 117, 108, 108] { try take(scalar) }
+        } else {
+            _ = try number(finite: false)
+        }
+    }
+
     private mutating func string() throws -> String {
         try take(34)
         var decoded = String.UnicodeScalarView()
@@ -526,7 +601,8 @@ private struct FlatJSON {
         return result
     }
 
-    private mutating func number() throws -> String {
+    /// finite: false only for skimType, where 1e999 is still well-formed JSON.
+    private mutating func number(finite: Bool = true) throws -> String {
         let start = index
         if peek(45) { index += 1 }
         if peek(48) {
@@ -549,7 +625,7 @@ private struct FlatJSON {
             guard index > exponent else { throw CommsProtocolError.malformedJSON }
         }
         let token = String(String.UnicodeScalarView(input[start..<index]))
-        guard let value = Double(token), value.isFinite else { throw CommsProtocolError.malformedJSON }
+        guard let value = Double(token), value.isFinite || !finite else { throw CommsProtocolError.malformedJSON }
         return token
     }
 

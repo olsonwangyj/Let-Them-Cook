@@ -210,7 +210,7 @@ final class HandEventTests: XCTestCase {
         XCTAssertEqual(try frame(result), .result(try CommsProtocol.result(Array(result.utf8), session: "ltc-comms")))
         XCTAssertEqual(try frame(start), .handEvent(try HandFixture.event(start)))
         XCTAssertEqual(try frame(reset), .handEvent(try HandFixture.event(reset)))
-        // An invalid HAND_EVENT never throws, however it fails, once its top-level type was read.
+        // An invalid HAND_EVENT never throws, however it fails, once its top-level type was read...
         let invalid = [edit(pulse, #""gesture":"PICKUP""#, #""gesture":"CHOP""#),
                        edit(start, #""session_id":"ltc-comms""#, #""session_id":"other""#),
                        edit(start, #""v":4"#, #""v":3"#),
@@ -220,18 +220,35 @@ final class HandEventTests: XCTestCase {
                        edit(start, #""reason":"confirmed"}"#, #""reason":"confirmed""#),
                        edit(start, #""reason":"confirmed"}"#, #""reason":"confirmed"}{}"#),
                        #"{"type":"HAND_EVENT"}"#, #"{"v":4,"type":"HAND_EVENT","#]
-        for body in invalid {
+        // Nor does a well-formed JSON object whose top-level type is HAND_EVENT when the strict
+        // parse stops before that type: a non-flat value, too many keys, or another key order.
+        let typeLast = edit(edit(start, #""type":"HAND_EVENT","#, ""), #""reason":"confirmed"}"#, #""reason":"confirmed","type":"HAND_EVENT"}"#)
+        let sixteenKeys = "{" + (0..<16).map { "\"k\($0)\":1" }.joined(separator: ",") + #","type":"HAND_EVENT"}"#
+        let beforeType = [edit(start, #""v":4"#, #""v":[4]"#), edit(start, #""v":4"#, #""v":true"#), edit(start, #""v":4"#, #""v":1e999"#),
+                          edit(start, #""v":4,"#, #""v":4,"extra":{"a":[1,{"b":null}],"c":false},"#),
+                          edit(typeLast, #""confidence":0.93"#, #""confidence":false"#), edit(typeLast, HandFixture.source, "[11,120,2400]"),
+                          sixteenKeys, #"{"v":[4],"type":"HAND_EVENT"}"#, #" { "v" : [ ] , "type" : "HAND_EVENT" } "#]
+        for body in invalid + beforeType {
             guard case .invalidHandEvent = try frame(body) else { XCTFail("Not an invalid hand event: \(body)"); continue }
         }
+        // A valid event is valid in any key order.
+        XCTAssertEqual(try frame(typeLast), .handEvent(try HandFixture.event(typeLast)))
         // Everything that is not a HAND_EVENT fails exactly as on a version 1 subscription.
+        let deep = #"{"v":"# + String(repeating: "[", count: 65) + String(repeating: "]", count: 65) + #","type":"HAND_EVENT"}"#
         let failing = [edit(result, #""seq":42"#, #""seq":"42""#),
                        edit(result, #""type":"GESTURE_RESULT""#, #""type":"MONITOR_UPDATE""#),
                        #"{"v":1,"type":"SUBSCRIBED","session_id":"ltc-comms"}"#,
                        edit(start, #""type":"HAND_EVENT","#, ""),
                        edit(start, #""type":"HAND_EVENT""#, #""type":"HAND_EVENT ""#),
-                       // A type inside source is not the frame's type, and a type after the failure is not read.
-                       #"{"source":{"type":"HAND_EVENT"}}"#, #"{"v":4,"gesture":{},"type":"HAND_EVENT"}"#,
-                       #"{"type":"HAND_EVENT","#.replacingOccurrences(of: "{", with: "[")]
+                       // A type inside a nested object is not the frame's type.
+                       #"{"source":{"type":"HAND_EVENT"}}"#, #"{"v":{"type":"HAND_EVENT"}}"#, #"{"v":[{"type":"HAND_EVENT"}]}"#,
+                       #"{"type":"HAND_EVENT","#.replacingOccurrences(of: "{", with: "["),
+                       // Before the type is read, only well-formed JSON with unique keys and at most
+                       // 64 levels of nesting counts as a HAND_EVENT; anything else fails as before.
+                       #"{"v":4,"x":,"type":"HAND_EVENT"}"#, #"{"v":[4,],"type":"HAND_EVENT"}"#, #"{"v":tru,"type":"HAND_EVENT"}"#,
+                       #"{"v":[4],"v":[4],"type":"HAND_EVENT"}"#, #"{"v":{"a":1,"a":2},"type":"HAND_EVENT"}"#,
+                       #"{"v":[4],"type":"HAND_EVENT"}x"#, #"{"v":[4],"type":"HAND_EVENT"}{}"#, #"{"v":[4],"type":["HAND_EVENT"]}"#,
+                       #"{"v":[4],"type":"HAND_EVENT","type":"HAND_EVENT"}"#, #"{"v":[4],"type":"GESTURE_RESULT"}"#, deep]
         for body in failing {
             XCTAssertThrowsError(try frame(body), "Did not fail \(body)")
         }
