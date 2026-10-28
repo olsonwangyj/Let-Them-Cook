@@ -8,7 +8,9 @@ and run through it with both test boards (with the synthetic test model, so the 
 nothing). That night it was also tested on macOS and built for iOS on the owner's Mac: your
 export `SinkTest_V1 2`, rebuilt with it, defines both functions below and is installed on the
 owner's iPhone (as `com.CG4002.unityTutorial.olson`; no Connect yet); your code does not call
-them yet. The full specification is the section "Hand events (`HAND_EVENT`, opt-in)" of
+them yet. Just after midnight on 2026-10-29 the comms test app on the same iPhone, built with the
+same CommsNative, subscribed to the Ultra96 with hand events and was sent every hand event and
+result of a 5-minute run with two test boards. The full specification is the section "Hand events (`HAND_EVENT`, opt-in)" of
 [co-protocol-v3.md](co-protocol-v3.md); this page is what the game needs.
 
 ## What changes for the game
