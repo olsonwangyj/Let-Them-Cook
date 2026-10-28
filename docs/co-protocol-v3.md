@@ -357,7 +357,7 @@ The C# reference receiver differs on one point. Its queue (`FreshResultQueue` in
 
 ## Hand events (`HAND_EVENT`, opt-in, sensor version 4)
 
-Built on 2026-10-28 and tested on the laptop (Python), in a Linux Swift build and with the C# core, then run with both test boards against a version-4 service on the laptop; **not yet deployed on the Ultra96 and not yet in a game build** (integration journal W11-11). It runs **beside** the compat results: the `GESTURE_RESULT` stream, its counts, its de-duplication and the board monitor's numbers are the same with or without it. A field guide for the game is [hand-events-for-the-game.md](hand-events-for-the-game.md).
+Built on 2026-10-28 and tested on the laptop (Python), in a Linux Swift build and with the C# core, then run with both test boards against a version-4 service on the laptop; **deployed on the Ultra96 on 2026-10-28 at 22:21** and run through it with both test boards, a version-1 and a version-2 subscriber (integration journal W11-11, W11-12); **not yet in a game build**. It runs **beside** the compat results: the `GESTURE_RESULT` stream, its counts, its de-duplication and the board monitor's numbers are the same with or without it. A field guide for the game is [hand-events-for-the-game.md](hand-events-for-the-game.md).
 
 **The event** is Wen Ree's envelope, unchanged (`common/hand_contract.py`, `_EVENT_FIELDS` and `validate_event`; his `docs/HAND_COMMS_INTEGRATION.md`), exactly these 15 keys:
 
