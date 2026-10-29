@@ -85,7 +85,7 @@ def decode_notification(data):
 def validate_sensor(message,session_id=None):
     if not isinstance(message,dict) or set(message)!=_SENSOR_FIELDS:
         raise ProtocolError('Unexpected v4 sensor fields')
-    if type(message['v']) is not int or message['v']!=4 or message['type']!='SENSOR_BATCH':
+    if type(message['v']) is not int or message['v'] not in (4,5) or message['type']!='SENSOR_BATCH':
         raise ProtocolError('Expected SENSOR_BATCH v4')
     session(message['session_id'])
     if session_id is not None and message['session_id']!=session_id:raise ProtocolError('Wrong sensor session')
