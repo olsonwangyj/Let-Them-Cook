@@ -566,8 +566,8 @@ def gesture_results(run):
             for frame in frames if frame["type"] == "GESTURE_RESULT"]
 
 
-# Version 5 (the gyro at x10) must deliver hand events exactly as version 4: Wen Ree's admission
-# reads only version-4 samples, so the gate hands it each version-5 sample as its version-4 twin.
+# Version 5 (the gyro at x10) must deliver hand events exactly as version 4: the gate passes each
+# accepted sample unchanged to Wen Ree's admission, whose sample check accepts 4 and 5.
 @pytest.mark.parametrize("version", [4, 5])
 def test_a_v2_subscriber_gets_results_and_hand_events_in_order_exactly_as_the_runner_sent_them(pki, version):
     run = asyncio.run(scenario(pki, subscription=2, version=version))

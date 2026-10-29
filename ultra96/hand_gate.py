@@ -16,12 +16,8 @@ to a phone that asked for hand events, this gate checks it on the event-loop thr
   that hand (lease expiry or a glove reconnect), so the worker's own end of it
   still reaches the phone. A state_start, pulse, idle or reset ends any active state.
 
-Every newly accepted stream sample is fed in with its acceptance time. Wen Ree's
-admission accepts only a version-4 SENSOR_BATCH (common.hand_contract.validate_sensor),
-so a version-5 sample, already checked by the service with the version-5 codec, is handed
-to it as its version-4 twin (ledger_sample): the same fields, the same twelve int16 values;
-the admission ledger keeps only the identity, uptime_ms and the int16 values and applies
-no scales. The samples themselves, and every event, are unchanged. The last
+Every newly accepted stream sample, version 4 or 5, is fed in unchanged with its
+acceptance time (Wen Ree's common.hand_contract.validate_sensor accepts both). The last
 REPLAY_SAMPLES samples of each hand are kept with those times, so a hello that
 arrives after samples rebuilds the admission ledger as if it had come first.
 A new boot_id on one hand (the glove reconnected) ends that hand's state only.
@@ -36,23 +32,11 @@ from common.hand_contract import ProtocolError, validate_hello
 from ultra96.hand_admission import HandAdmission
 
 REPLAY_SAMPLES = 512  # per hand; the size of HandAdmission's own ledger
-# The version of the twelve-channel SENSOR_BATCH that HandAdmission reads (Wen Ree's
-# common.hand_contract accepts only 4); version 5 has the same fields and layout.
-_ADMISSION_VERSION = 4
 MAX_PREDICTION_AGE = 0.5  # seconds from a source sample's acceptance to its prediction
 COUNTERS = ("hand_hellos", "hand_hellos_refused", "hand_events_accepted", "hand_events_refused",
             "hand_events_duplicate", "hand_states_expired", "hand_resets")
 # HandAdmission.event's message for a prediction whose source was accepted too long ago.
 _STALE_SOURCE = "Prediction source is stale at server"
-
-def ledger_sample(message):
-    """The accepted sample as Wen Ree's HandAdmission reads it: unchanged in version 4, and a
-    version-5 sample as its version-4 twin (only "v" differs; the int16 values are not rescaled,
-    because the admission ledger compares them only as an identity, never as units)."""
-    if message.get("v") == 5:
-        return dict(message, v=_ADMISSION_VERSION)
-    return message
-
 
 
 class HandGate:
@@ -106,7 +90,7 @@ class HandGate:
         self._expire(device, now)
         self._replay[device].append((message, now))
         if self._admission is not None:
-            self._admission.accepted_sample(ledger_sample(message), now)
+            self._admission.accepted_sample(message, now)
 
     def hello(self, connection, hello, now):
         """The worker's hello on runner connection number connection: (True, None) or (False, reason)."""
@@ -126,7 +110,7 @@ class HandGate:
                                       max_prediction_age=self._max_prediction_age)
             for device in (1, 2):
                 for message, accepted_at in self._replay[device]:
-                    admission.accepted_sample(ledger_sample(message), accepted_at)
+                    admission.accepted_sample(message, accepted_at)
         except ValueError:  # ProtocolError is a ValueError
             return self._refuse_hello("replay_failed")
         for device in (1, 2):
