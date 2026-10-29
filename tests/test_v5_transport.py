@@ -25,9 +25,9 @@ import pytest
 
 import demo
 import flash
-from common import sensor, sensor_v4, sensor_v5, sensor_versions
+from common import hand_contract, sensor, sensor_v4, sensor_v5, sensor_versions
 from common.control import COMMAND, ControlFrame, decode_control, encode_control, transformed_values
-from common.wire import read_frame, write_frame
+from common.wire import ProtocolError, read_frame, write_frame
 from laptop import dual_bridge
 from laptop.bridge import Bridge, BridgeConfig
 from laptop.controls import ControlChannel
@@ -84,6 +84,19 @@ def test_version_5_differs_from_4_only_in_the_gyro_scale():
     assert [i for i, (a, b) in enumerate(zip(sensor_v4.SCALES, sensor_v5.SCALES)) if a != b] == [3, 4, 5]
     assert sensor_v5.physical_values(ROW12)[3:6] == (450.1, -800.2, 12.0)
     assert sensor_v4.physical_values(ROW12)[3:6] == (45.01, -80.02, 1.2)
+
+
+def test_wen_rees_bridge_sample_converts_each_version_with_its_own_scales():
+    # common.hand_contract keeps its own scale tables (the staged hand12 worker has no
+    # common/sensor_v5.py), so they must stay equal to the codecs'.
+    assert hand_contract.SCALES == sensor_v4.SCALES and hand_contract.SCALES_V5 == sensor_v5.SCALES
+    for codec in (sensor_v4, sensor_v5):
+        sample = hand_contract.to_bridge_sample(codec.SensorPacket(1, 9, 1, 20, ROW12).to_message(SESSION))
+        assert sample["values"] == list(codec.physical_values(ROW12)), codec.VERSION
+    v5 = hand_contract.to_bridge_sample(sensor_v5.SensorPacket(1, 9, 1, 20, ROW12).to_message(SESSION))
+    assert v5["values"][3:6] == [450.1, -800.2, 12.0]  # not the version-4 reading 45.01, -80.02, 1.2
+    with pytest.raises(ProtocolError):
+        hand_contract.to_bridge_sample(sensor.SensorPacket(1, 9, 1, 20, ROW12[:11]).to_message(SESSION))
 
 
 # --- common.control and laptop.controls ---------------------------------------------------------

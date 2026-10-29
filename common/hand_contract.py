@@ -12,6 +12,7 @@ from common.wire import ProtocolError
 
 CHANNELS=('ax','ay','az','gx','gy','gz','yaw','pitch','roll','flex1','flex2','flex3')
 SCALES=(10000,10000,10000,100,100,100,100,100,100,10000,10000,10000)
+SCALES_V5=(10000,10000,10000,10,10,10,100,100,100,10000,10000,10000)  # sensor v5: gyro *10
 LABELS=('PICKUP','DROP','CHOP','WASH','THROW','POURING','IDLE')
 PULSES={'PICKUP','DROP','THROW'}
 ONGOING={'CHOP','WASH','POURING'}
@@ -101,7 +102,7 @@ def to_bridge_sample(message,session_id=None):
     if message['request_id'] is not None:raise ProtocolError('Commands do not enter AI sample processing')
     return dict(type='sample',device_id=message['device_id'],boot_id=message['boot_id'],
                 seq=message['seq'],uptime_ms=message['uptime_ms'],
-                values=[v/s for v,s in zip(message['values'],SCALES)])
+                values=[v/s for v,s in zip(message['values'],SCALES_V5 if message['v']==5 else SCALES)])
 
 
 def make_hello(session_id,worker_epoch,lease_ms=1000,threshold=.70,confirmations=3):
