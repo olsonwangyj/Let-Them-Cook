@@ -63,6 +63,12 @@ inside Communications folders too: since the merge of the team main `5e3f78e`
 `tests/test_precision_*.py`, `tests/test_flex_range_check.py`,
 `tests/test_triage_capture.py`) and his documents in `docs/` (`HAND_*.md`,
 `AI_*.md`, `FPGA_*.md` and others listed in `docs/README.md`) are Wen Ree's.
+Since the merge of the team main `ec200b9` (team pull request #40,
+2026-10-29) so are `common/sensor_v5.py`, `tools/gyro_trial_audit.py`,
+`tools/export_glove_session.ps1` and the tests `tests/test_gyro_trial_audit.py`,
+`tests/test_live_console.py`, `tests/test_recorder_session_fix.py` and
+`tests/test_wide_gyro.py`. The table of sensor versions that uses his codecs,
+`common/sensor_versions.py`, is Communications'.
 Communications files he changed (for example `laptop/bridge.py`,
 `ultra96/server.py`) stay Communications'.
 

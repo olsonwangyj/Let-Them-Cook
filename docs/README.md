@@ -21,7 +21,7 @@ this folder also holds Wen Ree's documents from the team repo (listed under
 
 ## Teammates' documents
 
-Wen Ree's, from the team main `5e3f78e` (2026-10-27): `HAND_COMMS_INTEGRATION.md`, `HAND_V4_TRANSPORT.md`, `HAND_FPGA_BOARD_RESULTS_20261027.md`, `HAND_RECORDING_READY.md`, `HAND_VIVADO_BUILD.md`, `INDEPENDENT_HAND_RUNTIME.md`, `AI_LAB_*.md`, `AI_INTEGRATION_JOURNAL_STARTER.md`, `FPGA_*.md`, `GESTURE_PROTOCOL_FLEX3_DRAFT.md`, `PRE_HANDOVER_TRIAGE.md`, `THREE_FLEX_NEXT_STEPS_20261025.md`, `TRIAGE_FINDINGS_20261026.md` and `ai_lab_collection.example.json`. Read them for his design; the Communications documents above govern Communications.
+Wen Ree's, from the team main `5e3f78e` (2026-10-27): `HAND_COMMS_INTEGRATION.md`, `HAND_V4_TRANSPORT.md`, `HAND_FPGA_BOARD_RESULTS_20261027.md`, `HAND_RECORDING_READY.md`, `HAND_VIVADO_BUILD.md`, `INDEPENDENT_HAND_RUNTIME.md`, `AI_LAB_*.md`, `AI_INTEGRATION_JOURNAL_STARTER.md`, `FPGA_*.md`, `GESTURE_PROTOCOL_FLEX3_DRAFT.md`, `PRE_HANDOVER_TRIAGE.md`, `THREE_FLEX_NEXT_STEPS_20261025.md`, `TRIAGE_FINDINGS_20261026.md` and `ai_lab_collection.example.json`; from the team main `ec200b9` (team pull request #40, 2026-10-29): `HAND_AI_HANDOFF_20261029.md` (his hand-over of the trained hand12 v5 models and the sensor version 5 request), `HAND_DUAL_RECORDING.md`, `HAND_GYRO500_DIAGNOSTIC.md`, `HAND_TONIGHT_V5.md` and `HAND_WIDE_GYRO_DIAGNOSTIC.md`. Read them for his design; the Communications documents above govern Communications.
 
 ## Archive
 
