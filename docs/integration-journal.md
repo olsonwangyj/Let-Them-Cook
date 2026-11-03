@@ -730,6 +730,62 @@ To be written when the week ends. Up to Tuesday 10-27: Wen Ree delivered the thr
 
 ---
 
+## Week 12 (Monday 2 November to Sunday 8 November 2026)
+
+### One-page summary
+
+To be written when the week ends. Up to Tuesday 11-03: Wen Ree merged team PR #44 (guided collection and live gesture evaluation tooling) and opened team PR #45, a gate between the model's gestures and the game's actions, asking the owner to review and merge it and to integrate his "candidate3" models. The review found that the gate's pulse stage accepts only one PICKUP, DROP or THROW per hand, that its object check can run only in the game, and that the candidate3 folder is training output, not a bundle the board can load. Not merged (W12-1).
+
+### Day by day
+
+| Date | What happened | Evidence |
+|---|---|---|
+| Tue 11-03 | 16:59 Wen Ree's commit `f0f6769` (guided collection and live gesture evaluation tooling), merged into the team main as team PR #44 at 17:00 (`b4483bc`); not merged into local `main`. 19:42 his commit `595a2df` on `AI-gameplay-object-action-gate-20261103` (team PR #45); 19:49 his message to the owner asking for a review and a merge, and naming the candidate3 models. Evening, by an agent after the owner forwarded the message: PR #45 reviewed read-only in a detached worktree (five reviews, each checked by a verifier told to refute it); nothing merged, pushed, staged or deployed (W12-1). | `b4483bc`, `595a2df`; `.comms-local/checks/2026-11-03-pr45-review/` |
+
+### Issues, investigations and changes
+
+#### W12-1. Review of Wen Ree's team PR #45 (the gameplay object-action gate) and his candidate3 models
+
+- **What happened.** Team PR #45 adds three files and changes none: `src/hand_ai_flex3/gameplay_postprocess.py`, `tests/test_gameplay_postprocess.py` (7 tests) and `tools/replay_gameplay_gate.py`. The module has two parts. `TemporalPostProcessor` turns per-window predictions into actions and states, with a 2-of-3 vote, a re-arm on two IDLE windows and a cooldown. `ObjectActionGate` checks a confirmed gesture against the object each hand holds or targets: CHOP only with a held knife, WASH only with both hands within 0.5 s. The replay tool runs a predictions log through both. Wen Ree's message (19:49, relayed by the owner) said that raw predictions stay logged and the gate only decides what is dispatched to the game. It said that "the chopping-board station check and actual per-hand object ownership should remain in the game/comms layer". It asked the owner to use the selected candidate3 models from `.comms-local/hand_repaired_drop_g2000_continuous_candidate3/models/selected/` for integration, and to review the API and merge if it fits. He also sent his table of what each object allows (pickup, drop, throw, pour, two hands).
+- **Investigation.** The review was read-only, in the worktree `D:\LetThemCook-worktrees\gate-review` at `595a2df`. It had five parts: the gate's logic, its fit with the hand-event path, the game at team main, the candidate3 models, and merge and tests. A verifier checked each part's findings. The probes ran on synthetic sequences and on the worker records of the 10-29 glove gesture run (`.comms-local/checks/2026-10-29-v5-gloves/glove-v2-gestures-1/`). These findings held up (every one confirmed unless marked):
+  1. **Blocking: after a hand's first PICKUP, DROP or THROW, that hand never gets another one until `reset()`.** `update()` sets the idle streak to 0 on the pulse window itself (lines 110-113), before the re-arm check reads it (line 132). So the check always fails once a pulse has been accepted, and the cooldown (line 134) can never act. Repro: IDLE x3, PICKUP x3, IDLE x5, DROP x3, IDLE x5, PICKUP x3 at 0.2 s gives only the first PICKUP (also re-run directly by this session). On the 10-29 records the worker's ActionFilter gave 15 pulses; the gate gives 2, one per hand. The unit tests pass for other reasons: the cooldown test's last PICKUP is one vote short, and no test expects a second pulse. Also, a hand's first pulse needs no IDLE, although the docstring says it does.
+  2. Two-hand WASH is checked once per wash. The temporal stage emits a state start once per ongoing gesture and never a refresh. If the two hands' starts are more than 0.5 s apart, both are refused and nothing retries; the first hand is always refused (`waiting_for_second_hand`). On the 10-29 records: 12 WASH starts, 1 accepted (what was performed when was not logged). WASH also needs both hands to hold the dirty stack, while a PICKUP gives it to one hand.
+  3. `accept(PICKUP, object_name=…)` stores a name without checking it, and the next DROP, THROW, POURING or WASH on that hand raises `KeyError`. `set_target` and `set_held` raise `ValueError` on any name outside the gate's seven, such as the game's crate, curry cube or half-chopped bunch.
+  4. There is no state end and no refresh. A pulse, or a refused state start, ends a state silently. After two IDLE windows every IDLE window gives another idle event: about 5 per second per still hand, where ActionFilter gives one. If its events were fed to Wen Ree's `EventEncoder`, a change from one ongoing state to another would raise the encoder's "End the previous local state" error and lose the second state. A continuous chop would give one CHOP instead of today's repeated CHOP results, and the game needs three per ingredient.
+  5. The replay tool's `--two-hand-wash` flag does nothing (both branches make the same call), and the tool always uses a 0.70 threshold.
+  6. The object table itself is implemented as drawn, for one hand (7 objects x 6 gestures, no mismatch). Two questions for Wen Ree and Jie Ling. First, a clean plate may do the POURING gesture, though the table says it "receives food from pot". Second, CHOP is refused on the hand that does not hold the knife, while the game chops on any CHOP while the knife is held.
+- **Where it can run.** Nothing in the chain imports the new module and the staging does not carry it, so a merge changes nothing that runs.
+  - The temporal stage needs per-window predictions, which exist only inside Wen Ree's worker on the Ultra96. Stacked on the results or the hand events, it fires no pulses at all. Inside the worker it is not a drop-in for his ActionFilter: it has no `tick()`, a different `reset`, and no `elapsed_s` on its events.
+  - The object gate needs each hand's held and target object, which only the game has. Nothing carries game or phone state back to the board: the phone sends only `SUBSCRIBE`, and any further byte ends the subscription. The way Communications connects is settled, so the object check can only run in the game. Communications holds no object state, so "the game/comms layer" can only mean the game.
+- **The game at team main.** `vis/` there was last changed on 10-17, and Jie Ling's current game is not in the team repo, so this may be out of date [Not confirmed]. That game maps PICKUPHOLD and PLACEDOWN, not the model's PICKUP and DROP, and has no POURING. It drops `device_id` and keeps one held item for the player. WASH is a stub and THROW only logs. Its objects are a knife, ingredients and a pot. It already refuses a chop without the knife, a grab while holding, a grab with nothing in reach and a drop with nothing held, and it checks the chop's station and geometry.
+- **The candidate3 models.** They are not on this laptop or in any git ref: `.comms-local` is git-ignored, so the folder exists only in Wen Ree's copy.
+  - By his `wide_training.train`, a `models/selected` folder is PyTorch training output (`model.pth`, `normalization.npz`, `config.json` and others, with a `selection.json` marked provisional, live, board and game verification pending). It is not a hand12 bundle. The board worker and `tools.stage_model_runner` need `manifest.json`, `hand_contract.json` and each hand's `parameter_words.bin`, which only his export makes, and the export needs his prepared dataset.
+  - The bundle's config may name `independent_hand_flex3_gyro_v5_2000_v1` (±2000 deg/s). If it does, the runtime in local `main` and on the board refuses it; the team main's runtime (PR #42) accepts it. Nothing changes on the wire (still version 5, gyro x10). The gloves would then need the `-wide2000` build, and since packets carry no range, nothing in the chain can check that [Inferred from his tooling; candidate3's own `config.json` not read].
+  - The repaired training keeps the right glove's index flex, which the deployed RIGHT model folds out.
+- **Tests.**
+  - At `595a2df`, `python -m pytest tests/test_gameplay_postprocess.py` gave 7 passed.
+  - One full run (`tests laptop/tests phone/tests`) gave 1,782 passed, 2 failed, 19 skipped. Both failures came before this PR and are unrelated to it: the `test_hand_ai_lab` timeline test under the laptop's GBK locale, and the v5 flash test after PR #42, which the owner's unapplied patch `0001` fixes. A second run gave 5 failed. The extra three were Wen Ree's `tests/test_hand_shutdown.py` busy-stream test (intermittent alone too, since PR #42) and two `tests/test_dual_bridge.py` tests that passed every rerun [Inferred as load effects, not established].
+  - A full run writes `.comms-local/rejected_gyro/` into the checkout; this comes from PR #42's `tests/test_wide_gyro.py`.
+  - On GitHub, PR #45 is open and mergeable, with no checks and no review. A merge into local `main` has no conflicts, but it also brings in PRs #42 and #44 (29 more files, including Communications' `flash.py` and firmware).
+- **Status.** Not merged. The findings are for Wen Ree (his code, so the fixes are his), and the game's half is for Jie Ling. Whether and when to merge is the owner's decision. If it is merged, the two new files in `tests/` and `tools/` are Wen Ree's and go into `AGENTS.md`'s list. Evidence: `.comms-local/checks/2026-11-03-pr45-review/`.
+
+### Decisions that affect more than one subsystem (Week 12)
+
+None so far. [Proposal: hold team PR #45 until its pulse stage accepts more than one pulse per hand (W12-1).]
+
+### Tests on hardware (Week 12)
+
+None so far.
+
+### Open (Week 12, so far)
+
+1. Telling Wen Ree the W12-1 findings and asking him three things. Where is each part meant to run: the temporal stage in his worker in place of ActionFilter, keeping his hand-event contract, or only in his laptop tools; and the object gate as a reference for the game? Will he export candidate3 as a hand12 bundle? What config version and glove build does it need, and what evaluation does it have?
+2. Asking Jie Ling whether her current game maps PICKUP, DROP and POURING, uses `device_id`, and keeps an item per hand. The team main's game does none of these.
+3. Merging team PR #45 at the owner's word, after Wen Ree's fixes; then adding the two new files to `AGENTS.md`'s list.
+4. For candidate3 on the board: the team main (PRs #42 and #44) into local `main` with the owner's patch `0001` (Week 11 open item 13), staging under a new `--name`, a redeploy, and the gloves on the matching build.
+
+---
+
 ## Adding an entry
 
 `AGENTS.md` rule 9 asks for an entry with every code change, deployment change, integration run and cross-subsystem decision, in the same piece of work as the change and its other document updates.
