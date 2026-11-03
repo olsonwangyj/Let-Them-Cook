@@ -69,8 +69,16 @@ Since the merge of the team main `ec200b9` (team pull request #40,
 `tests/test_live_console.py`, `tests/test_recorder_session_fix.py` and
 `tests/test_wide_gyro.py`. The table of sensor versions that uses his codecs,
 `common/sensor_versions.py`, is Communications'.
+Since the merge of the team main `b4483bc` (team pull requests #42 and #44,
+merged into local `main` on 2026-11-04) so are `tools/run_hand_workflow.ps1`
+and `tools/run_live_gesture_test.ps1`; his other new files from that merge
+(`tools/hand_capture_review.py`, `tools/hand_collection.py`,
+`tools/hand_guided_collection.py`, five `tests/test_hand_*.py` and two
+`docs/HAND_*_20261031.md`) fall under the patterns above.
 Communications files he changed (for example `laptop/bridge.py`,
-`ultra96/server.py`) stay Communications'.
+`ultra96/server.py`, and in team pull request #42 `flash.py`,
+`firmware/esp32/platformio.ini` and the glove module copy in
+`firmware/esp32/lib/glove_sensor/`) stay Communications'.
 
 One exception the other way: `src/socket_worker_hand.py` stays Wen Ree's,
 but on 2026-10-28 he agreed (relayed by olsonwangyj) that Communications may
