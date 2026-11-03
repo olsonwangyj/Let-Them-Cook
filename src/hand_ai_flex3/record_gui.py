@@ -3,6 +3,7 @@
 Run from the repository root: python -m src.hand_ai_flex3.record_gui
 Sensor transport is BLE. USB may provide power and diagnostic logs.
 """
+from src.hand_ai_flex3.async_queue import queue_item
 import asyncio
 from collections import deque
 import csv
@@ -41,10 +42,21 @@ def prepare_session(a):
     root = a['root']
     root.mkdir(parents=True, exist_ok=True)
     identity = {k:a[k] for k in ('person','session','split','device_id')}
+    # A guided campaign may intentionally keep one session name while
+    # assigning different recordings to train/validation/test.  The split is
+    # still stored per trial; this marker flag only says that the folder is a
+    # combined guided session rather than a legacy single-split session.
+    if a.get('session_scope'):
+        identity['session_scope'] = a['session_scope']
     identity['recording_contract'] = a.get('recording_contract', CONFIG['version'])
     marker = root/'session.json'
     if marker.exists():
-        if json.loads(marker.read_text(encoding='utf-8')) != identity:
+        existing = json.loads(marker.read_text(encoding='utf-8'))
+        same_base = all(existing.get(k) == identity.get(k)
+                        for k in ('person','session','device_id','recording_contract'))
+        combined = (identity.get('session_scope') == 'combined' and
+                    existing.get('session_scope') == 'combined')
+        if existing != identity and not (combined and same_base):
             raise ValueError('This folder already belongs to a different person/hand/session/split. Choose a new session.')
     else: write_json(marker,identity)
     prefix = f"{a['person']}_{a['session']}_{a['gesture']}_"
@@ -112,8 +124,8 @@ class Worker:
             trial_queue=NotificationQueue(self.device,0,health,trial_mode=True)
             # Trial queue receives already-validated decoded packets, not raw bytes.
             async def receive():
-                while True:
-                    p,v,received=await asyncio.wait_for(incoming.get(),3)
+                while not self.stop.is_set():
+                    p,v,received=await queue_item(incoming,3)
                     ensure_healthy(health)
                     with self.lock:
                         self.latest=(p,v,received);self.count+=1
