@@ -797,6 +797,14 @@ Where documents disagree with the code (follow the code):
 - The board deployment folder `BOARD_ROOT` and the old code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:13`, `:16`). They are real folders on the board. New snapshots are named `source-co-v3-<stamp>`.
 - The laptop's default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` (`demo.py:79-80`). Other machines must pass `--ca` explicitly.
 
+### Board state (2026-11-04, sensor version 5, candidate3)
+
+At the owner's word, the owner typing every password, from local `main` `04f3f07` (integration journal W12-6):
+
+- **Staged** at 16:29 +08:00: `python -m tools.stage_model_runner --runner hand12 --bundle .comms-local/bundles/hand12_v5_candidate3 --name hand12_v5_candidate3`, 29 files, each SHA-256 equal (records `model-runner-stage-20261104T082909Z.json`, and `...083112Z.json` for a rerun that found the copy unchanged). The bundle is Wen Ree's `models/hand12_v5_candidate3/` of `403169f` (team PR #45 branch), copied with `git cat-file blob`: its text files are committed with CRLF endings, a Windows checkout rewrites them, and the manifest's hashes then refuse the bundle (`Export file missing or hash changed: hand_cnn.cpp`). Both hands' `config.json` name `independent_hand_flex3_gyro_v5_2000_v1`, version 5, gyro scale 10, full scale 2000 deg/s, all 12 channels; the plan named `python flash.py --glove --wide-gyro --gyro-dps 2000`.
+- **Deployed** at 16:31:32 (stamp `20261104T083132Z`, record `deployment-20261104T083132Z.json`) with the command the staging printed: service PID 194477 (`--sensor-version 5 --model ultra96.model_bridge`, code `source-co-v5-20261104T083132Z`), replacing 181558 by SIGTERM; worker PID 194485 (`src.socket_worker_hand`, FPGA backend, `model-runner/hand12_v5_candidate3`), running and connected, replacing 181567; a new event log `evidence/observer-co-live-20261104T083132Z`; rollback `rollback-co-20261104T083132Z`. The old copy `model-runner/hand12_v5_20261029` stays on the board; a switch back is its deploy command of 10-29 (below) with the gloves reflashed to ±1000.
+- **Not yet:** a glove through the board to candidate3 (both gloves run ±2000 since 16:41, detail chapter 2).
+
 ### Board state (2026-10-29, sensor version 5, trained models)
 
 By an agent at the owner's request ("Stage and deploy"), the owner typing the jump-host, board and sudo passwords (nothing stored); integration journal W11-19.
