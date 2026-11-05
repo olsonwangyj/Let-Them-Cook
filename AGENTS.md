@@ -75,6 +75,10 @@ and `tools/run_live_gesture_test.ps1`; his other new files from that merge
 (`tools/hand_capture_review.py`, `tools/hand_collection.py`,
 `tools/hand_guided_collection.py`, five `tests/test_hand_*.py` and two
 `docs/HAND_*_20261031.md`) fall under the patterns above.
+Since the merge of team pull request #45 (`77d6eff`, merged into local
+`main` on 2026-11-05) so are `tools/replay_gameplay_gate.py` and
+`tests/test_gameplay_postprocess.py`; his gate module and the candidate3
+bundle are under `src/` and `models/`.
 Communications files he changed (for example `laptop/bridge.py`,
 `ultra96/server.py`, and in team pull request #42 `flash.py`,
 `firmware/esp32/platformio.ini` and the glove module copy in
