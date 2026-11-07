@@ -79,6 +79,10 @@ Since the merge of team pull request #45 (`77d6eff`, merged into local
 `main` on 2026-11-05) so are `tools/replay_gameplay_gate.py` and
 `tests/test_gameplay_postprocess.py`; his gate module and the candidate3
 bundle are under `src/` and `models/`.
+Since the merge of team pull request #47 (`7a240f8`, merged into local
+`main` on 2026-11-07) so are `tools/pickup_static_gui.py`,
+`tests/test_combined_session_training.py` and `tests/test_pickup_static_gui.py`;
+the retrained candidate3 bundle stays under `models/`.
 Communications files he changed (for example `laptop/bridge.py`,
 `ultra96/server.py`, and in team pull request #42 `flash.py`,
 `firmware/esp32/platformio.ini` and the glove module copy in
