@@ -939,13 +939,14 @@ To be written when the week ends.
 - **Not measured or not reported.** Which phone was subscribed and its `Received` count; whether the game acted on the results; the gesture sequence performed, so the label counts say nothing here about missed, false or repeated triggers (Wen Ree's comparison, with his own records). The two runs differ in length and gestures, so their result counts are not a comparison of 2 against 1. No run with 3 consecutive predictions.
 - **Change.** None: no code, nothing flashed or deployed. The board is left on 1 consecutive prediction.
 - **Teammates told [Owner's report, 11-11, in Chinese: all done; the messages and the answers not seen by this session].** Jie Ling asked whether her game maps PICKUP, DROP and POURING, uses `device_id` and keeps an item per hand (Week 12 open item 2); Siqiang told that team PR 42 changed his `hardware/gloves/integration_files/glove_sensor.cpp` (Week 12 open item 6); Wen Ree told the two `tools/hand_tonight.py` points and that the count is set at deploy (Week 12 open item 10).
-- **Status.** Communications' delivery held in both runs: every sample received was acknowledged, and every result made while a phone was subscribed was written to it. Open: the right glove's restarts (for Siqiang, if they recur; on site, as before, restart the glove); the run with 3 consecutive predictions, if Wen Ree still wants it; his choice of the final count, on which the board is to be left before the demo of Thursday 11-12.
+- **Status.** Communications' delivery held in both runs: every sample received was acknowledged, and every result made while a phone was subscribed was written to it. Open: the right glove's restarts (for Siqiang, if they recur; on site, as before, restart the glove). Later on 11-11 the owner reported the final count settled at 1, which the board already runs (the decisions table below).
 
 ### Decisions that affect more than one subsystem (Week 13)
 
 | Date | Decision | Who | Affects |
 |---|---|---|---|
 | 11-11 | The board runs the retrained candidate3 with 1 consecutive prediction, the first of the three settings Wen Ree asked to compare (W13-2). | Owner ("redeploy with confirmations 1"), at Wen Ree's request | Wen Ree (his comparison), Jie Ling (the game gets events after one prediction until the next redeploy) |
+| 11-11 | The final count is 1 consecutive prediction; the board already runs it (W13-2), so no redeploy follows, and the run with 3 is not made. The demo of 11-12 does not use the owner's iPhone, so the owner's phone apps are not re-signed. | The team, by the owner's report of 11-11 (after the runs of W13-3) | Wen Ree (his worker's setting), Jie Ling (the game gets events after one prediction; the demo's phone is not the owner's) |
 
 ### Tests on hardware (Week 13)
 
@@ -958,8 +959,9 @@ To be written when the week ends.
 
 1. ~~A read-only check of the Ultra96 before the team's test~~ Done on 11-11 at 14:10 (W13-1).
 2. Week 12's open items 10 and 11.
-3. Wen Ree's comparison (W13-2): ~~the run with the gloves at 1 consecutive prediction~~ run on 11-11 at 14:53, passed, and one at 2 at 14:22, before the redeploy, not passed for the right glove's restarts (W13-3); still the run at 3, if he wants it; the final count is his choice with the team, and the board is to be left on it (it runs 1 now).
+3. Wen Ree's comparison (W13-2): ~~the run with the gloves at 1 consecutive prediction~~ run on 11-11 at 14:53, passed, and one at 2 at 14:22, before the redeploy, not passed for the right glove's restarts (W13-3); ~~the run at 3 and the choice of the final count~~ settled on 11-11: the final count is 1, which the board runs since 14:45; no run at 3 [Owner's report].
 4. The right glove's three restarts in the 14:22 run of 11-11 (W13-3): cause not established; for Siqiang if they recur.
+6. ~~Week 12's open item 11, the phone apps' re-sign~~ Not needed: the demo does not use the owner's iPhone [Owner's report, 11-11]. The server certificate still expires on Friday 11-13 at 22:27 +08:00.
 5. Week 12's open items 2 and 6 and the telling in item 10: done by the owner's report of 11-11 (W13-3); Jie Ling's and Wen Ree's answers are not recorded here.
 
 ---
