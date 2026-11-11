@@ -903,7 +903,7 @@ To be written when the week ends.
 
 | Date | What happened | Evidence |
 |---|---|---|
-| Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). 14:09 to 14:12, at the owner's word ("VPN on, check board"), the owner typing both passwords: the Ultra96 read through the read-only WSL board session and found as deployed on 11-07 (W13-1). 14:43 to 14:47, at the owner's word ("redeploy with confirmations 1"), after Wen Ree's request for a comparison of 1, 2 and 3 consecutive predictions, the owner typing every password: the Ultra96 redeployed with the same model and `--confirmations 1`, and read back (W13-2). | `deployment-20261111T064357Z.json`; `a876ad2`; `.comms-local/checks/2026-11-11-board-check/monitor.json`; this entry |
+| Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). 14:09 to 14:12, at the owner's word ("VPN on, check board"), the owner typing both passwords: the Ultra96 read through the read-only WSL board session and found as deployed on 11-07 (W13-1). 14:43 to 14:47, at the owner's word ("redeploy with confirmations 1"), after Wen Ree's request for a comparison of 1, 2 and 3 consecutive predictions, the owner typing every password: the Ultra96 redeployed with the same model and `--confirmations 1`, and read back (W13-2). In the team's meeting the owner ran both gloves through the board twice: 14:22 to 14:43 on the 11-07 service with 2 consecutive predictions (not passed: the right glove restarted three times; nothing lost), and 14:53 to 15:00 on the new service with 1 (`CAPTURE PASSED`, 671 results all written to the phone) (W13-3). The owner reported the three messages to the teammates as done (W13-3). | `deployment-20261111T064357Z.json`; `a876ad2`; `.comms-local/checks/2026-11-11-board-check/monitor.json`; `.comms-local/B07-20261111T062246637793Z-54ac9ea5/`; `.comms-local/B07-20261111T065352453387Z-28bdb47e/`; this entry |
 
 ### Issues, investigations and changes
 
@@ -926,6 +926,21 @@ To be written when the week ends.
 - **Retest.** Read back at 14:47 through the read-only board session: service 209011 (`--sensor-version 5`) and worker 209034 (`--confirmations 1`) running, both ports on `127.0.0.1`, the worker's `hand_hello` delivered, the monitor with no subscriber, 0 samples and `model_errors` 0 (`.comms-local/checks/2026-11-11-board-check/monitor-after-c1.json`). [Not run: a glove through the board.]
 - **Status.** The board runs the retrained candidate3 with 1 consecutive prediction. Next: the run with the gloves at 1, then one redeploy each for 2 and 3 (`-Confirmations 2`, `-Confirmations 3`). The counts of missed and false triggers and the choice of the final value are Wen Ree's with the team.
 
+#### W13-3. The first runs of both gloves through the retrained candidate3, with 2 and with 1 consecutive predictions (W13-2, continued)
+
+- **What happened.** In the team's meeting of 11-11 the owner ran `python demo.py start --sensor-version 5 --no-tunnel` twice through the board session's forwards, both gloves worn, a phone subscribed, and afterwards asked an agent to read the logs (in Chinese: the runs were made today, read the logs). These are the first samples either candidate3 deployment received from a glove (W13-1 found 0 samples since 11-07).
+- **Run 1, 14:22:47 to 14:43:04 (1,208 s), the service of 11-07 with 2 consecutive predictions (up 87.5 h): `CAPTURE NOT PASSED`.**
+  - The right glove restarted three times: BLE disconnected at 14:27:56, 14:28:14 and 14:31:33, each reconnect 8 to 10 s later with a new `boot_id` (1395994141, 2371072397, 3244686386); longest silence 11.7 s, over the 2 s limit. From 14:31:43 to the end (11.3 min) it ran without a break. At the stop its final counters could not be read (`source_quiesce_failed`, `ProtocolError`), so its "generated" figure is missing.
+  - Nothing was lost on the way: left 60,416 generated = received = acknowledged, 1 connection, 0 gaps; right 58,818 received = acknowledged, 0 gaps, 0 duplicates. The summary table's "Ultra96 acknowledged 15066" for the right glove is the first boot only (`source.last_acked_seq` 15065 in `report.json`); the report's `acked` is 58,818.
+  - The link watchdog did not fire (`starved_reconnects` 0, `starved_held` 0), so these were not the starved link. A new `boot_id` means the glove itself restarted [Cause not established: power, wiring or a reset on the glove are Siqiang's side; the glove's serial output was not read].
+  - On the board: 568 (left) and 1,045 (right) results, none refused, `model_errors` 0; two model-bridge calls over 5 ms at 14:37:19 (slowest 9.7 ms since the service started), no late result. Labels, left: WASH 266, PICKUP 78, POURING 66, IDLE 52, THROW 45, DROP 43, CHOP 18; right: WASH 571, IDLE 179, PICKUP 99, DROP 80, CHOP 70, POURING 35, THROW 11.
+  - The phone: subscribed at the start (subscriber 2), ended at 14:27:26 (`peer_eof`), subscriber 3 from 14:28:29 to 14:30:27, subscriber 4 from 14:31:00. 1,404 results were written to a phone connection and 209 were made while none was subscribed (left 154, right 55).
+- **Run 2, 14:53:52 to 15:00:35 (396 s), the service of 14:45 with 1 consecutive prediction (W13-2): `CAPTURE PASSED`.** Left 19,809 and right 19,810, each generated = received = acknowledged, 0 gaps, no disconnect, no restart. 224 (left) and 447 (right) results, all 671 written to the phone (one subscription, subscriber 2, for the whole run), none refused; no call over 5 ms (slowest 4.8 ms). Labels, left: WASH 91, POURING 43, IDLE 25, PICKUP 24, THROW 21, DROP 13, CHOP 7; right: WASH 135, IDLE 112, CHOP 64, PICKUP 53, DROP 50, POURING 30, THROW 3.
+- **Not measured or not reported.** Which phone was subscribed and its `Received` count; whether the game acted on the results; the gesture sequence performed, so the label counts say nothing here about missed, false or repeated triggers (Wen Ree's comparison, with his own records). The two runs differ in length and gestures, so their result counts are not a comparison of 2 against 1. No run with 3 consecutive predictions.
+- **Change.** None: no code, nothing flashed or deployed. The board is left on 1 consecutive prediction.
+- **Teammates told [Owner's report, 11-11, in Chinese: all done; the messages and the answers not seen by this session].** Jie Ling asked whether her game maps PICKUP, DROP and POURING, uses `device_id` and keeps an item per hand (Week 12 open item 2); Siqiang told that team PR 42 changed his `hardware/gloves/integration_files/glove_sensor.cpp` (Week 12 open item 6); Wen Ree told the two `tools/hand_tonight.py` points and that the count is set at deploy (Week 12 open item 10).
+- **Status.** Communications' delivery held in both runs: every sample received was acknowledged, and every result made while a phone was subscribed was written to it. Open: the right glove's restarts (for Siqiang, if they recur; on site, as before, restart the glove); the run with 3 consecutive predictions, if Wen Ree still wants it; his choice of the final count, on which the board is to be left before the demo of Thursday 11-12.
+
 ### Decisions that affect more than one subsystem (Week 13)
 
 | Date | Decision | Who | Affects |
@@ -934,13 +949,18 @@ To be written when the week ends.
 
 ### Tests on hardware (Week 13)
 
-None so far.
+| When | Run | Result | Evidence |
+|---|---|---|---|
+| 11-11, 14:22 to 14:43 | Both gloves (±2000 deg/s build) through the Ultra96, the retrained candidate3 with 2 consecutive predictions, a phone subscribed; 1,208 s | Not passed: the right glove restarted three times. Left 60,416 = 60,416 = 60,416; right 58,818 received = acknowledged; 0 gaps. 1,613 results, 1,404 written to the phone, 209 made with no phone subscribed | `.comms-local/B07-20261111T062246637793Z-54ac9ea5/`; W13-3 |
+| 11-11, 14:53 to 15:00 | The same with 1 consecutive prediction; 396 s | `CAPTURE PASSED`: left 19,809, right 19,810, each generated = received = acknowledged; 671 results, all written to the phone | `.comms-local/B07-20261111T065352453387Z-28bdb47e/`; W13-3 |
 
 ### Open (Week 13, so far)
 
 1. ~~A read-only check of the Ultra96 before the team's test~~ Done on 11-11 at 14:10 (W13-1).
 2. Week 12's open items 10 and 11.
-3. Wen Ree's comparison (W13-2): the run with the gloves at 1 consecutive prediction (deployed), then redeploys and runs at 2 and 3; the final count is his choice with the team, and the board is to be left on it.
+3. Wen Ree's comparison (W13-2): ~~the run with the gloves at 1 consecutive prediction~~ run on 11-11 at 14:53, passed, and one at 2 at 14:22, before the redeploy, not passed for the right glove's restarts (W13-3); still the run at 3, if he wants it; the final count is his choice with the team, and the board is to be left on it (it runs 1 now).
+4. The right glove's three restarts in the 14:22 run of 11-11 (W13-3): cause not established; for Siqiang if they recur.
+5. Week 12's open items 2 and 6 and the telling in item 10: done by the owner's report of 11-11 (W13-3); Jie Ling's and Wen Ree's answers are not recorded here.
 
 ---
 
