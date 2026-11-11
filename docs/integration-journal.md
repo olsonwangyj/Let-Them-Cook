@@ -903,7 +903,7 @@ To be written when the week ends.
 
 | Date | What happened | Evidence |
 |---|---|---|
-| Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). 14:09 to 14:12, at the owner's word ("VPN on, check board"), the owner typing both passwords: the Ultra96 read through the read-only WSL board session and found as deployed on 11-07 (W13-1). | `a876ad2`; `.comms-local/checks/2026-11-11-board-check/monitor.json`; this entry |
+| Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). 14:09 to 14:12, at the owner's word ("VPN on, check board"), the owner typing both passwords: the Ultra96 read through the read-only WSL board session and found as deployed on 11-07 (W13-1). 14:43 to 14:47, at the owner's word ("redeploy with confirmations 1"), after Wen Ree's request for a comparison of 1, 2 and 3 consecutive predictions, the owner typing every password: the Ultra96 redeployed with the same model and `--confirmations 1`, and read back (W13-2). | `deployment-20261111T064357Z.json`; `a876ad2`; `.comms-local/checks/2026-11-11-board-check/monitor.json`; this entry |
 
 ### Issues, investigations and changes
 
@@ -918,9 +918,19 @@ To be written when the week ends.
 - **Change.** None: nothing pulled, flashed, staged or deployed. Opening the serial ports reset each glove twice. The board session was left open, so a run can use its forwards (`python demo.py start --sensor-version 5 --no-tunnel`).
 - **Status.** The gloves, the staged model and the running service match local `main`; no flash and no redeploy is needed. Still open from Week 12: the first run with the gloves through the board and the team's test of 3, 2 and 1 consecutive predictions (open item 10), each count one redeploy with `deploy_candidate3_v2.ps1 -Confirmations N`; the phone apps' re-sign (open item 11).
 
+#### W13-2. The Ultra96 redeployed with 1 consecutive prediction, the first setting of Wen Ree's comparison (W12-8 and W13-1, continued)
+
+- **What happened.** On 11-11 Wen Ree wrote to the owner, who forwarded it: for the confirmation comparison, run the same live integration test three times with the same model, threshold and gesture sequence, changing only the socket worker's argument (`--confirmations 1`, `2`, `3`); the entry point is `src/socket_worker_hand.py`, and `tools/hand_tonight.py` does not control the live filter; record the accepted-event latency, missed gestures and false or repeated triggers of each setting. The owner asked what it meant, then to redeploy with 1 first.
+- **Investigation.** The code's default is 3 (`src/socket_worker_hand.py:344`, with `--threshold` default 0.7); the board ran 2 because the deploy of 11-07 passed it (W12-8), and passed no threshold, so the threshold is his default. The count is a start-up argument of his worker, so each setting is one redeploy of the service and worker; the staged model copy is reused.
+- **Change.** At the owner's word ("redeploy with confirmations 1"), the owner typing the three passwords in a Terminal-panel tab, the NUS VPN on, from local `main` `65e02a1` (the code of `7f56670`): `deploy_candidate3_v2.ps1 -Confirmations 1`, stamp `20261111T064357Z` (`deployment-20261111T064357Z.json`): service PID 209011 in `BOARD_ROOT/source-co-v5-20261111T064357Z`, replacing 201603 (SIGTERM); Wen Ree's worker PID 209034 with `--confirmations 1` on the FPGA backend from `BOARD_ROOT/model-runner/hand12_v5_candidate3_20261107`, running and connected, replacing 201612 (SIGTERM); a new event log `BOARD_ROOT/evidence/observer-co-live-20261111T064357Z`; rollback `BOARD_ROOT/rollback-co-20261111T064357Z`; the certificate kept. The service came up at about 14:45 +08:00.
+- **Retest.** Read back at 14:47 through the read-only board session: service 209011 (`--sensor-version 5`) and worker 209034 (`--confirmations 1`) running, both ports on `127.0.0.1`, the worker's `hand_hello` delivered, the monitor with no subscriber, 0 samples and `model_errors` 0 (`.comms-local/checks/2026-11-11-board-check/monitor-after-c1.json`). [Not run: a glove through the board.]
+- **Status.** The board runs the retrained candidate3 with 1 consecutive prediction. Next: the run with the gloves at 1, then one redeploy each for 2 and 3 (`-Confirmations 2`, `-Confirmations 3`). The counts of missed and false triggers and the choice of the final value are Wen Ree's with the team.
+
 ### Decisions that affect more than one subsystem (Week 13)
 
-None so far.
+| Date | Decision | Who | Affects |
+|---|---|---|---|
+| 11-11 | The board runs the retrained candidate3 with 1 consecutive prediction, the first of the three settings Wen Ree asked to compare (W13-2). | Owner ("redeploy with confirmations 1"), at Wen Ree's request | Wen Ree (his comparison), Jie Ling (the game gets events after one prediction until the next redeploy) |
 
 ### Tests on hardware (Week 13)
 
@@ -930,6 +940,7 @@ None so far.
 
 1. ~~A read-only check of the Ultra96 before the team's test~~ Done on 11-11 at 14:10 (W13-1).
 2. Week 12's open items 10 and 11.
+3. Wen Ree's comparison (W13-2): the run with the gloves at 1 consecutive prediction (deployed), then redeploys and runs at 2 and 3; the final count is his choice with the team, and the board is to be left on it.
 
 ---
 

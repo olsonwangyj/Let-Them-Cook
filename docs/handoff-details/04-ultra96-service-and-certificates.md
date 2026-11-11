@@ -799,6 +799,15 @@ Where documents disagree with the code (follow the code):
 - The board deployment folder `BOARD_ROOT` and the old code snapshot folder `BOARD_SOURCE` have `week7` and a date in their names (`tools/demo_service.py:13`, `:16`). They are real folders on the board. New snapshots are named `source-co-v3-<stamp>`.
 - The laptop's default CA path `~/.codex/private/cg4002-week7-20260906/ca-cert.pem` (`demo.py:79-80`). Other machines must pass `--ca` explicitly.
 
+### Board state (2026-11-11, sensor version 5, the retrained candidate3, 1 confirmation)
+
+At the owner's word ("redeploy with confirmations 1"), the owner typing every password, the NUS VPN on, from local `main` `65e02a1` (the same code as `7f56670`; integration journal W13-2), with `.comms-local/checks/2026-11-07-candidate3-v2/deploy_candidate3_v2.ps1 -Confirmations 1` (no staging: the copy of 11-07 is used as it is):
+
+- **Deployed** at 14:43 to 14:45 +08:00 (stamp `20261111T064357Z`, record `deployment-20261111T064357Z.json`) with the command of 11-07 and `--runner-arg=--confirmations --runner-arg 1`: service PID 209011 (`--sensor-version 5 --model ultra96.model_bridge`, code `source-co-v5-20261111T064357Z`), replacing 201603 by SIGTERM; worker PID 209034 (`src.socket_worker_hand ... --confirmations 1`, FPGA backend, `model-runner/hand12_v5_candidate3_20261107`, his default threshold 0.7), running and connected, replacing 201612 by SIGTERM; log `evidence/server-co-20261111T064357Z.log`, worker log `evidence/model-runner-20261111T064357Z.log`, a new event log `evidence/observer-co-live-20261111T064357Z`; rollback `rollback-co-20261111T064357Z`; certificate kept (`Nov 13 14:27:35 2026 GMT`).
+- **Read back** at 14:47 through the read-only board session: both processes with those arguments, both ports on `127.0.0.1`, the worker's `hand_hello` delivered, the monitor with no subscriber and no model errors.
+- This is the first of the three settings Wen Ree asked to compare (1, 2, 3; the same model, threshold and gesture sequence). The 11-07 deploy with 2 confirmations (below) was found unchanged at 14:10 before this redeploy, with nothing received since its start (integration journal W13-1).
+- **Not yet:** no glove has streamed through the board to either candidate3.
+
 ### Board state (2026-11-07, sensor version 5, the retrained candidate3, 2 confirmations)
 
 At the owner's word ("Merge and deploy"), the owner typing every password, the NUS VPN on, from local `main` `7f56670` (team pull request #47 merged in `e391f3c`; integration journal W12-8), with `.comms-local/checks/2026-11-07-candidate3-v2/deploy_candidate3_v2.ps1 -Stage -Confirmations 2`:
