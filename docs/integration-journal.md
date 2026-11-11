@@ -903,7 +903,7 @@ To be written when the week ends.
 
 | Date | What happened | Evidence |
 |---|---|---|
-| Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). | `a876ad2`; this entry |
+| Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). 14:09 to 14:12, at the owner's word ("VPN on, check board"), the owner typing both passwords: the Ultra96 read through the read-only WSL board session and found as deployed on 11-07 (W13-1). | `a876ad2`; `.comms-local/checks/2026-11-11-board-check/monitor.json`; this entry |
 
 ### Issues, investigations and changes
 
@@ -914,9 +914,9 @@ To be written when the week ends.
   - After `git fetch --all --prune`: local `main` = `origin/main` = `a876ad2` (0 ahead, 0 behind). The team main is still `7a240f8` (team PR 47) and is contained in local `main` (0 behind; the 288 commits ahead are the fork's own, mostly `docs/`). Nothing to pull.
   - The code since the last flash and deploy: `git diff 04f3f07 HEAD -- firmware flash.py common hardware` is empty (the gloves were flashed from `04f3f07`, W12-6), and `git diff 7f56670 HEAD` outside `docs/`, `AGENTS.md` and `CLAUDE.md` is empty (the board was deployed from `7f56670`, W12-8). The bundle staged on the board, `.comms-local/bundles/hand12_v5_candidate3_20261107/`, equals `models/hand12_v5_candidate3/` at HEAD in all 15 files (git blob hashes).
   - The gloves, both on USB: COM3 factory MAC `38:18:2b:14:ea:fc` (RIGHT), COM4 `38:18:2b:17:e2:e4` (LEFT). Boot lines after a reset, only the allow-listed ones read: both `gyro_config range_dps=2000 sensitivity_lsb_per_dps=16.4 register=0x18`, `glove_begin ok=1 module=external gated=0 attempts=1`, `comms_ready device_id=2` (COM3) and `device_id=1` (COM4) `packet_bytes=40 packet_version=5 rate_hz=50 protected=1`. `tools.sync_glove_module --check` passed, and `pio run` for `firebeetle32-left-glove-flex3-wide2000` and `firebeetle32-right-glove-flex3-wide2000` at HEAD rebuilt nothing (the images of 11-04; RAM 8.1 %, flash 87.8 %). `esptool verify_flash 0x10000` of each image against its glove: "verify OK (digest matched)" for both, so each glove holds exactly the current build.
-  - The Ultra96 was not read: the NUS VPN was off and a board login is the owner's [Not confirmed: that the board still runs the service and worker of `deployment-20261107T145311Z.json`; by the records nothing has been deployed since].
-- **Change.** None: nothing pulled, flashed, staged or deployed. Opening the serial ports reset each glove twice.
-- **Status.** The gloves and the staged model match local `main`. Still open from Week 12: the first run with the gloves through the board and the team's test of 3, 2 and 1 consecutive predictions (open item 10), each count one redeploy with `deploy_candidate3_v2.ps1 -Confirmations N`; the phone apps' re-sign (open item 11).
+  - The Ultra96, read at 14:10 +08:00 (06:10 UTC) once the owner had connected the NUS VPN (AnyConnect at 10.195.55.201) and typed both passwords into the read-only WSL board session (W11-9): service 201603 (`--model ultra96.model_bridge --sensor-version 5`, in `BOARD_ROOT/source-co-v5-20261107T145311Z`) and Wen Ree's worker 201612 (`src.socket_worker_hand`, FPGA backend, the overlay of `BOARD_ROOT/model-runner/hand12_v5_candidate3_20261107`, `--confirmations 2`) both up 3 days 15 hours, as deployed on 11-07 (`deployment-20261107T145311Z.json`, W12-8); the board up 85 days. Both ports listen on `127.0.0.1` only, with no connection on either; the worker's socket is in place; the worker's log shows its connection and `hand_hello` delivered. The staged bundle's `manifest.json` on the board has the SHA-256 of the local byte-exact copy (`17bec5c9...65cc`). The monitor (read-only, no subscription; `.comms-local/checks/2026-11-11-board-check/monitor.json`): no subscriber, 0 of 128 identities, 0 samples, `model_errors` 0, `rejected` 0, `events_dropped` 0, so nothing has reached this service since its deploy. The event log holds 12 KiB. Certificate valid until 2026-11-13 14:27:35 UTC; 20 GB free.
+- **Change.** None: nothing pulled, flashed, staged or deployed. Opening the serial ports reset each glove twice. The board session was left open, so a run can use its forwards (`python demo.py start --sensor-version 5 --no-tunnel`).
+- **Status.** The gloves, the staged model and the running service match local `main`; no flash and no redeploy is needed. Still open from Week 12: the first run with the gloves through the board and the team's test of 3, 2 and 1 consecutive predictions (open item 10), each count one redeploy with `deploy_candidate3_v2.ps1 -Confirmations N`; the phone apps' re-sign (open item 11).
 
 ### Decisions that affect more than one subsystem (Week 13)
 
@@ -928,7 +928,7 @@ None so far.
 
 ### Open (Week 13, so far)
 
-1. A read-only check of the Ultra96 before the team's test (processes, the worker's `--confirmations 2`, the certificate to 2026-11-13 22:27 +08:00), with the NUS VPN on and the owner typing the passwords.
+1. ~~A read-only check of the Ultra96 before the team's test~~ Done on 11-11 at 14:10 (W13-1).
 2. Week 12's open items 10 and 11.
 
 ---
