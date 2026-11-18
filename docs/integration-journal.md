@@ -897,13 +897,27 @@ None so far.
 
 ### One-page summary
 
-To be written when the week ends.
+The integration work this week checked the deployed system, exercised the complete Communications path with both physical gloves, and settled the live confirmation setting. This summary includes seven runs recovered from existing logs on 11-18; those runs happened on 11-11 and 11-12, not on the date of this retrospective review (W13-4 and W13-5).
+
+- Before the team session, local `main` matched the fork and contained the latest team main. Both gloves' flash digests matched the current sensor-version-5, 50 Hz, ±2000 deg/s builds. The staged model and running Ultra96 service matched the intended deployment; no code update or reflash was needed (W13-1).
+- The Ultra96 service and model worker were redeployed on 11-11 with the same retrained candidate3, threshold and FPGA backend, changing the confirmation count from 2 to 1. The worker connected successfully, and the team subsequently selected 1 as the final count; no run at 3 was made (W13-2 and the decisions table).
+- Nine integration runs took place: three on 11-11 and six on 11-12. Their common observation periods totalled 133.9 minutes. All 795,812 samples received by the laptop were acknowledged by the Ultra96, with zero reported sequence gaps. Three runs passed the full capture checks (W13-3 to W13-5).
+- Six captures did not pass because the logs recorded glove restarts and interruptions. Source-generated totals cannot be reconciled across those restarts, so received = acknowledged does not establish uninterrupted generation. The cause of the restarts was not established; no loss on the laptop-to-board path was reported.
+- Board-side forwarding was checked separately from capture continuity. On 11-12, the six runs produced 14,326 model results; 13,783 were written to phone connections and 543 were produced after the phone subscription ended in the final run. None was refused by the Communications service. Phone display counts, game actions and gesture accuracy were not measured in these records (W13-5).
+- Interface follow-ups concerning game actions and hand identity, glove sensor changes, and the live confirmation setting were completed according to the owner's report. The team's replies were not recorded (W13-3).
 
 ### Day by day
 
 | Date | What happened | Evidence |
 |---|---|---|
 | Wed 11-11 | About 13:55 to 14:05, by an agent at the owner's request ("check if my local code is same as the forked one and the team repo, and if not, pull. then use the latest code to flash the gloves and deploy the model on the ultra96 if needed"): the three repositories compared, both gloves read and compared over USB with the build from local `main`; nothing pulled, flashed or deployed, because nothing differed (W13-1). 14:09 to 14:12, at the owner's word ("VPN on, check board"), the owner typing both passwords: the Ultra96 read through the read-only WSL board session and found as deployed on 11-07 (W13-1). 14:43 to 14:47, at the owner's word ("redeploy with confirmations 1"), after Wen Ree's request for a comparison of 1, 2 and 3 consecutive predictions, the owner typing every password: the Ultra96 redeployed with the same model and `--confirmations 1`, and read back (W13-2). In the team's meeting the owner ran both gloves through the board twice: 14:22 to 14:43 on the 11-07 service with 2 consecutive predictions (not passed: the right glove restarted three times; nothing lost), and 14:53 to 15:00 on the new service with 1 (`CAPTURE PASSED`, 671 results all written to the phone) (W13-3). The owner reported the three messages to the teammates as done (W13-3). | `deployment-20261111T064357Z.json`; `a876ad2`; `.comms-local/checks/2026-11-11-board-check/monitor.json`; `.comms-local/B07-20261111T062246637793Z-54ac9ea5/`; `.comms-local/B07-20261111T065352453387Z-28bdb47e/`; this entry |
+
+The remaining day-by-day entries were added retrospectively from saved evidence on 11-18:
+
+| Date | What happened | Evidence |
+|---|---|---|
+| Wed 11-11, later run | 15:33 to 15:50: another two-glove integration run, 1,024 s of common observation. Both gloves restarted once, so capture did not pass; 101,419 samples received = acknowledged, 0 gaps, and all 2,317 model results written to the phone (W13-4). | `.comms-local/B07-20261111T073314266433Z-776ce6cd/` |
+| Thu 11-12 | Six two-glove runs between 09:20 and 11:52, including two passing captures and a 43.2-minute observation interrupted by three left-glove restarts. In total, 535,540 samples received = acknowledged, 0 gaps; 14,326 model results, 13,783 written to phone connections and 543 produced with no phone subscribed in the final run. The logs do not identify which run was the assessed demonstration (W13-5). | The six run folders in W13-5 and the hardware table below |
 
 ### Issues, investigations and changes
 
@@ -941,6 +955,22 @@ To be written when the week ends.
 - **Teammates told [Owner's report, 11-11, in Chinese: all done; the messages and the answers not seen by this session].** Jie Ling asked whether her game maps PICKUP, DROP and POURING, uses `device_id` and keeps an item per hand (Week 12 open item 2); Siqiang told that team PR 42 changed his `hardware/gloves/integration_files/glove_sensor.cpp` (Week 12 open item 6); Wen Ree told the two `tools/hand_tonight.py` points and that the count is set at deploy (Week 12 open item 10).
 - **Status.** Communications' delivery held in both runs: every sample received was acknowledged, and every result made while a phone was subscribed was written to it. Open: the right glove's restarts (for Siqiang, if they recur; on site, as before, restart the glove). Later on 11-11 the owner reported the final count settled at 1, which the board already runs (the decisions table below).
 
+#### W13-4. A further two-glove run on 11-11, recovered from the existing evidence on 11-18
+
+- **What happened.** The run folder `.comms-local/B07-20261111T073314266433Z-776ce6cd/` records `python demo.py start --sensor-version 5 --no-tunnel`, with both physical gloves at 50 Hz, from 15:33 to 15:50 on 11-11. Its common observation period is 1,024.204 s. This run was absent from the journal until the owner requested a Week 13 summary on 11-18; reading its `report.json` and final `run.log` summary is retrospective analysis, not a new hardware run.
+- **Investigation.** `CAPTURE NOT PASSED`: both gloves disconnected and restarted once, with maximum silences of 10.4 s (left) and 10.9 s (right), exceeding the 2 s limit. The left's 50,694 and right's 50,725 received samples were all acknowledged, with 0 gaps. Both source-generated totals are unavailable across the restarts. The board produced 738 left and 1,579 right results and wrote all 2,317 to the phone; no result was refused and no model error or late result was reported. These result figures are the run summary's deltas, not lifetime counters.
+- **Change.** No change is recorded by this run. The last documented deployment is W13-2, with 1 consecutive prediction; the capture does not independently print the worker's confirmation argument.
+- **Status.** Delivery of the received samples and emitted results is supported by the counters, but continuous glove operation did not pass. The reset causes, phone display count and game response are not established.
+
+#### W13-5. Six integration runs on 11-12, recovered from the existing evidence on 11-18
+
+- **What happened.** Six run folders record both physical gloves at 50 Hz and sensor version 5 through the Ultra96 on Thursday 11-12, using `python demo.py start --sensor-version 5 --no-tunnel`. They were inspected on 11-18 for the owner's Week 13 report. The table below records their individual evidence and verdicts. The logs establish runs on the scheduled demo day, but do not identify which was the assessed demonstration or record the game's response.
+- **Investigation.** The 09:20 and 10:51 runs passed: each glove's generated, received and acknowledged counts agree, with no restart or gap. The other four did not pass: both gloves restarted once in the 09:27, 09:41 and 11:30 runs; the left restarted three times during the 10:07 run. That longest run observed 2,591.469 s (43.2 minutes), with a maximum left silence of 27.1 s and two BLE errors. Its left 126,897 and right 129,577 received samples were all acknowledged, and all 5,647 model results were written to the phone. Its left source-generated total is unavailable across the restarts; the right generated total is 129,577. No passing run this week exceeded 13 minutes of common observation.
+- **Delivery totals.** Across the six runs, 535,540 samples received = acknowledged, with 0 sequence gaps in every report. The final summaries count 14,326 model results, 0 refused, 0 model errors and 0 late results; 13,783 results were written to phone connections. The 543 not written belong to the 11:30 run (282 left, 261 right), during the period with no phone subscribed at its end. These are sums of per-run deltas, not cumulative service counters. A successful socket write does not independently verify the phone's displayed `Received` count.
+- **Deployment context.** The first run's log reports the service up 18.6 h and the last reports 20.8 h, consistent with the 11-11 14:45 deployment (W13-2). No later deployment record was found in the inspected evidence. [Inferred: these runs used that deployment; the logs do not print the worker's `--confirmations` argument.]
+- **Change and retest.** No code change, flash or redeployment is recorded in these run folders. The 10:51 capture passed after the interrupted 10:07 run, but the logs do not identify a repair; it is not evidence that the restart cause was fixed. Reviewing the saved evidence on 11-18 made no hardware change and ran no new test.
+- **Not measured or not confirmed.** The cause of the glove restarts; the phone's displayed count and identity; game actions; accepted-event latency against a recorded gesture sequence; missed, false or repeated gestures. The capture verdicts and result counts do not establish model accuracy or a controlled comparison of confirmation settings.
+
 ### Decisions that affect more than one subsystem (Week 13)
 
 | Date | Decision | Who | Affects |
@@ -954,15 +984,63 @@ To be written when the week ends.
 |---|---|---|---|
 | 11-11, 14:22 to 14:43 | Both gloves (±2000 deg/s build) through the Ultra96, the retrained candidate3 with 2 consecutive predictions, a phone subscribed; 1,208 s | Not passed: the right glove restarted three times. Left 60,416 = 60,416 = 60,416; right 58,818 received = acknowledged; 0 gaps. 1,613 results, 1,404 written to the phone, 209 made with no phone subscribed | `.comms-local/B07-20261111T062246637793Z-54ac9ea5/`; W13-3 |
 | 11-11, 14:53 to 15:00 | The same with 1 consecutive prediction; 396 s | `CAPTURE PASSED`: left 19,809, right 19,810, each generated = received = acknowledged; 671 results, all written to the phone | `.comms-local/B07-20261111T065352453387Z-28bdb47e/`; W13-3 |
+| 11-11, 15:33 to 15:50 | Both physical gloves through the Ultra96; 1,024.2 s of common observation | Not passed: both gloves restarted once. Left 50,694 and right 50,725 received = acknowledged; 0 gaps; all 2,317 model results written to the phone | `.comms-local/B07-20261111T073314266433Z-776ce6cd/`; W13-4 |
+| 11-12, 09:20 to 09:27 | Both physical gloves through the Ultra96; 383.5 s of common observation | `CAPTURE PASSED`: left 19,187 and right 19,179, each generated = received = acknowledged; 0 gaps; all 782 results written to the phone | `.comms-local/B07-20261112T012044303763Z-8aebb0b2/`; W13-5 |
+| 11-12, 09:27 to 09:30 | The same; 174.1 s of common observation | Not passed: both gloves restarted once. Left 8,319 and right 8,506 received = acknowledged; 0 gaps; all 407 results written to the phone | `.comms-local/B07-20261112T012730138623Z-36da54bd/`; W13-5 |
+| 11-12, 09:41 to 09:48 | The same; 415.3 s of common observation | Not passed: both gloves restarted once. Left 20,279 and right 20,209 received = acknowledged; 0 gaps; all 802 results written to the phone | `.comms-local/B07-20261112T014124558594Z-9f68edce/`; W13-5 |
+| 11-12, 10:07 to 10:51 | The same; 2,591.5 s of common observation | Not passed: the left restarted three times. Left 126,897 received = acknowledged; right 129,577 generated = received = acknowledged; 0 gaps; all 5,647 results written to the phone | `.comms-local/B07-20261112T020752123063Z-96dce98e/`; W13-5 |
+| 11-12, 10:51 to 11:00 | The same; 527.6 s of common observation | `CAPTURE PASSED`: left 26,382 and right 27,019, each generated = received = acknowledged; 0 gaps; all 554 results written to the phone | `.comms-local/B07-20261112T025127467271Z-674dd6e7/`; W13-5 |
+| 11-12, 11:30 to 11:52 | The same; 1,311.2 s of common observation | Not passed: both gloves restarted once. Left 65,015 and right 64,971 received = acknowledged; 0 gaps; 6,134 results, 5,591 written to the phone and 543 produced with no phone subscribed | `.comms-local/B07-20261112T033049373467Z-b4654bce/`; W13-5 |
 
-### Open (Week 13, so far)
+### Open at the end of Week 13
 
 1. ~~A read-only check of the Ultra96 before the team's test~~ Done on 11-11 at 14:10 (W13-1).
-2. Week 12's open items 10 and 11.
-3. Wen Ree's comparison (W13-2): ~~the run with the gloves at 1 consecutive prediction~~ run on 11-11 at 14:53, passed, and one at 2 at 14:22, before the redeploy, not passed for the right glove's restarts (W13-3); ~~the run at 3 and the choice of the final count~~ settled on 11-11: the final count is 1, which the board runs since 14:45; no run at 3 [Owner's report].
-4. The right glove's three restarts in the 14:22 run of 11-11 (W13-3): cause not established; for Siqiang if they recur.
-6. ~~Week 12's open item 11, the phone apps' re-sign~~ Not needed: the demo does not use the owner's iPhone [Owner's report, 11-11]. The server certificate still expires on Friday 11-13 at 22:27 +08:00.
-5. Week 12's open items 2 and 6 and the telling in item 10: done by the owner's report of 11-11 (W13-3); Jie Ling's and Wen Ree's answers are not recorded here.
+2. ~~Week 12's open item 10, the first run and choice of confirmation count~~ The first run and redeployment are recorded in W13-2 and W13-3. The final count is 1, selected on 11-11; no run at 3 was made [Owner's report]. The logs do not supply a controlled accuracy or latency comparison between the settings.
+3. Glove restarts remain unexplained: the right restarted three times in the first 11-11 run; both hands also restarted in later runs, and the left restarted three times in the longest 11-12 run (W13-3 to W13-5). The cause remains for the glove owner to investigate; none of these records establishes a fix.
+4. A passing two-glove run longer than 13 minutes remains unconfirmed. The longest Week 13 common observation was 43.2 minutes, but that capture did not pass; the longest passing observation this week was 8.8 minutes (W13-5).
+5. ~~Week 12's open item 11, re-signing the owner's phone apps~~ Not needed: the demo did not use the owner's iPhone [Owner's report, 11-11]. The recorded server certificate expired on Friday 11-13 at 22:27 +08:00; no renewal is recorded here.
+6. Week 12's open items 2 and 6 and the telling in item 10: done by the owner's report of 11-11 (W13-3); Jie Ling's and Wen Ree's answers are not recorded here.
+7. The 11-12 logs establish integration activity on demo day, but the assessed run, phone display counts and game responses are not identified. No run evidence dated 11-13 to 11-15 was found in the local evidence paths inspected on 11-18.
+
+---
+
+## Week 14 (Monday 16 November to Sunday 22 November 2026)
+
+### One-page summary
+
+The owner requested an English account of Week 13 integration work and the organisation of Communications-owned files in the repository root. Existing Week 13 evidence was reviewed and the seven omitted runs were added to their actual dates above. The Communications command implementations and dependency list were placed under `tools/`, with root compatibility entry points retained. Tests were explicitly excluded by the owner; this work changes neither hardware nor the deployed service (W14-1).
+
+### Day by day
+
+| Date | What happened | Evidence |
+|---|---|---|
+| Wed 11-18 | At the owner's request, inspected existing Week 13 reports and logs, completed its summary and recorded seven previously omitted runs (W13-4 and W13-5). Organised the Communications root files while retaining compatibility for existing commands, imports and dependency installation. Fetched team main and confirmed that `AGENTS.md` and `CLAUDE.md` were already absent there; no deletion from the team tree, merge or push. No tests, deployment or hardware run (W14-1). | The Week 13 run folders above; fetched `upstream/main` `431ed458de4f79e76e43ca2cecebd1b7a9388889`; the changed paths listed in W14-1 (working-tree changes, commit pending) |
+
+### Issues, investigations and changes
+
+#### W14-1. Communications root-file organisation and completion of the Week 13 record
+
+- **What happened.** The owner requested a ready-to-paste English Week 13 integration report without personal names, together with safe organisation of their own root files, and explicitly instructed that no tests be run. This work concerns Communications-owned paths; teammate implementations remain unchanged.
+- **Investigation.** Existing `report.json` and `run.log` files revealed a third run on 11-11 and six runs on 11-12 missing from the journal. Their counters and capture verdicts are now recorded under the dates when the hardware was used (W13-4 and W13-5). Ownership and references to the root scripts were inspected before relocation. A live `git fetch upstream main` reached `431ed458de4f79e76e43ca2cecebd1b7a9388889`; its tree already excludes `AGENTS.md` and `CLAUDE.md`, while containing `demo.py`, `flash.py` and `requirements-dev.txt`. The fetched team commit was not merged into the local working files.
+- **Options considered.** Moving the scripts without root entry points would change established commands and imports, including callers outside Communications-owned paths. Keeping small compatibility entry points preserves those interfaces while placing the implementations with the other tools. The same approach retains the root dependency-installation path through a requirements include.
+- **Change.** The implementations of root `demo.py` and `flash.py` moved to `tools/demo.py` and `tools/flash.py`; the original paths remain compatibility shims. The Communications dependency list moved to `tools/requirements-dev.txt`, with root `requirements-dev.txt` including it through `-r tools/requirements-dev.txt`. Root `.gitignore` now ignores `/AGENTS.md` and `/CLAUDE.md` for future untracked additions to the team repository; both files remain tracked in the fork. The hand-off, affected detail chapters and this journal were updated with the new locations and the retrospective evidence. No protocol or deployed configuration changed.
+- **Validation.** Static source and diff review at first; the owner had asked for no tests in that work. Later on 11-18, in the work of W14-2, `python -m pytest tests laptop/tests phone/tests` ran on the working tree with the relocation: 1,815 passed, 19 skipped, 1 failed. The failure is Wen Ree's `tests/test_hand_ai_lab.py::ReplayTests::test_timeline_escapes_script_injection_and_refuses_output_overwrite`, a `UnicodeDecodeError` from the laptop's GBK locale, the same single failure as the 11-07 record (`.comms-local/checks/2026-11-07-candidate3-v2/full-suite.txt`); it does not touch the relocated files. [Not run: the relocated `demo.py start` and `flash.py` against hardware.]
+- **Status and evidence.** Changes are in the working tree, pending commit: `demo.py`, `flash.py`, `requirements-dev.txt`, `tools/demo.py`, `tools/flash.py`, `tools/requirements-dev.txt`, `.gitignore` and the accompanying Communications documents. No new hardware run, board flash, model staging, deployment, repository merge or push was performed. The owner made the organisation decision and the decision to omit tests.
+
+### Decisions that affect more than one subsystem (Week 14)
+
+| Date | Decision | Who | Affects |
+|---|---|---|---|
+| 11-18 | Keep the existing root commands, import names and dependency-installation path available while moving their implementations under `tools/`. Keep the fork's root agent instructions tracked, and ignore future untracked copies in the team repository, whose main tree already excludes them. | Owner's request; compatibility approach implemented on the Communications side | Existing command users and importers; no change required in teammate-owned code |
+
+### Tests on hardware (Week 14)
+
+None in this work. The logs inspected on 11-18 describe Week 13 runs and are recorded there.
+
+### Open (Week 14, so far)
+
+1. ~~Runtime behaviour after the root-file organisation is not verified~~ The Python suite passed on it on 11-18 apart from the pre-existing GBK failure in Wen Ree's test (W14-1, W14-2). The relocated commands have not yet run against the gloves or the board.
+2. Week 13's unresolved glove restart causes and unrecorded phone/game observations remain as listed above; this document work does not establish their resolution.
 
 ---
 
